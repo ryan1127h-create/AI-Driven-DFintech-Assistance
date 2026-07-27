@@ -115,6 +115,29 @@ class SupabaseRetriever:
                 break
         return out
 
+    def retrieve_by_tables(self, query: str, tables: set[str] | None = None,
+                           top_k: int = 3) -> list[RetrievalChunk]:
+        """按 source_table 集合直接过滤(而非 namespace)。
+
+        供 app/rag/retriever.py 用——它的 domain 分类(admissions/academic/
+        financial/general)和 namespace 不是一套词,直接按底层表过滤更精确。
+        tables=None 表示不限(全库,仍排除竞品)。
+        """
+        raw = retrieval.retrieve(self._conn, self._oa, query,
+                                 k=max(top_k * 4, 20), mode=self._mode)
+        out: list[RetrievalChunk] = []
+        for h in raw:
+            if h.source_table in _EXCLUDE_TABLES:
+                continue
+            if tables is not None and h.source_table not in tables:
+                continue
+            out.append(RetrievalChunk(text=h.content,
+                                      source_id=h.chunk_key,
+                                      score=round(float(h.score), 4)))
+            if len(out) >= top_k:
+                break
+        return out
+
     def close(self) -> None:
         self._conn.close()
 
