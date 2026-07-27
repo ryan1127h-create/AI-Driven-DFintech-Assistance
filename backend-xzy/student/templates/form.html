@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% set p = prefill or {} %}
+{% set stage = selected_stage or p.get('lifecycle_stage', 'applicant') %}
+{% set is_applicant = stage == 'applicant' %}
+{% set is_student = stage == 'current' %}
+{% block body %}
+<ol class="steps reveal" aria-hidden="true">
+  <li><span class="dot">✓</span> Select profile and provide information</li><span class="sep"></span>
+  <li data-on><span class="dot">2</span> Confirm profile</li><span class="sep"></span>
+  <li><span class="dot">3</span> Get recommendations</li>
+</ol>
+
+<div class="page-head reveal">
+  <h1>{{ 'Applicant profile confirmation' if is_applicant else 'Current student profile confirmation' }}</h1>
+  <p>
+    {% if is_applicant %}
+      Please confirm your background, application goals, and upload actual application materials. The system checks missing items from uploaded files instead of assuming submission through checkboxes.
+    {% else %}
+      You selected the current-student flow. Application fields and material uploads are locked; only undergraduate background, completed modules, and career goals are needed.
+    {% endif %}
+  </p>
+</div>
+
+{% if p.get('_notice') %}<div class="panel reveal"><div class="note">{{ p.get('_notice') }} You can still fill in the profile manually below.</div></div>{% endif %}
+
+{% set has_extracted = p.get('_extraction_method') or p.get('degree_level') or p.get('field_of_study') or p.get('work_years') is not none or p.get('country') or p.get('technical_proficiency') or p.get('finance_knowledge') or p.get('application_type') or p.get('target_roles') or p.get('completed_modules') %}
+<div class="panel reveal">
+  <h2>Extracted profile review</h2>
+  {% if has_extracted %}
+    <div class="note note--info">The fields below were detected from your text/CV and copied into the editable form. Please verify them before generating the analysis.</div>
+    <div class="summary-strip summary-strip--wrap" style="margin-top:12px">
+      {% if p.get('degree_level') %}<div><strong>{{ p.get('degree_level') }}</strong><span>Highest degree</span></div>{% endif %}
+      {% if p.get('field_of_study') %}<div><strong>{{ p.get('field_of_study') }}</strong><span>Academic background</span></div>{% endif %}
+      {% if p.get('work_years') is not none %}<div><strong>{{ p.get('work_years') }}</strong><span>Years of work experience</span></div>{% endif %}
+      {% if p.get('country') %}<div><strong>{{ p.get('country') }}</strong><span>Country/region</span></div>{% endif %}
+      {% if p.get('technical_proficiency') %}<div><strong>{{ p.get('technical_proficiency') }}</strong><span>Technical proficiency</span></div>{% endif %}
+      {% if p.get('finance_knowledge') %}<div><strong>{{ p.get('finance_knowledge') }}</strong><span>Finance knowledge</span></div>{% endif %}
+      {% if p.get('application_type') %}<div><strong>{{ p.get('application_type') }}</strong><span>Application type</span></div>{% endif %}
+      {% if p.get('completed_modules') %}<div><strong>{{ p.get('completed_modules') }}</strong><span>Completed modules</span></div>{% endif %}
+    </div>
+    {% if p.get('target_roles') %}
+      <label>Detected target roles</label>
+      <div class="checks">{% for role in p.get('target_roles') %}<span class="pill pill--ok">{{ role }}</span>{% endfor %}</div>
+    {% endif %}
+  {% else %}
+    <div class="note">No confident fields were detected from the submitted text/CV. Please fill in the editable form manually.</div>
+  {% endif %}
+</div>
+
+<form method="post" action="/advise" enctype="multipart/form-data" class="flow-form" data-flow="{{ stage }}">
+  <input type="hidden" name="lifecycle_stage" value="{{ stage }}">
+
+  <div class="panel reveal">
+    <h2>Identity</h2>
+    <div class="note note--info">
+      Current flow: <strong>{{ 'Applicant' if is_applicant else 'Current Student' }}</strong>
+      <a href="/" style="margin-left:10px">Change selection</a>
+    </div>
+  </div>
+
+  <div class="panel reveal">
+    <h2>Basic background</h2>
+    <div class="grid-2">
+      <div class="field-lock {{ 'is-disabled' if is_student }}" title="The current-student flow does not require application type.">
+        <label>Application type</label>
+        <select name="application_type" {{ 'disabled' if is_student }}>
+          <option value="">(Undecided)</option>
+          {% for a in application_types %}<option value="{{ a }}" {% if p.get('application_type')==a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Highest degree</label>
+        <select name="degree_level">
+          <option value="">(Select)</option>
+          {% for d in degree_levels %}<option value="{{ d }}" {% if p.get('degree_level')==d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Undergraduate major / prior academic background</label>
+        <select name="field_of_study">
+          <option value="">(Select)</option>
+          {% for f in fields %}<option value="{{ f }}" {% if p.get('field_of_study')==f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-lock {{ 'is-disabled' if is_student }}" title="The current-student flow does not require work years; course planning mainly uses completed modules and target roles.">
+        <label>Years of work experience</label>
+        <input type="number" name="work_years" min="0" value="{{ p.get('work_years','') }}" placeholder="e.g. 2" {{ 'disabled' if is_student }}>
+      </div>
+      <div class="field-lock {{ 'is-disabled' if is_student }}" title="The current-student flow does not require country/region.">
+        <label>Country/region (two-letter code, e.g. SG / IN)</label>
+        <input type="text" name="country" maxlength="2" value="{{ p.get('country','') }}" placeholder="SG" {{ 'disabled' if is_student }}>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel reveal">
+    <h2>Skills and goals</h2>
+    <div class="grid-2">
+      <div>
+        <label>Technical proficiency</label>
+        <select name="technical_proficiency">
+          <option value="">(Select)</option>
+          {% for pr in proficiencies %}<option value="{{ pr }}" {% if p.get('technical_proficiency')==pr %}selected{% endif %}>{{ pr }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Finance knowledge</label>
+        <select name="finance_knowledge">
+          <option value="">(Select)</option>
+          {% for pr in proficiencies %}<option value="{{ pr }}" {% if p.get('finance_knowledge')==pr %}selected{% endif %}>{{ pr }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <label>Target roles (multiple selection allowed)</label>
+    <div class="checks">
+      {% for r in roles %}
+      <label><input type="checkbox" name="target_roles" value="{{ r }}" {% if r in p.get('target_roles', []) %}checked{% endif %}> {{ r }}</label>
+      {% endfor %}
+    </div>
+    <div class="field-lock {{ 'is-disabled' if is_student }}" title="Current students do not need programme-comparison preferences; the results page will not recommend other schools.">
+      <label>Main priority for programme comparison</label>
+      <select name="priority" {{ 'disabled' if is_student }}>
+        <option value="role_fit">Role fit</option>
+        <option value="cost">Tuition cost (lower is better)</option>
+        <option value="duration">Duration (shorter is better)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel reveal {{ 'panel--disabled' if is_student }}" title="The current-student flow does not require application materials.">
+    <h2>Application material upload <span class="muted" style="font-weight:400;font-size:13px">{{ 'required for applicants' if is_applicant else 'not needed for current students' }}</span></h2>
+    {% if is_applicant %}
+      <div class="note">Supports PDF / Word / image files. The real NUS Graduate Admission System requires online material uploads, and official guidance states that materials should be in PDF and in English or accompanied by certified English translations. Images and Word files are allowed here for demo testing.</div>
+      <div class="material-grid">
+        {% for m in materials %}
+        <div class="upload-card" data-upload-card>
+          <div class="upload-card__head">
+            <div>
+              <strong>{{ m.label }}</strong>
+              {% if m.required == 'required' %}<span class="pill pill--danger">Required</span>
+              {% elif m.required == 'conditional' %}<span class="pill pill--warn">Conditional</span>
+              {% else %}<span class="pill pill--mute">Optional</span>{% endif %}
+            </div>
+          </div>
+          <div class="why">{{ m.hint }}</div>
+          <input type="file" name="{{ material_name(m.key) }}" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" data-upload-input>
+          <div class="file-line" data-file-line hidden>
+            <span data-file-name></span>
+            <button type="button" class="btn btn--ghost btn--sm" data-clear-file>Remove and upload again</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="note">This section is locked. You are already enrolled, so no application files are needed. The next step will generate #7 course, skill, and career-path analysis only.</div>
+      <div class="material-grid disabled-grid" aria-disabled="true">
+        {% for m in materials[:4] %}
+        <div class="upload-card is-disabled"><strong>{{ m.label }}</strong><div class="why">Unavailable</div><input type="file" disabled></div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="panel reveal">
+    <h2>Completed modules <span class="muted" style="font-weight:400;font-size:13px">{{ 'important for current students' if is_student else 'optional for applicants' }}</span></h2>
+    <div class="note">Enter completed module codes to generate course planning and graduation progress. Example: BMD5301, IT5001, FT5005. Applicants may leave this blank; the system will suggest post-enrolment modules based on target roles.</div>
+    <label>Completed modules</label>
+    <input type="text" name="completed_modules" value="{{ p.get('completed_modules','') }}" placeholder="BMD5301, IT5001, FT5005">
+  </div>
+
+  <button type="submit" class="btn btn--lg">Generate analysis →</button>
+  <a href="/" class="backlink" style="margin-left:14px">← Change profile type</a>
+</form>
+{% endblock %}

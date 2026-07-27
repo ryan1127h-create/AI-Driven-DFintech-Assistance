@@ -1,0 +1,15 @@
+[
+  {"query": "English proficiency proof TOEFL IELTS", "namespace": "admissions", "gold_action": "answer"},
+  {"query": "official transcript academic record grades", "namespace": "admissions", "gold_action": "answer"},
+  {"query": "two referee reports required", "namespace": "admissions", "gold_action": "answer"},
+  {"query": "personal statement reasons for applying", "namespace": "admissions", "gold_action": "answer"},
+  {"query": "blockchain distributed ledger digital assets", "namespace": "curriculum", "gold_action": "answer"},
+  {"query": "quantitative risk management methods", "namespace": "curriculum", "gold_action": "answer"},
+  {"query": "machine learning business analytics", "namespace": "curriculum", "gold_action": "answer"},
+  {"query": "coursework capstone units graduate", "namespace": "curriculum", "gold_action": "answer"},
+  {"query": "Can I still apply after the deadline has passed?", "namespace": "admissions", "gold_action": "escalate"},
+  {"query": "I want to appeal a rejected application decision", "namespace": "admissions", "gold_action": "escalate"},
+  {"query": "exception for late submission of documents", "namespace": "admissions", "gold_action": "escalate"},
+  {"query": "What is the weather today in Tokyo?", "namespace": null, "gold_action": "escalate"},
+  {"query": "tell me a joke about cats", "namespace": null, "gold_action": "escalate"}
+]

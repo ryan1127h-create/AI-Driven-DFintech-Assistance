@@ -1,0 +1,110 @@
+{
+  "source": "programs_dataset",
+  "status": "resolved",
+  "created": "2026-05-31T20:59:38",
+  "reasons": [
+    "untrusted_source"
+  ],
+  "anomalies": [],
+  "diff": [
+    "_comment",
+    "dimensions",
+    "programs"
+  ],
+  "provenance": {
+    "source_url": null,
+    "fetched_at": null
+  },
+  "draft": {
+    "_comment": "Competitor comparison v2. Data gathered from OFFICIAL sources via web research on 2026-05-31 (see source_url per programme). Unavailable fields are honestly marked 未公开. role_strengths are now DERIVED by the engine from curriculum_focus (not stored here). Fed through refresh as trusted=false -> always human-reviewed.",
+    "dimensions": [
+      "curriculum_focus",
+      "duration",
+      "format",
+      "fees",
+      "intake",
+      "scholarship",
+      "gmat_gre"
+    ],
+    "disclaimer": "对比基于各项目官方公开信息整理(见每个项目的来源链接与抓取日期),仅供参考,不构成排名;请以各校官方最新信息为准。",
+    "programs": [
+      {
+        "program": "NUS MSc in Digital Financial Technology",
+        "is_target": true,
+        "source_url": "https://www.comp.nus.edu.sg/programmes/pg/mdft/admissions/",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "三大方向:计算技术、金融数据分析与智能、数字金融交易与风险管理(52 学分含 capstone)",
+          "duration": "18 个月",
+          "format": "在校授课,课程 + capstone(研究项目或企业实习)",
+          "fees": "首年学费 SGD 47,088(另接受费 S$7,412,可抵学费)",
+          "intake": "每年 8 月一次",
+          "scholarship": "2 个 ASEAN 学生全额学费奖学金(按学术成绩,无需单独申请)",
+          "gmat_gre": "GRE≥320(V+Q)/3.5(AW) 或 GMAT≥650;无成绩也可整体评估"
+        }
+      },
+      {
+        "program": "SMU MSc in Applied Finance (FinTech track)",
+        "is_target": false,
+        "source_url": "https://masters.smu.edu.sg/programme/msc-in-applied-finance",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "国际与本地金融市场为主;9 门核心 + 4 门选修,可选 Fintech 方向;对齐 CFA",
+          "duration": "18 个月(全日制)/ 24 个月(兼读)",
+          "format": "在校授课,含实习选项",
+          "fees": "S$63,220(含 GST)",
+          "intake": "未公开,请以官方为准",
+          "scholarship": "最高 30% 学费奖学金(无 bond)",
+          "gmat_gre": "未公开,请以官方为准"
+        }
+      },
+      {
+        "program": "NTU MSc in Financial Technology",
+        "is_target": false,
+        "source_url": "https://www.ntu.edu.sg/spms/about-us/mathematics/grad/msc-in-financial-technology",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "金融自动化(robo-advisor)、金融密码学(区块链)、数字金融服务;两方向:智能流程自动化(IPA)/ 数字金融服务(DFS)",
+          "duration": "1 年(全日制)/ 2 年(兼读),3 学期、每段 7 周强化",
+          "format": "在校授课,工作日晚间或周六",
+          "fees": "官方未公开,请以招生办为准",
+          "intake": "未公开(3 学期制),请以官方为准",
+          "scholarship": "未公开,请以官方为准",
+          "gmat_gre": "未公开,请以官方为准"
+        }
+      },
+      {
+        "program": "SMU MITB (Financial Technology & Analytics)",
+        "is_target": false,
+        "source_url": "https://masters.smu.edu.sg/programme/master-of-it-in-business",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "金融科技与分析:将新技术与数据转化为金融行业可执行洞察(IT/数据/分析为主)",
+          "duration": "1-2 年(全日制)/ 2 年(兼读)",
+          "format": "在校授课",
+          "fees": "S$51,360(含 GST)",
+          "intake": "每年 2 次",
+          "scholarship": "未公开,请以官方为准",
+          "gmat_gre": "未公开,请以官方为准"
+        }
+      },
+      {
+        "program": "HKUST MSc in Financial Technology",
+        "is_target": false,
+        "source_url": "https://seng.hkust.edu.hk/academics/taught-postgraduate/msc-fintech",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "信息技术、区块链、数据科学、机器学习、决策分析;跨商/工/理三院选修(30 学分:核心16+选修14)",
+          "duration": "未明确公布,请以官方为准",
+          "format": "在校授课(香港)",
+          "fees": "HK$395,000(2026/27 秋季)",
+          "intake": "每年 9 月(秋季);申请轮次 1 Dec / 1 Mar",
+          "scholarship": "未公开,请以官方为准",
+          "gmat_gre": "建议但非强制(GMAT/GRE recommended, not mandatory)"
+        }
+      }
+    ]
+  },
+  "resolved_by": "capstone_admin",
+  "resolved_at": "2026-05-31T20:59:38"
+}

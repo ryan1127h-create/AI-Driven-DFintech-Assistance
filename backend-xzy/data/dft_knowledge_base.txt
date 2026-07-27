@@ -1,0 +1,495 @@
+=== SECTION: Programme Overview ===
+Programme Name: Master of Science in Digital Financial Technology (MSc DFinTech)
+Institution: NUS School of Computing
+Official Website: https://www.comp.nus.edu.sg/programmes/pg/mdft/
+
+The MSc DFinTech is designed to help students build a strong foundation in computing and finance for careers in the FinTech industry. The programme features elective courses organised along three tracks: Computing Technologies, Financial Data Analytics and Intelligence, and Digital Financial Transactions and Risk Management.
+
+Target Career Outcomes:
+- AI software developer
+- Data scientist
+- FinTech security specialist
+- Financial quantitative analyst
+- Other similar professions in financial institutions or FinTech firms
+
+
+=== SECTION: Programme Structure ===
+Total Units Required: 52 Units, comprising:
+- Core / Essential Courses: 28 Units (7 courses)
+- Elective Courses: 12 Units (3 courses)
+- Capstone Project (FT5007): 12 Units
+
+Duration:
+- Full-time Normal Duration: 1.5 years
+- Part-time Normal Duration: 2.5 years
+- Maximum Duration (all students): 3 years
+
+Graduation Requirement: Students must fulfil all programme requirements and achieve a minimum final GPA of 3.0.
+
+Workload Per Semester:
+- Full-time students: minimum 12 Units, maximum 20 Units per semester. Students who need additional credits may apply to the School of Computing (SOC).
+- Part-time students: minimum 4 Units, maximum 12 Units per semester. Students who need additional credits may apply to the SOC.
+
+
+=== SECTION: Admissions Requirements ===
+Academic Qualification:
+Applicants must hold one of the following:
+- A bachelor's degree in computing; or
+- A bachelor's degree in a related discipline such as STEM, Finance, Economics, Statistics, or Business.
+
+Work Experience:
+Work experience in FinTech, AI, or Data Analytics is advantageous but not required.
+
+Programming Requirement:
+Applicants from non-computing backgrounds should provide evidence of Python knowledge and/or advanced quantitative preparation.
+
+Standardised Test Guidelines (not mandatory; no fixed cutoff):
+- GRE: 320 combined verbal and quantitative, with at least 3.5 in analytical writing (guideline only)
+- GMAT: 650 and above (guideline only)
+- Note: GMAT/GRE is not a mandatory requirement and there is no fixed cutoff score.
+
+English Language Proficiency (required if prior education was not in English):
+- TOEFL iBT: minimum 90
+- IELTS: minimum 6.0
+- Validity: GRE/GMAT valid for 5 years; TOEFL/IELTS valid for 2 years
+
+
+=== SECTION: Application ===
+Application Method: Apply through the NUS Graduate Admission System.
+Application Fee: S$109 (non-refundable)
+
+August 2026 Intake:
+- Application Opening Date: 1 October 2025
+- Application Closing Date: 31 January 2026
+- Outcome Release: By end of May 2026, via the Graduate Admission System
+
+
+=== SECTION: Tuition Fees ===
+Tuition Fee: S$74,120 (covers up to 52 units; supplementary tuition fees may apply beyond that)
+Acceptance Fee: S$7,412
+
+NUS Master's Degree by Coursework Enhanced Tuition Fee Rebate:
+- This is a tuition fee rebate, not a scholarship. It is automatically applied and does not require a competitive application.
+- Amount: 40% rebate on tuition fees
+- Eligibility:
+  - Singapore Citizens and Singapore Permanent Residents only
+  - International students are not eligible
+  - Must be enrolled in one of the eligible NUS Master's degree by coursework programmes
+  - Available for students enrolling from Academic Year 2024/2025 to Academic Year 2026/2027
+  - MSc in Digital Financial Technology is one of the eligible programmes under the School of Computing
+- Important Notes:
+  - This rebate does not apply to courses funded by SkillsFuture Singapore (SSG)
+  - For double and joint-degree programmes, the rebate applies only to NUS-offered courses
+  - Students may only enjoy one form of tuition fee rebate
+  - This rebate is not stackable with other rebates such as the NUS Master's Degree by Coursework Tuition Fee Rebate
+  - Some programmes may offer additional rebates; students are encouraged to contact the respective NUS Schools for details
+  - No application required; the rebate is automatically applied to eligible students' tuition fees
+- More information: https://masters.nus.edu.sg/scholarships-financial-assistance/detail/nus-master's-by-coursework-enhanced-tuition-fee-rebate
+
+
+=== SECTION: Scholarships ===
+
+--- Scholarship 1: Singapore Digital (SG Digital) Scholarship (Postgraduate) ---
+Provider: IMDA (Infocomm Media Development Authority), Singapore
+
+Coverage:
+- Full tuition and compulsory university fees
+- Annual living allowance
+- Pre-studies allowance
+- Medical insurance and visa fees where mandatory
+- Funding for certifications and courses beyond school curriculum
+- Overseas experiences including internships and student exchange programmes
+- For PhD students: conference allowances, travel allowances, and book allowances
+
+Eligibility:
+- Singapore Citizens only
+- Strong academic performance and leadership qualities
+- Active participation in non-academic pursuits such as community service or personal development
+- Strong interest in AI, technology, or media career
+- Programme must be AI, technology, or media-related
+- Must be offered by a local autonomous university or renowned overseas university
+- Currently enrolled with at least one academic year remaining, or will commence studies within one year of award
+
+Not Eligible:
+- Online or distance learning courses
+- Part-time overseas Master's programmes
+- Part-time local or overseas PhD programmes
+- Part-time overseas Doctorate programmes
+
+Bond Obligation:
+- Master's recipients: 3-year bond
+- Local PhD recipients: bond-free
+- Overseas PhD recipients: 4-year bond
+- Doctorate recipients: 4-year bond
+- Bond must be served in any AI, technology, or media-related job role
+
+Study Tracks:
+- AI track: Machine Learning, Natural Language Processing
+- Technology track: Computer Engineering, Quantum Technologies
+- Media track: Immersive Media, Film Studies
+
+Additional Benefits:
+- Access to Singapore Digital Leadership Accelerator community
+- Mentorship from experienced technology and media professionals
+- Exclusive industry networking events including Asia Tech x Singapore and Singapore Media Festival
+- Industry partnerships with internship opportunities
+
+Note: Priority is given to non-public officers. Both fresh graduates and working professionals are welcome to apply.
+
+
+--- Scholarship 2: NUS GRTII Master's Scholarship ---
+Provider: NUSRI China
+Contact: education@nusgrtii.cn
+Amount: S$45,000 one-off lump sum tuition subsidy
+
+Eligibility:
+- Open to Singapore Citizens, Permanent Residents, and international students
+- Must have confirmed acceptance of NUS Letter of Offer for an eligible Master's programme in AY2025/2026 August intake
+- Must be proficient in Chinese
+
+Bond Obligation:
+- Must sign a service bond with Guangzhou Development District Talent Work Group
+- Must work or start a business in Huangpu District of Guangzhou City for at least 24 months after graduation
+- Obligation must be completed within 30 months of graduation
+- Must provide a guarantor who will co-sign the service bond
+
+Disbursement:
+- Scholarship disbursed as reimbursement for Semester 1 tuition fees; any remaining balance applied to Semester 2 tuition
+- Recipients must initially pay Semester 1 tuition in full
+
+Application Window: 18 March to 3 June
+Application Steps:
+- Step 1: Complete the online application form at https://nus.syd1.qualtrics.com/jfe/form/SV_6X4CtYIuNVZQgg6
+- Step 2: Submit supporting documents to master.scholarship.apply@nusgrtii.cn
+  Required documents: NUS Letter of Offer, Acceptance Fee Receipt, Undergraduate Degree Scroll, Undergraduate Transcripts, and any other applicable supporting documents
+
+More information: https://www.nusgrtii.cn/
+
+
+=== SECTION: Capstone Project ===
+Course Code: FT5007 FinTech Capstone Project
+Units: 12
+Format: Industry-linked, credit-bearing, graded capstone project that typically spans two semesters.
+2026 Internship Window: 18 May 2026 to 16 October 2026
+
+
+=== SECTION: Core and Essential Courses ===
+
+--- Sub-section: Choose Any Three of the Following (12 Units) ---
+
+FT5001 Fintech Innovations: A Strategic Landscape (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Provides a technology-focused overview of the FinTech ecosystem for consumers, including payment solutions, crowdfunding platforms, investment tools, robo-advisors, and other major FinTech innovations that shape personal finance.
+
+FT5002 Digital and AI Transformation in Finance (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Equips students to lead digital and AI transformation in banking and finance. Covers change management, strategic transformation, legacy-system modernisation, digital-to-the-core capabilities, data- and AI-driven operating models, governance, infrastructure, and regulatory considerations.
+
+FT5003 Blockchain Innovations (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces major blockchain innovations, including blockchain architecture, the history and evolution of blockchain applications, and industry case studies.
+
+FT5004 Programming for Blockchain Applications (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Covers the essential concepts of blockchain application development, including how blockchain applications differ from traditional applications and the standards, libraries, and services needed to build them.
+
+FT5005 Machine Learning for Finance (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Covers foundational machine learning and data mining knowledge for practical analytics and AI applications in FinTech, including supervised learning, time series forecasting, natural language processing basics, and unsupervised learning.
+
+FT5009 Contemporary Topics in Financial Data Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Provides an overview of recent advances in financial data analytics, with deeper discussion of selected topics relevant to industry-oriented research at financial institutions and start-ups. Students engage with advanced data mining, financial statistical models, FinTech programming, and modern financial applications.
+
+FT5010 Algorithmic Trading Systems Design and Deployment (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Teaches financial market fundamentals and systematic trading practices, with emphasis on rule-based strategy design, trading-system development, backtesting, hypothesis testing, technical and fundamental analysis, machine learning applications, investor biases, and data-driven risk management.
+Prerequisite: Must have completed IT5001 at a grade of at least D.
+Preclusions: Must not have completed IS4226.
+
+FT5011 Deep Learning for Finance (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces core deep learning concepts and applications for finance through theory, case studies, hands-on exercises, and discussion. Students learn to design, train, and implement deep learning models for financial use cases.
+Prerequisite: Must have completed FT5005 at a grade of at least D.
+
+FT5012 Digital Trust in Banking and Finance (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Focuses on digital trust, resilience, governance, and risk management in banking and finance. Examines cyber risk, fraud, privacy, ecosystem connectivity, regulatory expectations, and emerging AI-related risks in financial services.
+
+FT5013 Digital Asset Innovations in Finance (4 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+Description: Explores the technological innovations behind digital assets in finance, including foundational concepts, decentralised finance mechanics, and the technologies shaping future financial systems.
+
+FT5014 AI Risk in the Financial Sector (4 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+Description: Examines AI risk in the financial sector, including bias, adversarial attacks, supply-chain vulnerabilities, regulatory expectations, and practical approaches to resilient and trustworthy AI adoption in FinTech.
+
+
+--- Sub-section: Required for All Students (16 Units) ---
+
+BMD5301 Introduction to Finance for FinTech Professionals (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Introduces core finance concepts and tools needed for financial decision-making, including discounted cash flow, risk and return, capital budgeting, valuation, financial markets, and financial institutions.
+
+BMD5302 Financial Modelling for FinTech Professionals (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces finance models used in corporate finance, portfolio management, derivatives, and bonds, with an applied implementation focus using Excel, VBA, and Python.
+
+IT5001 Software Development Fundamentals (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Introduces non-computing students to programming principles and software development, including control flow, abstraction, types, object orientation, simple data structures and algorithms, testing, debugging, documentation, style, and practical application building.
+
+IT5006 Fundamentals of Data Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Provides a graduate-level foundation in data analytics, covering exploratory analysis, predictive modelling, result interpretation, statistical methods, classical and Bayesian learning, and end-to-end analytics pipelines in Python.
+Prerequisite: Must have completed IT5001 at a grade of at least D.
+Preclusions: Must not have completed BT5126, IS5126, or CS5228.
+
+
+--- Sub-section: Replacement Course Options ---
+Students who have taken courses equivalent to BMD5301 or IT5001 may replace those with the following courses or any FT50xx course, subject to prior approval from the School of Computing:
+
+IT5003 Data Structures and Algorithms (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Introduces non-computing students to efficient computational problem solving. Topics include common data structures (lists, hash tables, heap, trees, graphs), algorithmic paradigms (greedy, divide and conquer, dynamic programming), and NP-completeness.
+Prerequisite: Must have completed IT5001 at a grade of at least D.
+
+IT5004 Enterprise Systems Architecture Fundamentals (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Equips non-computing students with fundamental knowledge in architecting and designing modern enterprise systems. Covers enterprise architecture, software architecture, and object-oriented requirements analysis and design using UML.
+Corequisite: Must be enrolled in IT5001.
+
+IT5005 Artificial Intelligence (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Provides a comprehensive introduction to the fundamental components of AI, including problem-solving, knowledge representation and reasoning, planning and decision making, and learning. Prepares students without an AI background to pursue advanced AI courses.
+
+IT5008 Database Design and Programming (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Introduces the fundamental concepts and techniques for database application design and implementation. Covers entity-relationship modelling, functional dependencies, normalisation, SQL, relational algebra, and relational calculus.
+
+Important Notes on Replacement Courses:
+- Students who wish to take replacement courses must submit requests to the School of Computing for prior approval.
+- For IT5001 specifically, students must take an in-person proficiency test to assess eligibility. A non-refundable administrative fee applies for this test.
+- All other core courses are required for all students and cannot be replaced.
+
+General Course Notices:
+- Courses and course titles are subject to change without prior notice.
+- Not all courses are offered every semester.
+- Students are advised to refer to the course schedule and plan their studies accordingly.
+- For the most up-to-date course availability, check NUSMods at https://nusmods.com
+
+
+=== SECTION: Elective Tracks ===
+
+--- Track 1: Computing Technologies ---
+
+CS5224 Cloud Computing (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Provides an overview of the design, management, and application of cloud computing. Topics include virtualisation, cloud computing environments, cloud application deployment, cloud use cases, data centre architectures, orchestration and automation, cloud capacity management, and cloud economics.
+
+CS5231 Systems Security (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Introduces fundamental notions and requirements in computer system security. Topics include software security, operating system security, mobile security, web security, trusted platforms, and auditing and forensic analysis.
+
+CS5321 Network Security (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces issues in securing networks and techniques for addressing them. Topics include network attack techniques, defences, firewalls, VPNs, intrusion detection, denial of service, traffic analysis, secure routing, and wireless network security.
+
+CS5331 Web Security (4 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+
+CS5421 Database Applications Design and Tuning (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Addresses the design and performance tuning of database applications. Topics include normalisation theory, entity-relationship approach, SQL tuning, indexing, de-normalisation, and selected topics in non-relational databases such as XML and NoSQL systems.
+
+CS5439 Software Security (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Familiarises students with security issues across the software lifecycle. Topics include secure programming practices, malicious input analysis, and testing techniques for detecting software vulnerabilities.
+Preclusions: Must not have completed CS4239 Software Security.
+
+IS5008 Technology Risk and Cyber Resilience (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Covers identification and assessment of technology risk and the foundational elements and real-world implementation of technology risk and cyber resilience frameworks in enterprises.
+
+IS5009 Topics in Financial Technology Solutions (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Focuses on contemporary issues in financial technology, investigating the integration of financial domain knowledge and advanced technologies such as algorithmic trading. Content detail may vary by year.
+
+IT5004 Enterprise Systems Architecture Fundamentals (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+(See description under Core Courses — Replacement Options above.)
+
+
+--- Track 2: Financial Data Analytics and Intelligence ---
+
+CS5242 Neural Networks and Deep Learning (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Provides knowledge of deep neural networks and enables students to apply deep learning methods effectively to real-world problems. Covers principles of neural networks, practical guidelines, and applications in computer vision, bioinformatics, FinTech, cybersecurity, and games.
+
+CS5246 Text Processing on the Web (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Covers text mining of unstructured natural language text. Topics include text classification, clustering, sentiment analysis, summarisation, information extraction, and question answering using machine learning approaches.
+Preclusions: Must not have completed CS4248 Natural Language Processing at a grade of at least D.
+
+CS5339 Theory and Algorithms for Machine Learning (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Provides broad theoretical understanding of machine learning. Topics include function class approximation (decision trees, neural networks, SVMs), sample complexity, regularisation, model selection, convex optimisation, greedy methods, and stochastic gradient descent.
+
+CS5344 Big-Data Analytics Technology (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Covers analysis of data that cannot fit in main memory and its application to web systems. Topics include map-reduce, similarity search, data-streaming, search engine technology, and clustering of large high-dimensional datasets.
+
+CS5446 AI Planning and Decision Making (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Introduces major concepts and paradigms in planning and decision making in complex environments. Topics include deterministic and nondeterministic planning, decision networks, Markov decision processes, game theory, and multiagent planning.
+Preclusions: Must not have completed CS4246 at a grade of at least D.
+
+FT5009 Contemporary Topics in Financial Data Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+(See description under Core Courses above.)
+
+FT5011 Deep Learning for Finance (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+(See description and prerequisite under Core Courses above.)
+
+IS5006 Intelligence Systems Deployment (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Deals with complex decision-making in the planning, design, operation, and maintenance of large-scale systems, using case studies of systems implemented or planned in Singapore.
+Preclusions: Must not have completed DTS5701 or IE5404 at a grade of at least D.
+
+IS5126 Hands-on with Applied Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+Description: Bridges technical skills and practical applications through Python-based assignments and a final semester project. Covers a broad range of machine learning techniques and methodologies with an emphasis on applied data analytics.
+Preclusions: Must not have completed BT5126 at a grade of at least D.
+
+IS5152 Data-Driven Decision Making (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Teaches decision-making techniques based on data analysis. Covers machine learning techniques for data analysis, feature selection, data reduction, sample selection, model evaluation metrics, and visualisation of model performance.
+
+IT5005 Artificial Intelligence (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+(See description under Core Courses — Replacement Options above.)
+
+IT5006 Fundamentals of Data Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — Yes
+(See description under Core Courses above.)
+
+
+--- Track 3: Digital Financial Transactions and Risk Management ---
+
+BMF5342 Technological Disruptions in Finance and Data Analytics (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Covers innovations and analytical tools in finance. Topics include platform economics, market efficiency, behavioural finance, event studies, Monte Carlo simulation, real options, digital transformation, AI, generative AI, digital payments, cryptography, cybersecurity, and blockchain.
+Prerequisite: Must have completed BMF5322.
+
+BMF5354 Financial Regulation in a Digital Age (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Examines why and how financial markets are regulated, with a focus on corporate fundraising and post-2008 regulatory reforms. Also covers how technology (blockchains, cloud computing, AI) is transforming finance and the regulatory issues that arise.
+Preclusions: Must not have completed BMA5332.
+
+BMF5355 Financial Institutions, Markets, Systems and Technology (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Introduces systems and technologies used by financial institutions and markets, and explores future trends, opportunities, and threats.
+Preclusions: Must not have completed FIN4723.
+
+BMF5358 Entrepreneurship in Financial Technology (4 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+
+BT4013 Analytics for Capital Market Trading and Investment (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Covers quantitative trading with a focus on strategies built through time-series analysis. Explores techniques for identifying trading opportunities and quantifying risk associated with trading decisions.
+
+BT4016 Risk Analytics for Financial Services (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Covers fundamentals of risk analytics in financial services, including financial risks, interest rate risk analytics, and credit risk analytics.
+
+CS5233 Simulation and Modelling Techniques (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Provides working knowledge of applying simulation techniques to model and study complex systems. Topics include simulation model design, execution, model analysis, parallel and distributed simulation, and high-level architecture.
+
+FE5103 Equity Products and Exotics (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Topics include covered warrants, equity warrants and options, subscription rights, stock index futures and options, equity derivatives pricing and hedging, path-dependent options (Asian, barrier, lookback, forward-start), and exotic options.
+Prerequisite: Must have completed FE5101.
+
+FE5105 Corporate Financing and Risk (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No | Special Term 2 — Yes
+Description: Topics include financial markets and instruments, management of foreign exchange and derivatives desks, asset-liability management, regulatory issues, corporate valuation, restructuring, leveraged buyouts, and mergers and acquisitions.
+
+FE5108 Portfolio Theory and Investments (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No | Special Term 2 — Yes
+Description: Covers portfolio optimisation theory, decision making under uncertainty, Markowitz mean-variance portfolio, CAPM, multifactor pricing models, dynamic portfolio optimisation, and investment management practice.
+
+FE5212 Sustainable Finance Risk Management (2 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+
+FE5221 Trading Principles and Fundamentals (2 units)
+Availability: Semester 1 — No | Semester 2 — Not offered
+
+FE5222 Advanced Derivatives Pricing (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Covers advanced derivative pricing topics including stochastic differential equations, martingale representation theorem, risk-neutral pricing, change of numeraire, path-dependent options, optimal stopping, American options, jump diffusion, and stochastic volatility.
+
+FE5223 Introduction to Electronic Financial Market (2 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Covers financial market technologies in front-, middle-, and back-offices, system interdependencies, algorithmic trading principles, and solution design for real-market trading strategies.
+
+FE5224 Current Topics in Applied Risk Management (2 units)
+Availability: Semester 1 — Not offered | Semester 2 — Not offered
+
+FE5225 Machine Learning and FinTech (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces state-of-the-art machine learning approaches from DNN to topic modelling, and key FinTech concepts including cryptocurrencies and sentiment analysis. Includes guest lectures from AI researchers and industry professionals.
+
+FE5226 C++ in Financial Engineering (4 units)
+Availability: Semester 1 — Yes | Semester 2 — No
+Description: Fast-paced introduction to C++, covering basic constructs, built-in libraries, data structures, templates, and object-oriented programming. Concepts are illustrated with financial engineering examples, culminating in an overview of modern risk management systems.
+
+FE5227 Commodities Fundamentals and Modelling (2 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+Description: Introduces fundamental principles of energy (oil, coal, gas) and hard commodity (ferrous and base metals) markets, supply and demand dynamics, pricing structures, and financial derivatives (forwards, futures, swaps, options) used for trading and hedging.
+
+FT5010 Algorithmic Trading Systems Design and Deployment (4 units)
+Availability: Semester 1 — No | Semester 2 — Yes
+(See description under Core Courses above.)
+
+
+=== SECTION: Course Preclusions ===
+The following pairs of courses are mutually exclusive; students may not take both courses in a pair:
+- CS5246 Text Processing on the Web and CS4248 Natural Language Processing
+- CS5439 Software Security and CS4239 Software Security
+- CS5446 AI Planning and Decision Making and CS4246 AI Planning and Decision Making
+- IS5009 Topics in Financial Technology Solutions and BT4013 Analytics for Capital Market Trading and Investment
+- IS5126 Hands-on with Applied Analytics and BT5126 Hands-on with Business Analytics
+
+
+=== SECTION: Suggested Course Plans ===
+
+Full-Time Course Plan 1 (1.5 years):
+- Semester 1: 4 courses (16 Units)
+- Semester 2: 3 courses (12 Units) + Capstone Project begins
+- Semester 3: 3 courses (12 Units) + Capstone Project continues
+- Capstone Project (12 Units) spans Semesters 2 and 3
+
+Full-Time Course Plan 2 (1.5 years):
+- Semester 1: 5 courses (20 Units)
+- Semester 2: 3 courses (12 Units) + Capstone Project begins
+- Semester 3: 2 courses (8 Units) + Capstone Project continues
+- Capstone Project (12 Units) spans Semesters 2 and 3
+
+Full-Time Course Plan 3 (1.5 years):
+- Semester 1: 4 courses (16 Units)
+- Semester 2: 4 courses (16 Units) + Capstone Project begins
+- Semester 3: 2 courses (8 Units) + Capstone Project continues
+- Capstone Project (12 Units) spans Semesters 2 and 3
+
+Part-Time Course Plan (2.5 years):
+- Semester 1: 2 courses (8 Units)
+- Semester 2: 2 courses (8 Units)
+- Semester 3: 2 courses (8 Units)
+- Semester 4: 2 courses (8 Units) + Capstone Project begins
+- Semester 5: 2 courses (8 Units) + Capstone Project continues
+- Capstone Project (12 Units) spans Semesters 4 and 5
+
+Important Note on Course Availability:
+Course availability may change each academic year. Some courses listed may not be offered in a particular semester or academic year. Students are strongly encouraged to use NUSMods at https://nusmods.com to verify course availability and plan their timetable when enrolling.

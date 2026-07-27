@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head reveal">
+  <h1>Select your profile type and get tailored guidance</h1>
+  <p>This MVP supports two flows: applicant and current student. Applicants receive material checks, application status, programme comparison, and course/career advice. Current students receive course planning, skill-gap, and career-path advice only.</p>
+</div>
+
+<ol class="steps reveal" aria-hidden="true">
+  <li data-on><span class="dot">1</span> Select profile and provide information</li><span class="sep"></span>
+  <li><span class="dot">2</span> Confirm profile</li><span class="sep"></span>
+  <li><span class="dot">3</span> Get recommendations</li>
+</ol>
+
+{% if error %}<div class="panel reveal"><div class="note" style="color:var(--danger)">⚠️ {{ error }}</div></div>{% endif %}
+
+<form method="post" action="/extract" enctype="multipart/form-data">
+  <div class="panel reveal">
+    <h2>1. Choose user type</h2>
+    <div class="role-cards" role="radiogroup" aria-label="User type">
+      <label class="role-card">
+        <input type="radio" name="lifecycle_stage" value="applicant" {% if selected_stage != 'current' %}checked{% endif %}>
+        <span class="role-card__title">Applicant</span>
+        <span class="role-card__desc">Upload application materials, identify missing items, track application status, compare programmes, and get course/career guidance.</span>
+      </label>
+      <label class="role-card">
+        <input type="radio" name="lifecycle_stage" value="current" {% if selected_stage == 'current' %}checked{% endif %}>
+        <span class="role-card__title">Current Student</span>
+        <span class="role-card__desc">Skip application materials and generate course recommendations, skill strengthening, and career direction only.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel reveal">
+    <h2>2. Enter your information or upload a CV</h2>
+    <div class="note">You can proceed with only the selected profile type and fill in details manually on the next page. If you upload a CV or paste a profile summary, the system will pre-fill some fields.</div>
+    <label for="text">Profile summary</label>
+    <textarea id="text" name="text" rows="6"
+      placeholder="Example: I majored in Computer Science, worked in banking for 2 years, come from India, want to become a fintech product manager, and plan to apply full-time."></textarea>
+  </div>
+
+  <div class="panel reveal">
+    <h2>3. Upload CV (optional)</h2>
+    <div class="note">Supports .docx and .pdf files up to 5MB. Uploaded files are used to extract background information.</div>
+    <label for="cv">Choose CV file</label>
+    <input type="file" id="cv" name="cv" accept=".docx,.pdf">
+  </div>
+
+  <button type="submit" class="btn btn--lg">Next: confirm profile →</button>
+  <p class="disc" style="margin-top:14px">If DeepSeek is configured, fields will be extracted automatically. If not, you can still fill in the next page manually.</p>
+</form>
+{% endblock %}

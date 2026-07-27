@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block wrapmod %}wrap--wide{% endblock %}
+{% block body %}
+<ol class="steps" aria-hidden="true">
+  <li><span class="dot">✓</span> Provide information</li><span class="sep"></span>
+  <li><span class="dot">✓</span> Confirm profile</li><span class="sep"></span>
+  <li data-on><span class="dot">3</span> Get recommendations</li>
+</ol>
+
+<div class="page-head reveal">
+  <h1>{{ 'Applicant analysis results' if profile.lifecycle_stage.value == 'applicant' else 'Course and skill recommendations for current students' }}</h1>
+  <p>
+    {% if profile.lifecycle_stage.value == 'applicant' %}
+      The system has run #4–#7 using your profile, CV, and uploaded materials: application checklist, application status, programme comparison, and course/career guidance.
+    {% else %}
+      The system is in the current-student flow: no school recommendations or application-material checks are generated; only course planning, graduation progress, and skill direction are analysed.
+    {% endif %}
+  </p>
+</div>
+<a href="/" class="backlink reveal">← Edit information and regenerate</a>
+
+<div class="results-layout">
+  <nav class="anchor-nav" aria-label="Result sections">
+    {% if material_analysis %}<a href="#materials"><span class="ico">📎</span> Material analysis</a>{% endif %}
+    {% if r.checklist is defined %}<a href="#checklist"><span class="ico">📋</span> Application checklist</a>{% endif %}
+    {% if r.tracker is defined %}<a href="#tracker"><span class="ico">🔎</span> Application status</a>{% endif %}
+    {% if r.tracker is defined %}<a href="#actions"><span class="ico">🧭</span> Supplement / human support</a>{% endif %}
+    {% if r.comparison is defined %}<a href="#compare"><span class="ico">⚖️</span> Programme comparison</a>{% endif %}
+    {% if r.recommendation is defined %}<a href="#courses"><span class="ico">🎓</span> Courses and pathway</a>{% endif %}
+  </nav>
+  <div>
+
+{% if material_analysis %}
+<section id="materials" class="panel reveal">
+  <div class="panel__head"><h2 class="panel__title"><span class="panel__icon">📎</span> Current material analysis</h2></div>
+  {% if material_summary %}
+  <div class="summary-strip">
+    <div><strong>{{ material_summary.submitted_required }} / {{ material_summary.required_total }}</strong><span>required materials uploaded</span></div>
+    <div><strong>{{ material_summary.missing_required }}</strong><span>missing</span></div>
+    <div><strong>{{ material_summary.rejected_required }}</strong><span>invalid format/size</span></div>
+    <div><strong>{{ 'Complete' if material_summary.is_complete else 'Incomplete' }}</strong><span>system material check</span></div>
+  </div>
+  {% endif %}
+  <p style="margin-top:0">The system evaluates material status from the actual files uploaded. Uploaded files can be opened for review; missing or unsupported items will be reflected in the application checklist and status tracker.</p>
+  <ul class="items">
+    {% for m in material_analysis %}
+    <li class="item">
+      <div class="item__row">
+        <span class="item__label">{{ m.label }}</span>
+        {% if m.required == 'required' %}<span class="pill pill--danger">Required</span>
+        {% elif m.required == 'conditional' %}<span class="pill pill--warn">Conditional</span>
+        {% else %}<span class="pill pill--mute">Supporting</span>{% endif %}
+        {% if m.status == 'submitted' %}<span class="pill pill--ok">Uploaded</span>
+        {% elif m.status == 'rejected' %}<span class="pill pill--danger">Invalid format/size</span>
+        {% else %}<span class="pill pill--mute">Not uploaded</span>{% endif %}
+        {% if m.filename %}<span class="why">{{ m.filename }}</span>{% endif %}
+        {% if m.view_url %}<a href="{{ m.view_url }}" target="_blank" rel="noopener" class="why">View file ↗</a>{% endif %}
+      </div>
+      <div class="why">{{ m.reason }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="disc">Demo supports PDF / Word / image files. In the real NUS Graduate Admission System, official guidance states that materials should be uploaded as PDF, and non-English materials should include certified English translations.</div>
+</section>
+{% endif %}
+
+{% if r.checklist is defined %}
+<section id="checklist" class="panel reveal">
+  <div class="panel__head"><h2 class="panel__title"><span class="panel__icon">📋</span> Application checklist: submission status</h2></div>
+  {% set c = r.checklist %}
+  {% if c.status == "ok" %}
+    <p style="margin-top:0">{{ c.speakable }}</p>
+    <ul class="items">
+      {% for it in c.data["items"] %}
+      <li class="item">
+        <div class="item__row">
+          <span class="item__label">{{ it.label }}</span>
+          {% if it.required %}<span class="pill pill--danger">Required</span>{% else %}<span class="pill pill--mute">Supporting</span>{% endif %}
+          {% if it.status in ("verified","submitted","under_review") %}
+            <span class="pill pill--ok">{{ it.status_label }}</span>
+          {% elif it.status == "rejected" %}
+            <span class="pill pill--danger">{{ it.status_label }}</span>
+          {% else %}
+            <span class="pill pill--mute">{{ it.status_label }}</span>
+          {% endif %}
+          {% if it.urgency == "urgent" %}<span class="pill pill--danger">⏰ Deadline approaching {{ it.deadline }}</span>
+          {% elif it.urgency == "soon" %}<span class="pill pill--warn">Due {{ it.deadline }}</span>{% endif %}
+        </div>
+        <div class="why">{{ it.why }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="disc">Checklist decisions come from uploaded file status plus the admissions rule engine, not from user checkbox assumptions.</div>
+  {% else %}
+    <div class="note">{{ c.speakable }}</div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if r.tracker is defined %}
+<section id="tracker" class="panel reveal">
+  <div class="panel__head">
+    <h2 class="panel__title"><span class="panel__icon">🔎</span> Application status</h2>
+    <span class="pill pill--warn">Demo / Mock Status</span>
+  </div>
+  {% set t = r.tracker %}
+  {% if t.status == "ok" %}
+    <p style="margin-top:0">{{ t.speakable }}</p>
+    <div class="note note--info"><strong>{{ t.data["human_status"] }}</strong><br>{{ t.data["next_step"] }}</div>
+    <div class="disc">{{ t.data["demo_disclaimer"] }}</div>
+
+    {% if t.data["demo_milestones"] %}
+    <label>Application timeline</label>
+    <ol class="timeline">
+      {% for step in t.data["demo_milestones"] %}
+      <li class="timeline__item timeline__item--{{ step.state }}">
+        <span class="timeline__dot"></span>
+        <span>{{ step.label }}</span>
+        <em>{{ 'Done' if step.state == 'done' else 'Current' if step.state == 'current' else 'Pending' }}</em>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if t.data["outstanding_documents"] %}
+    <label>Materials requiring action</label>
+    <div class="checks">
+      {% for d in t.data["outstanding_documents"] %}<span class="pill pill--warn">{{ d.label }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if t.data["reminders"] %}
+    <label>Reminders</label>
+    <ul class="items">
+      {% for rem in t.data["reminders"] %}
+      <li class="item"><div class="item__row"><span class="item__label">{{ rem.name }}</span><span class="pill pill--mute">{{ rem.date }}</span></div><div class="why">{{ rem.message }}</div></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  {% else %}
+    <div class="note">{{ t.speakable }}</div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if r.tracker is defined and r.tracker.status == "ok" %}
+<section id="actions" class="panel reveal">
+  <div class="panel__head"><h2 class="panel__title"><span class="panel__icon">🧭</span> Supplementary material / human support entry</h2></div>
+  {% set t = r.tracker %}
+  {% set ep = t.data["escalation_packet"] %}
+  {% set out = t.data["outstanding_documents"] %}
+  {% if out %}
+    <div class="note"><strong>Supplement recommendation:</strong> Some materials are missing or invalid. Return to the form, upload the correct files, and regenerate the analysis.</div>
+    <p><a class="btn" href="/">Return and upload supplementary materials</a></p>
+  {% else %}
+    <div class="note note--info"><strong>No material-level supplementary action is currently needed.</strong> If your issue involves a deadline exception, appeal, abnormal official status, or special personal circumstances, use human support.</div>
+  {% endif %}
+  <label>Human support recommendation</label>
+  <div class="case-box">
+    <div><strong>Suggested route:</strong> {{ ep.suggested_team }}</div>
+    <div><strong>Reason:</strong> {{ ep.reason }}</div>
+    <div><strong>Application ID:</strong> {{ ep.application_id }}</div>
+    <div><strong>Current status:</strong> {{ ep.current_status }}</div>
+  </div>
+  <p class="actions-row">
+    <a class="btn" href="{{ ep.official_enquiry_url }}" target="_blank" rel="noopener">Open NUS DFinTech official enquiry form ↗</a>
+    <a class="btn btn--ghost" href="{{ ep.graduate_admission_system_url }}" target="_blank" rel="noopener">Open Graduate Admission System ↗</a>
+  </p>
+  <details class="note">
+    <summary>View case summary to copy for staff</summary>
+    <pre>{{ ep }}</pre>
+  </details>
+</section>
+{% endif %}
+
+{% if r.comparison is defined %}
+<section id="compare" class="panel reveal">
+  <div class="panel__head"><h2 class="panel__title"><span class="panel__icon">⚖️</span> Programme comparison</h2></div>
+  {% set m = r.comparison %}
+  {% if m.status == "ok" %}
+    <div class="table-scroll" style="margin-top:12px">
+      <table>
+        <tr><th>Programme</th>{% for d in m.data["dimensions"] %}<th>{{ d }}</th>{% endfor %}<th>Source</th></tr>
+        {% for row in m.data["facts_table"]["rows"] %}
+        <tr class="{{ 'is-target-row' if row.is_target }}">
+          <td class="{{ 'is-target' if row.is_target }}">{{ row.program }}{% if row.is_target %} <span class="star">★</span>{% endif %}</td>
+          {% for d in m.data["dimensions"] %}
+            {% set cell = row["facts"].get(d) %}
+            <td>
+              {% if cell %}{{ cell.text }}
+                {% if cell.kind == "unknown" %}<br><span class="why">Not publicly disclosed</span>
+                {% elif cell.kind == "synthesis" %}<br><span class="why">AI synthesis</span>{% endif %}
+              {% endif %}
+            </td>
+          {% endfor %}
+          <td>
+            {% set ns = namespace(src=row.source_url, fetched=row.fetched_at) %}
+            {% for d in m.data["dimensions"] %}
+              {% set c = row["facts"].get(d) %}
+              {% if not ns.src and c and c.source_url %}{% set ns.src = c.source_url %}{% set ns.fetched = c.fetched_at %}{% endif %}
+            {% endfor %}
+            {% if ns.src %}
+              <a href="{{ ns.src }}" target="_blank" rel="noopener">Official page ↗</a>
+              {% if ns.fetched %}<br><span class="why">As of {{ ns.fetched }}</span>{% endif %}
+            {% else %}
+              <span class="why">No official source link available</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="note" style="margin-top:8px"><span class="why">The facts table is based on verified public official pages. “Not publicly disclosed” means the official source does not provide a stable value; “AI synthesis” means a non-official system interpretation.</span></div>
+
+    {% if m.data["synthesis"] %}
+    <div class="note note--info" style="margin-top:16px">
+      <strong>AI synthesis analysis (not official fact)</strong>
+      <p style="margin:8px 0 0">{{ m.data["synthesis"]["narrative"] }}</p>
+      {% if m.data["synthesis"]["best_for_you"] %}
+      <p style="margin:8px 0 0">Based on your preference weights ({% for k, v in m.data["synthesis"]["weights"].items() %}{{ k }} {{ (v * 100) | round | int }}%{% if not loop.last %}, {% endif %}{% endfor %}), <strong>{{ m.data["synthesis"]["best_for_you"] }}</strong> is the closest fit under the current rules. This is not a school ranking.</p>
+      {% endif %}
+      <ul style="margin:8px 0 0">
+        {% for sr in m.data["synthesis"]["rows"] %}
+        <li><span class="why">{{ sr.program }}: fit={{ sr.weighted_score }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <div class="note" style="margin-top:16px"><span class="why">Personalisation is disabled: only objective fact comparison is shown.</span></div>
+    {% endif %}
+
+    <div class="note" style="margin-top:12px">{{ m.data["disclaimer"] }}</div>
+  {% else %}
+    <div class="note">{{ m.speakable }}</div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if r.recommendation is defined %}
+<section id="courses" class="panel reveal">
+  <div class="panel__head"><h2 class="panel__title"><span class="panel__icon">🎓</span> {{ 'Post-enrolment course and career advice' if profile.lifecycle_stage.value == 'applicant' else 'Course and skill direction advice' }}</h2></div>
+  {% set g = r.recommendation %}
+  {% if g.status == "ok" %}
+    <p style="margin-top:0">{{ g.data["explanation"] }}</p>
+    <div class="note"><span class="why">Selection method: {{ 'AI-selected from candidates' if g.data["selection_source"] == 'llm' else 'rule-based ranking (AI not configured)' }}</span></div>
+
+    <label>Recommended electives / modules to take</label>
+    <ul class="items">
+      {% for mod in g.data["recommended"] %}
+      <li class="item">
+        <div class="item__row">
+          <span class="item__label"><strong>{{ mod.code }}</strong> {{ mod.name }}</span>
+          {% if mod.credits %}<span class="pill pill--mute">{{ mod.credits }} Units</span>{% endif %}
+          {% if mod.closes_gaps %}<span class="why">— closes gaps: {{ mod.closes_gaps|join(', ') }}</span>{% endif %}
+          {% if not mod.verified %}<span class="why">(not found in catalogue)</span>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+
+    {% if g.data["already_completed"] %}
+    <p class="why">Completed ✓: {% for m in g.data["already_completed"] %}{{ m.code }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+
+    {% if g.data["unrecognized_completed"] %}
+    <div class="note note--info">The following completed module codes were not found in the course catalogue and may need checking: {{ g.data["unrecognized_completed"]|join(', ') }}</div>
+    {% endif %}
+
+    {% if g.data["skill_gaps"] %}
+    <label>Skills to strengthen</label>
+    <div class="checks">{% for s in g.data["skill_gaps"] %}<span class="pill pill--warn">{{ s }}</span>{% endfor %}</div>
+    {% endif %}
+
+    {% if g.data["prereq_warnings"] %}
+    <label>Prerequisite reminders</label>
+    <ul class="items">
+      {% for w in g.data["prereq_warnings"] %}
+      <li class="item"><div class="item__row">
+        <span class="pill pill--warn">Prerequisite needed</span>
+        <span class="item__label"><code>{{ w.code }}</code></span>
+        <span class="why">missing prerequisites: {{ w.missing|join(', ') }}</span>
+      </div></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% set gp = g.data["graduation_progress"] %}
+    {% set completed_pct = ((gp.completed_credits / gp.required * 100) | round) %}
+    {% set total_pct = (((gp.completed_credits + gp.planned_credits) / gp.required * 100) | round) %}
+    {% set planned_pct = total_pct - completed_pct %}
+    {% if total_pct > 100 %}{% set planned_pct = 100 - completed_pct %}{% endif %}
+    <label>Graduation credit progress <span class="muted" style="font-weight:400">{{ gp.completed_credits }} / {{ gp.required }} Units completed</span></label>
+    <div class="progress progress--stack" title="Completed {{ gp.completed_credits }} / {{ gp.required }}; recommended plan +{{ gp.planned_credits }} Units">
+      <div class="progress__bar progress__bar--completed" style="width: {{ completed_pct }}%"></div>
+      <div class="progress__bar progress__bar--planned" style="width: {{ planned_pct }}%"></div>
+    </div>
+    <div class="progress-legend">
+      <span><i class="legend-dot legend-dot--completed"></i>Completed: {{ gp.completed_credits }} Units</span>
+      <span><i class="legend-dot legend-dot--planned"></i>Recommended plan: +{{ gp.planned_credits }} Units</span>
+      <span>Remaining after plan: {{ gp.remaining }} Units</span>
+    </div>
+    <div class="why">The headline progress only counts completed credits. The green segment shows the recommended plan for visual planning; coursework 40 Units + capstone 12 Units = total 52 Units.</div>
+
+    <label>{{ 'Post-enrolment study path reference' if profile.lifecycle_stage.value == 'applicant' else 'Next study path reference' }} (full-time vs part-time)</label>
+    <div class="grid-2">
+      {% for pw, plan in g.data["study_plans"].items() %}
+      <div>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">
+          {{ 'Full-time' if pw == 'full_time' else 'Part-time' }} · term cap {{ plan.term_credit_cap }} Units · {{ plan.num_terms }} terms
+        </div>
+        {% for t in plan.semesters %}
+        <div class="note" style="margin-bottom:6px">
+          <strong>{{ t.term }}</strong> · {{ t.credits }} Units{% if t.overload %} <span class="pill pill--danger">Overload</span>{% endif %}
+          <div class="why">{% for m in t.modules %}{{ m.code }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="disc">Course information source: DFT database / NUS programme data / curated module catalogue. Graduation progress is planning support only; official graduation checks remain subject to university systems.</div>
+  {% else %}
+    <div class="note">{{ g.speakable }}</div>
+  {% endif %}
+</section>
+{% endif %}
+
+  </div>
+</div>
+{% endblock %}

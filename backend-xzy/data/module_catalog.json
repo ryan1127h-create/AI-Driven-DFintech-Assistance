@@ -1,0 +1,580 @@
+{
+  "source_url": "DFT database and NUSMods-compatible curated module catalogue",
+  "fetched_at": "2026-06-05",
+  "modules": [
+    {
+      "code": "ACC3706",
+      "name": "Governance, Risk Management and Sustainability",
+      "credits": 4,
+      "description": "The course covers corporate governance from a multidisciplinary perspective including law, finance, accounting and economics. The course covers enterprise risk management in terms of the Integrated Framework issued by the Committee of Sponsoring Organizations of the Treadway Commission (COSO).",
+      "source_url": "https://nusmods.com/courses/ACC3706",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": {
+        "and": [
+          {
+            "or": [
+              "ACC1701%:D",
+              "EC2204:D"
+            ]
+          },
+          "BSP1702%:D"
+        ]
+      },
+      "workload_hours": 10.0
+    },
+    {
+      "code": "ACC4713",
+      "name": "Banking Institutions:Managing Risks in a DigitalWorld",
+      "credits": 4,
+      "description": "This course equips students with internal audit, risk and compliance knowledge and skills. With a slant towards internal auditing, students will learn the key risks and controls in the major banking products such as global markets, credit and lending, wealth management, as well as the major banking regulations such as anti-money laundering/countering of terrorist financing rules. Students will learn how to design internal audit programmes to assess the adequacy and effectiveness of internal controls in these areas. Topics covered include data analytics, common modus operandi of banking frauds and control lapses, internal auditing standards, and internal audit report writing.",
+      "source_url": "https://nusmods.com/courses/ACC4713",
+      "semesters": [],
+      "prereq_tree": "ACC3701%:D",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMD5301",
+      "name": "Introduction to Finance for FinTech Professionals",
+      "credits": 4,
+      "description": "Introduces core finance concepts and tools including discounted cash flow, risk and return, capital budgeting, valuation, financial markets and financial institutions.",
+      "source_url": "https://nusmods.com/courses/BMD5301",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMD5302",
+      "name": "Financial Modelling for FinTech Professionals",
+      "credits": 4,
+      "description": "Introduces finance models used in corporate finance, portfolio management, derivatives and bonds, with implementation in Excel, VBA and Python.",
+      "source_url": "https://nusmods.com/courses/BMD5302",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BME5301",
+      "name": "Blockchain Applications in Finance",
+      "credits": 2,
+      "description": "This course introduces students to non-technical fundamentals and economics of blockchain. We will focus on the applications of blockchain, not the technology itself. We will occasionally invite an industry expert(s) to interact with students and give a guest lecture(s) on the real-world application(s).",
+      "source_url": "https://nusmods.com/courses/BME5301",
+      "semesters": [
+        3
+      ],
+      "prereq_tree": null,
+      "workload_hours": 5.0
+    },
+    {
+      "code": "BMF5342",
+      "name": "Technological Disruptions in Finance and Data Analytics",
+      "credits": 4,
+      "description": "Covers innovations and analytical tools in finance, including platform economics, behavioural finance, event studies, Monte Carlo simulation, digital transformation, AI, GenAI, digital payments, cybersecurity and blockchain.",
+      "source_url": "https://nusmods.com/courses/BMF5342",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMF5354",
+      "name": "Financial Regulation in a Digital Age",
+      "credits": 4,
+      "description": "Examines why and how financial markets and transactions are regulated, with attention to fintech, blockchain, cloud computing and AI regulatory issues.",
+      "source_url": "https://nusmods.com/courses/BMF5354",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMF5355",
+      "name": "Financial Institutions, Markets, Systems and Technology",
+      "credits": 4,
+      "description": "Introduces systems and technologies used by financial institutions and markets, future trends, opportunities and threats.",
+      "source_url": "https://nusmods.com/courses/BMF5355",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMF5356",
+      "name": "Applied Financial Risk Management",
+      "credits": 4,
+      "description": "Applied financial risk management for financial institutions and markets.",
+      "source_url": "https://nusmods.com/courses/BMF5356",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMF5358",
+      "name": "Fintech Venture Creation",
+      "credits": 4,
+      "description": "Covers entrepreneurship and venture creation in financial technology.",
+      "source_url": "https://nusmods.com/courses/BMF5358",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMF5360",
+      "name": "Applied Machine Learning in Investments",
+      "credits": 4,
+      "description": "Applied machine learning for investment problems.",
+      "source_url": "https://nusmods.com/courses/BMF5360",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": {
+        "and": [
+          "BMF5324",
+          "BMF5332"
+        ]
+      },
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMS5312",
+      "name": "Fintech Management",
+      "credits": 4,
+      "description": "Covers management and business aspects of financial technology.",
+      "source_url": "https://nusmods.com/courses/BMS5312",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BMT5202",
+      "name": "Bank Compliance and Risk Management",
+      "credits": 4,
+      "description": "Banks play a vital role in providing liquidity to the economy, facilitating trade and commerce, and providing credit to businesses and individuals. The global financial crisis, money laundering scandals, digital banking disruptions, etc. have led to tighter regulations by Central Banks. These banking regulations are punitive for banks who fail to comply. Banks are in the business of managing risks. This course seeks to provide students with an understanding of the key risks that banks manage, as well as the key regulations which banks are required to comply with.",
+      "source_url": "https://nusmods.com/courses/BMT5202",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BT4016",
+      "name": "Risk Analytics for Financial Services",
+      "credits": 4,
+      "description": "Covers fundamentals of risk analytics in financial services, including financial risks, interest rate risk analytics and credit risk analytics.",
+      "source_url": "https://nusmods.com/courses/BT4016",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "BT5153",
+      "name": "Applied Machine Learning for Business Analytics",
+      "credits": 4,
+      "description": "Applied machine learning methods for business analytics.",
+      "source_url": "https://nusmods.com/courses/BT5153",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5231",
+      "name": "Systems Security",
+      "credits": 4,
+      "description": "Introduces fundamental concepts and mechanisms in computer system security.",
+      "source_url": "https://nusmods.com/courses/CS5231",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5242",
+      "name": "Neural Networks and Deep Learning",
+      "credits": 4,
+      "description": "Provides knowledge of deep neural networks and practical techniques for applying deep learning to real-world problems.",
+      "source_url": "https://nusmods.com/courses/CS5242",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5246",
+      "name": "Text Processing on the Web",
+      "credits": 4,
+      "description": "Covers text classification, clustering, sentiment analysis, summarisation, information extraction and question answering.",
+      "source_url": "https://nusmods.com/courses/CS5246",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5321",
+      "name": "Network Security",
+      "credits": 4,
+      "description": "Studies network attack techniques and methods to defend networks.",
+      "source_url": "https://nusmods.com/courses/CS5321",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5344",
+      "name": "Big-Data Analytics Technology",
+      "credits": 4,
+      "description": "Covers analytics of data that cannot fit in main memory, including MapReduce, similarity search, streaming and clustering.",
+      "source_url": "https://nusmods.com/courses/CS5344",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "CS5439",
+      "name": "Software Security",
+      "credits": 4,
+      "description": "Covers secure programming, analysis of malicious inputs and testing techniques for software vulnerabilities.",
+      "source_url": "https://nusmods.com/courses/CS5439",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "DBA3713",
+      "name": "Analytics for Risk Management",
+      "credits": 4,
+      "description": "This course covers analytics tools, including machine learning, statistical modelling, and optimisation methods, to model, estimate, and manage quantitative risk. Hands-on implementation of these analytics tools in Python is an important component of this course.",
+      "source_url": "https://nusmods.com/courses/DBA3713",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": "DAO2702%:D",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "DBA5105",
+      "name": "Fintech, Enabling Technologies and Analytics",
+      "credits": 4,
+      "description": "Fintech refer to emerging financial services (backed by technology). Technology companies are moving into financial services and financial institutions are looking to technology to enhance their services. As the two worlds merges, understanding of fintech will be increasingly relevant to the skillset of anyone seeking to work in technology or finance. This course provides a primer to current developments in fintech and the relevant technologies. Students will have an opportunity to learn from real world case studies and dive into technologies that are being used in the industry such as Blockchain and AI.",
+      "source_url": "https://nusmods.com/courses/DBA5105",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "DBA5107",
+      "name": "Data Analytics in Banking",
+      "credits": 4,
+      "description": "Data analytics applications in banking.",
+      "source_url": "https://nusmods.com/courses/DBA5107",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "DBA5109",
+      "name": "Quantitative Risk Management",
+      "credits": 4,
+      "description": "Covers quantitative risk management techniques for finance.",
+      "source_url": "https://nusmods.com/courses/DBA5109",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FE5108",
+      "name": "Portfolio Theory and Investments",
+      "credits": 4,
+      "description": "Covers portfolio optimisation, CAPM, multifactor models, dynamic portfolio optimisation and investment management practice.",
+      "source_url": "https://nusmods.com/courses/FE5108",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FE5222",
+      "name": "Advanced Derivatives Pricing",
+      "credits": 4,
+      "description": "Covers stochastic differential equations, martingale representation, risk-neutral pricing and pricing of path-dependent and exotic options.",
+      "source_url": "https://nusmods.com/courses/FE5222",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FE5225",
+      "name": "Machine Learning and FinTech",
+      "credits": 4,
+      "description": "Introduces machine learning approaches and key FinTech concepts including cryptocurrencies and sentiment analysis.",
+      "source_url": "https://nusmods.com/courses/FE5225",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FE5226",
+      "name": "C++ in Financial Engineering",
+      "credits": 4,
+      "description": "Fast-paced introduction to C++ programming for financial engineering and risk management systems.",
+      "source_url": "https://nusmods.com/courses/FE5226",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5001",
+      "name": "Fintech Innovations: A Strategic Landscape",
+      "credits": 4,
+      "description": "Technology-focused overview of the FinTech ecosystem, including payment solutions, crowdfunding platforms, investment tools, robo-advisors and major FinTech innovations.",
+      "source_url": "https://nusmods.com/courses/FT5001",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5002",
+      "name": "Digital and AI Transformation in Finance",
+      "credits": 4,
+      "description": "Equips students to lead digital and AI transformation in banking and finance, covering strategy, operating models, governance, infrastructure and regulatory considerations.",
+      "source_url": "https://nusmods.com/courses/FT5002",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5003",
+      "name": "Blockchain Innovations",
+      "credits": 4,
+      "description": "Introduces major blockchain innovations, blockchain architecture, evolution of blockchain applications and industry case studies.",
+      "source_url": "https://nusmods.com/courses/FT5003",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5004",
+      "name": "Programming for Blockchain Applications",
+      "credits": 4,
+      "description": "Covers essential concepts for blockchain application development, including standards, libraries and services needed to build blockchain applications.",
+      "source_url": "https://nusmods.com/courses/FT5004",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5005",
+      "name": "Machine Learning for Finance",
+      "credits": 4,
+      "description": "Covers foundational machine learning and data mining for practical analytics and AI applications in FinTech, including supervised learning, time series forecasting, NLP basics and unsupervised learning.",
+      "source_url": "https://nusmods.com/courses/FT5005",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5009",
+      "name": "Contemporary Topics in Financial Data Analytics",
+      "credits": 4,
+      "description": "Overview of recent advances in financial data analytics, financial statistical models, fintech programming and modern financial applications.",
+      "source_url": "https://nusmods.com/courses/FT5009",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5010",
+      "name": "Algorithmic Trading Systems Design and Deployment",
+      "credits": 4,
+      "description": "Teaches systematic trading practices, rule-based strategy design, trading-system development, backtesting, hypothesis testing and data-driven risk management.",
+      "source_url": "https://nusmods.com/courses/FT5010",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": "IT5001",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5011",
+      "name": "Deep Learning for Finance",
+      "credits": 4,
+      "description": "Introduces core deep learning concepts and applications for finance through theory, case studies and hands-on exercises.",
+      "source_url": "https://nusmods.com/courses/FT5011",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": "FT5005",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "FT5012",
+      "name": "Digital Trust in Banking and Finance",
+      "credits": 4,
+      "description": "Focuses on digital trust, resilience, governance and risk management in banking and finance, including cyber risk, fraud, privacy and AI-related risks.",
+      "source_url": "https://nusmods.com/courses/FT5012",
+      "semesters": [
+        1
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IS5008",
+      "name": "Technology Risk and Cyber Resilience",
+      "credits": 4,
+      "description": "Covers technology risk and resilience drivers, foundational frameworks, and how enterprises implement technology risk and cyber resilience.",
+      "source_url": "https://nusmods.com/courses/IS5008",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IS5009",
+      "name": "Topics in Financial Technology Solutions",
+      "credits": 4,
+      "description": "Investigates contemporary issues in financial technology solutions, integrating financial domain knowledge and advanced technologies.",
+      "source_url": "https://nusmods.com/courses/IS5009",
+      "semesters": [
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5001",
+      "name": "Software Development Fundamentals",
+      "credits": 4,
+      "description": "Introduces programming principles and software development including control flow, abstraction, types, OOP, simple data structures and algorithms, testing and debugging.",
+      "source_url": "https://nusmods.com/courses/IT5001",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5003",
+      "name": "Data Structures and Algorithms",
+      "credits": 4,
+      "description": "Accelerated introduction to data structures, algorithm design, complexity analysis and common paradigms such as greedy, divide and conquer and dynamic programming.",
+      "source_url": "https://nusmods.com/courses/IT5003",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": "IT5001",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5004",
+      "name": "Enterprise Systems Architecture Fundamentals",
+      "credits": 4,
+      "description": "Fundamental knowledge in architecting and designing modern enterprise systems, including enterprise architecture and UML-based analysis/design.",
+      "source_url": "https://nusmods.com/courses/IT5004",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5005",
+      "name": "Artificial Intelligence",
+      "credits": 4,
+      "description": "Comprehensive introduction to AI, including problem solving, knowledge representation, planning, decision making and learning.",
+      "source_url": "https://nusmods.com/courses/IT5005",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5006",
+      "name": "Fundamentals of Data Analytics",
+      "credits": 4,
+      "description": "Graduate-level foundation in data analytics, covering exploratory analysis, predictive modelling, statistical methods and end-to-end analytics pipelines in Python.",
+      "source_url": "https://nusmods.com/courses/IT5006",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": "IT5001",
+      "workload_hours": 10.0
+    },
+    {
+      "code": "IT5008",
+      "name": "Database Design and Programming",
+      "credits": 4,
+      "description": "Covers database design, relational models, normalisation, SQL and relational algebra/calculus.",
+      "source_url": "https://nusmods.com/courses/IT5008",
+      "semesters": [
+        1,
+        2
+      ],
+      "prereq_tree": null,
+      "workload_hours": 10.0
+    }
+  ]
+}

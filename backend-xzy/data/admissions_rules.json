@@ -1,0 +1,94 @@
+{
+  "_comment": "MSc DFinTech application document rules for MVP. Based on NUS Computing application information and DFT database. Mandatory docs are uploaded online before submission; real submission uses PDF and English/certified translations. GMAT/GRE/GATE is treated as optional/supporting because DFT admission notes say it is not mandatory.",
+  "base_items": [
+    {
+      "key": "personal_statement",
+      "label": "Personal Statement",
+      "why": "Explains your reasons for applying, preparation for the field, career plans, and relevant background.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "cv",
+      "label": "Curriculum Vitae / CV",
+      "why": "Summarises your education, work/internship experience, projects, achievements and readiness for the programme.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "proof_of_residence",
+      "label": "Proof of Residence / Passport / NRIC",
+      "why": "Confirms your identity and residence status for the online application.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "degree_certificate",
+      "label": "Official Degree Certificate / Expected Graduation Letter",
+      "why": "Confirms award or expected completion of your Bachelor’s degree or higher degree.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "transcript",
+      "label": "Official Transcript(s)",
+      "why": "Verifies your academic record and must show grades for all courses taken.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "referee_reports",
+      "label": "Two Referee Reports",
+      "why": "At least two referee reports are required through the online application system.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "application_fee",
+      "label": "Application Fee Payment",
+      "why": "Only submitted applications with the S$109 application fee paid by the deadline will be processed.",
+      "deadline_key": "application_deadline"
+    },
+    {
+      "key": "standardised_test_scores",
+      "label": "GRE / GMAT / GATE Score Report",
+      "why": "Not mandatory according to current programme notes, but useful as supporting evidence if available.",
+      "deadline_key": "application_deadline",
+      "required": false
+    },
+    {
+      "key": "financial_support",
+      "label": "Financial Support Document",
+      "why": "Bank statement, payslip or sponsor letter supports financial readiness for at least one academic year.",
+      "deadline_key": "application_deadline",
+      "required": false
+    },
+    {
+      "key": "other_supporting_documents",
+      "label": "Other Supporting Documents",
+      "why": "Upload awards, professional certificates or other supporting evidence if applicable.",
+      "deadline_key": "application_deadline",
+      "required": false
+    }
+  ],
+  "conditional_items": [
+    {
+      "key": "english_proficiency",
+      "label": "TOEFL / IELTS Score Report",
+      "why": "Required if your previous university education was not mainly taught in English.",
+      "deadline_key": "application_deadline",
+      "applies_when": {
+        "english_proof_required": true
+      }
+    }
+  ],
+  "english_exempt_countries": [
+    "SG",
+    "US",
+    "GB",
+    "AU",
+    "NZ",
+    "IE",
+    "CA"
+  ],
+  "local_institution_keywords": [
+    "national university of singapore",
+    "nanyang",
+    "singapore management university"
+  ],
+  "low_experience_threshold_years": 1
+}

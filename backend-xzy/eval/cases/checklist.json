@@ -1,0 +1,69 @@
+[
+  {
+    "id": "chk_p1_in_nonexempt",
+    "agent": "checklist",
+    "profile_ref": "1",
+    "note": "India (non-exempt) -> English proof required; cv+degree submitted, transcript missing",
+    "expect": {
+      "must_include": [
+        "personal_statement", "cv", "proof_of_residence", "degree_certificate",
+        "transcript", "referee_reports", "application_fee", "english_proficiency"
+      ],
+      "status": {"cv": "submitted", "degree_certificate": "submitted", "transcript": "missing"}
+    }
+  },
+  {
+    "id": "chk_p2_sg_exempt",
+    "agent": "checklist",
+    "profile_ref": "2",
+    "note": "Singapore (exempt) -> English proof NOT required; no application -> all missing",
+    "expect": {
+      "must_include": [
+        "personal_statement", "cv", "proof_of_residence", "degree_certificate",
+        "transcript", "referee_reports", "application_fee"
+      ],
+      "must_exclude": ["english_proficiency"],
+      "status": {"cv": "missing", "transcript": "missing"}
+    }
+  },
+  {
+    "id": "chk_p3_sg_local_inst",
+    "agent": "checklist",
+    "profile_ref": "3",
+    "note": "Singapore + NUS -> exempt; cv submitted, transcript missing",
+    "expect": {
+      "must_include": [
+        "personal_statement", "cv", "proof_of_residence", "degree_certificate",
+        "transcript", "referee_reports", "application_fee"
+      ],
+      "must_exclude": ["english_proficiency"],
+      "status": {"cv": "submitted", "transcript": "missing"}
+    }
+  },
+  {
+    "id": "chk_p4_my_richstatus",
+    "agent": "checklist",
+    "profile_ref": "4",
+    "note": "Malaysia (non-exempt) -> English required; rich document_status overrides",
+    "expect": {
+      "must_include": [
+        "personal_statement", "cv", "proof_of_residence", "degree_certificate",
+        "transcript", "referee_reports", "application_fee", "english_proficiency"
+      ],
+      "status": {"cv": "verified", "personal_statement": "under_review", "transcript": "rejected"}
+    }
+  },
+  {
+    "id": "chk_p5_in_richstatus",
+    "agent": "checklist",
+    "profile_ref": "5",
+    "note": "India (non-exempt) -> English required; transcript rejected, two verified",
+    "expect": {
+      "must_include": [
+        "personal_statement", "cv", "proof_of_residence", "degree_certificate",
+        "transcript", "referee_reports", "application_fee", "english_proficiency"
+      ],
+      "status": {"cv": "verified", "degree_certificate": "verified", "transcript": "rejected"}
+    }
+  }
+]

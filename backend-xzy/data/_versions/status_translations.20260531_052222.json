@@ -1,0 +1,13 @@
+{
+  "_comment": "Maps raw application status codes to student-friendly language and next step (contract §4 #5). Synthetic for capstone.",
+  "translations": {
+    "DRAFT":         {"human_status": "申请尚未提交(草稿)", "next_step": "完成所有必填项并提交申请。"},
+    "SUBMITTED":     {"human_status": "申请已提交,等待初审", "next_step": "无需操作,等待材料完整性检查。"},
+    "UNDER_REVIEW":  {"human_status": "材料齐全,正在审核中", "next_step": "无需操作,预计 2-3 周内有结果。"},
+    "DOCS_REQUIRED": {"human_status": "审核暂停:还需补充材料", "next_step": "请尽快上传缺失文件,以免影响审核进度。"},
+    "OFFER":         {"human_status": "恭喜,已发放录取", "next_step": "请在截止日期前确认是否接受录取。"},
+    "WAITLIST":      {"human_status": "进入候补名单", "next_step": "暂无需操作,如有名额释放将通知你。"},
+    "REJECTED":      {"human_status": "本次申请未通过", "next_step": "可联系招生办了解反馈或考虑下一轮申请。"},
+    "ACCEPTED":      {"human_status": "你已接受录取", "next_step": "请关注入学注册与缴费的后续指引。"}
+  }
+}

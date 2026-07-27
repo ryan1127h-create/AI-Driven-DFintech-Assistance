@@ -1,0 +1,16 @@
+{
+  "_comment": "NUS MSc DFT module catalog (SYNTHETIC baseline for capstone). Refreshed via the refresh pipeline; codes align with role_module_map.json.",
+  "source_url": "https://example.nus.edu/dft/catalog",
+  "fetched_at": "2026-05-01",
+  "modules": [
+    {"code": "DFT5101", "name": "Digital Product Management in Finance", "credits": 4, "description": "Product thinking for fintech."},
+    {"code": "DFT5102", "name": "Financial Technology Foundations", "credits": 4, "description": "Core fintech landscape."},
+    {"code": "DFT5210", "name": "Data-Driven Decision Making", "credits": 4, "description": "Analytics for finance decisions."},
+    {"code": "DFT5301", "name": "Quantitative Risk Modeling", "credits": 4, "description": "Risk models and methods."},
+    {"code": "DFT5302", "name": "Financial Engineering with Python", "credits": 4, "description": "Programming for financial engineering."},
+    {"code": "DFT5401", "name": "Digital Banking and Platforms", "credits": 4, "description": "Digital banking systems."},
+    {"code": "DFT5501", "name": "Regulation and Compliance Technology", "credits": 4, "description": "RegTech and compliance."},
+    {"code": "DFT5601", "name": "Payment Systems and Infrastructure", "credits": 4, "description": "Payments and rails."},
+    {"code": "DFT5701", "name": "Machine Learning for Finance", "credits": 4, "description": "ML applied to finance."}
+  ]
+}

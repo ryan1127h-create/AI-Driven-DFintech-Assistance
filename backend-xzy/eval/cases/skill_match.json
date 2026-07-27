@@ -1,0 +1,6 @@
+[
+  {"profile_ref": "1", "gold_skills": ["programming", "data_analytics", "finance"]},
+  {"profile_ref": "3", "gold_skills": ["programming", "data_analytics", "risk_modeling", "ai_ml", "security"]},
+  {"profile_ref": "5", "gold_skills": ["programming", "data_analytics", "risk_modeling", "ai_ml", "security", "finance", "payments_systems", "product"]},
+  {"profile_ref": "2", "gold_skills": ["finance", "regulation"]}
+]

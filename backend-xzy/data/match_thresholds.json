@@ -1,0 +1,5 @@
+{
+  "embedding": {"skill_threshold": 0.50, "module_threshold": 0.50},
+  "rule": {"skill_threshold": 1.0, "module_threshold": 1.0},
+  "_note": "per-backend match thresholds (eval.skill_calibrate). rule backend ignores thresholds. Re-run after embedding model change."
+}

@@ -1,0 +1,91 @@
+{
+  "source": "programs_dataset",
+  "status": "resolved",
+  "created": "2026-05-31T09:15:59",
+  "reasons": [
+    "untrusted_source"
+  ],
+  "anomalies": [
+    "program_removed: NUS MSc Digital Financial Technology",
+    "program_removed: University X MSc FinTech",
+    "program_removed: University Y MSc Financial Engineering",
+    "program_removed: University Z MSc Data Science (Finance track)"
+  ],
+  "diff": [
+    "_comment",
+    "dimensions",
+    "disclaimer",
+    "programs"
+  ],
+  "provenance": {
+    "source_url": null,
+    "fetched_at": null
+  },
+  "draft": {
+    "_comment": "Competitor comparison data gathered from OFFICIAL sources via web research on 2026-05-31 (see source_url per program). Only objective, sourced fields are kept (subjective dimensions removed). role_strengths are EDITORIAL judgments grounded in each programme's stated focus. Fed through the refresh pipeline as a trusted=false source -> always human-reviewed before publish.",
+    "dimensions": [
+      "curriculum_focus",
+      "duration",
+      "format",
+      "fees"
+    ],
+    "disclaimer": "对比基于各项目官方公开信息整理(见每个项目的来源链接与抓取日期),仅供参考,不构成排名;请以各校官方最新信息为准。",
+    "programs": [
+      {
+        "program": "NUS MSc in Digital Financial Technology",
+        "is_target": true,
+        "source_url": "https://www.comp.nus.edu.sg/programmes/pg/mdft/",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "三大方向:计算技术、金融数据分析与智能、数字金融交易与风险管理(52 学分含 capstone)",
+          "duration": "18 个月",
+          "format": "在校授课,课程 + capstone(研究项目或企业实习)",
+          "fees": "首年学费 SGD 47,088(另接受费 S$7,412,可抵学费)"
+        },
+        "role_strengths": [
+          "fintech_pm",
+          "payments",
+          "data_analytics",
+          "digital_banking"
+        ]
+      },
+      {
+        "program": "SMU MSc in Applied Finance (FinTech track)",
+        "is_target": false,
+        "source_url": "https://masters.smu.edu.sg/programme/msc-in-applied-finance",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "国际与本地金融市场为主;9 门核心 + 4 门选修,可选 Fintech 方向;对齐 CFA",
+          "duration": "18 个月(全日制)/ 24 个月(兼读)",
+          "format": "在校授课,含实习选项",
+          "fees": "S$63,220(含 GST)"
+        },
+        "role_strengths": [
+          "quant_risk",
+          "digital_banking",
+          "fintech_pm"
+        ]
+      },
+      {
+        "program": "NTU MSc in Financial Technology",
+        "is_target": false,
+        "source_url": "https://www.ntu.edu.sg/spms/about-us/mathematics/grad/msc-in-financial-technology",
+        "fetched_at": "2026-05-31",
+        "values": {
+          "curriculum_focus": "金融自动化(robo-advisor)、金融密码学(区块链)、数字金融服务;两方向:智能流程自动化(IPA)/ 数字金融服务(DFS)",
+          "duration": "1 年(全日制)/ 2 年(兼读),3 学期、每段 7 周强化",
+          "format": "在校授课,工作日晚间或周六",
+          "fees": "官方未公开,请以招生办为准"
+        },
+        "role_strengths": [
+          "data_analytics",
+          "payments",
+          "compliance_regtech",
+          "fintech_pm"
+        ]
+      }
+    ]
+  },
+  "resolved_by": "capstone_admin",
+  "resolved_at": "2026-05-31T09:15:59"
+}

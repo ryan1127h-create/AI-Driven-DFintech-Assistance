@@ -1,0 +1,59 @@
+{
+  "_comment": "CURATED, human-reviewed program comparison dataset (SYNTHETIC placeholder values for capstone). Only objective dimensions. role_strengths drives deterministic fit scoring, NOT ranking. Replace values with verified data before any real use.",
+  "dimensions": ["curriculum_focus", "duration", "format", "fees", "technical_depth", "typical_profile"],
+  "disclaimer": "对比基于公开整理、人工审核的数据,仅用于帮助你判断匹配度,不构成排名或推荐优劣。",
+  "programs": [
+    {
+      "program": "NUS MSc Digital Financial Technology",
+      "is_target": true,
+      "values": {
+        "curriculum_focus": "金融科技、支付、数据与产品",
+        "duration": "1 年(全日制)/ 2 年(兼读)",
+        "format": "在校授课",
+        "fees": "约 SGD 55,000",
+        "technical_depth": "高(编程、数据、金融工程并重)",
+        "typical_profile": "理工/金融背景,0-5 年经验"
+      },
+      "role_strengths": ["fintech_pm", "payments", "data_analytics", "digital_banking"]
+    },
+    {
+      "program": "University X MSc FinTech",
+      "is_target": false,
+      "values": {
+        "curriculum_focus": "金融理论 + 金融科技导论",
+        "duration": "1 年(全日制)",
+        "format": "在校授课",
+        "fees": "约 SGD 48,000",
+        "technical_depth": "中(偏金融,编程较少)",
+        "typical_profile": "金融/商科背景"
+      },
+      "role_strengths": ["compliance_regtech", "digital_banking"]
+    },
+    {
+      "program": "University Y MSc Financial Engineering",
+      "is_target": false,
+      "values": {
+        "curriculum_focus": "量化金融、衍生品、风险建模",
+        "duration": "1.5 年(全日制)",
+        "format": "在校授课",
+        "fees": "约 SGD 62,000",
+        "technical_depth": "高(数学与量化为主)",
+        "typical_profile": "数学/统计/工程背景"
+      },
+      "role_strengths": ["quant_risk", "data_analytics"]
+    },
+    {
+      "program": "University Z MSc Data Science (Finance track)",
+      "is_target": false,
+      "values": {
+        "curriculum_focus": "数据科学、机器学习,金融为应用方向",
+        "duration": "1 年(全日制)",
+        "format": "混合(线上+线下)",
+        "fees": "约 SGD 50,000",
+        "technical_depth": "高(数据与 ML 为主)",
+        "typical_profile": "计算机/数据背景"
+      },
+      "role_strengths": ["data_analytics", "fintech_pm"]
+    }
+  ]
+}

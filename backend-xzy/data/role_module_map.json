@@ -1,0 +1,174 @@
+{
+  "_comment": "Role -> required skills + recommended modules. Updated from DFT database; recommended modules are selected from NUS MSc DFinTech core/elective lists. Skill tags must match navigator/engine.py.",
+  "skill_labels": {
+    "programming": "Programming",
+    "data_analytics": "Data analytics",
+    "finance": "Finance knowledge",
+    "risk_modeling": "Risk modelling",
+    "product": "Product / business understanding",
+    "regulation": "Compliance / regulation",
+    "payments_systems": "Payments / blockchain / trading systems",
+    "security": "Security and resilience",
+    "ai_ml": "AI / Machine Learning"
+  },
+  "roles": {
+    "fintech_pm": {
+      "title": "FinTech Product Manager",
+      "required_skills": [
+        "product",
+        "finance",
+        "data_analytics",
+        "programming"
+      ],
+      "recommended_modules": [
+        {
+          "code": "BMS5312",
+          "name": "Fintech Management"
+        },
+        {
+          "code": "FT5001",
+          "name": "Fintech Innovations: A Strategic Landscape"
+        },
+        {
+          "code": "FT5002",
+          "name": "Digital and AI Transformation in Finance"
+        },
+        {
+          "code": "IS5009",
+          "name": "Topics in Financial Technology Solutions"
+        }
+      ]
+    },
+    "quant_risk": {
+      "title": "Quantitative / Risk Analyst",
+      "required_skills": [
+        "risk_modeling",
+        "programming",
+        "data_analytics",
+        "finance"
+      ],
+      "recommended_modules": [
+        {
+          "code": "DBA5109",
+          "name": "Quantitative Risk Management"
+        },
+        {
+          "code": "BMF5356",
+          "name": "Applied Financial Risk Management"
+        },
+        {
+          "code": "BT4016",
+          "name": "Risk Analytics for Financial Services"
+        },
+        {
+          "code": "FT5010",
+          "name": "Algorithmic Trading Systems Design and Deployment"
+        }
+      ]
+    },
+    "digital_banking": {
+      "title": "Digital Banking",
+      "required_skills": [
+        "finance",
+        "product",
+        "regulation",
+        "data_analytics"
+      ],
+      "recommended_modules": [
+        {
+          "code": "FT5002",
+          "name": "Digital and AI Transformation in Finance"
+        },
+        {
+          "code": "FT5012",
+          "name": "Digital Trust in Banking and Finance"
+        },
+        {
+          "code": "BMF5355",
+          "name": "Financial Institutions, Markets, Systems and Technology"
+        }
+      ]
+    },
+    "payments": {
+      "title": "Payments / Blockchain / Digital Assets",
+      "required_skills": [
+        "payments_systems",
+        "programming",
+        "regulation",
+        "security"
+      ],
+      "recommended_modules": [
+        {
+          "code": "FT5003",
+          "name": "Blockchain Innovations"
+        },
+        {
+          "code": "FT5004",
+          "name": "Programming for Blockchain Applications"
+        },
+        {
+          "code": "BMF5342",
+          "name": "Technological Disruptions in Finance and Data Analytics"
+        },
+        {
+          "code": "IS5009",
+          "name": "Topics in Financial Technology Solutions"
+        }
+      ]
+    },
+    "compliance_regtech": {
+      "title": "Compliance / RegTech",
+      "required_skills": [
+        "regulation",
+        "data_analytics",
+        "finance",
+        "security"
+      ],
+      "recommended_modules": [
+        {
+          "code": "BMF5354",
+          "name": "Financial Regulation in a Digital Age"
+        },
+        {
+          "code": "FT5012",
+          "name": "Digital Trust in Banking and Finance"
+        },
+        {
+          "code": "IS5008",
+          "name": "Technology Risk and Cyber Resilience"
+        },
+        {
+          "code": "BMF5355",
+          "name": "Financial Institutions, Markets, Systems and Technology"
+        }
+      ]
+    },
+    "data_analytics": {
+      "title": "Financial Data Science / AI",
+      "required_skills": [
+        "data_analytics",
+        "programming",
+        "ai_ml",
+        "finance"
+      ],
+      "recommended_modules": [
+        {
+          "code": "BT5153",
+          "name": "Applied Machine Learning for Business Analytics"
+        },
+        {
+          "code": "DBA5107",
+          "name": "Data Analytics in Banking"
+        },
+        {
+          "code": "BMF5360",
+          "name": "Applied Machine Learning in Investments"
+        },
+        {
+          "code": "FT5005",
+          "name": "Machine Learning for Finance"
+        }
+      ]
+    }
+  }
+}
