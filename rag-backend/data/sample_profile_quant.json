@@ -1,0 +1,13 @@
+{
+  "lifecycle_stage": "applicant",
+  "academic_background": {"raw": "双非金融本科", "std": "finance"},
+  "tech_level": {"raw": "会一点Python", "std": "basic"},
+  "gmat": 680,
+  "gre": null,
+  "toefl": 100,
+  "ielts": null,
+  "target_role_raw": "想做量化风险",
+  "target_role_std": "quant_risk",
+  "application_term": "2026 Fall",
+  "intake_year": null
+}

@@ -31,6 +31,7 @@ import psycopg
 from dotenv import load_dotenv
 
 import retrieval
+import profile_personalize
 
 # NVIDIA 托管的 DeepSeek V4 Pro。OpenAI 兼容接口，复用已装的 openai 包，无新依赖。
 # 两个值都可以在 .env 里覆盖：换模型、或改走 DeepSeek 官方 API（同样是 OpenAI 兼容，
@@ -275,7 +276,7 @@ def build_context(hits: list[retrieval.Hit]) -> str:
     return "\n\n".join(blocks)
 
 
-def ask_llm(client, question: str, context: str, model: str) -> str:
+def ask_llm(client, question: str, context: str, model: str, profile_brief: str = "") -> str:
     """调 LLM 生成答案，失败自动重试。
 
     为什么需要重试：实测 NVIDIA 端点对某个模型的**第一次**调用会返回 404
@@ -289,12 +290,19 @@ def ask_llm(client, question: str, context: str, model: str) -> str:
     last_err = None
     for attempt in range(MAX_RETRIES):
         try:
+            # P3：画像摘要放在问题前，让回答语气贴合用户（背景/阶段/目标方向）。
+            # 但 SYSTEM_PROMPT 的铁律不变——仍只能用检索到的资料答，画像只影响"怎么说"、
+            # 不影响"事实是什么"（不能因为画像就编资料里没有的东西）。
+            user_block = f"REFERENCE MATERIAL\n{context}\n\nQUESTION\n{question}"
+            if profile_brief:
+                user_block = (f"USER PROFILE (for tailoring tone/emphasis only, "
+                              f"never override the reference material): {profile_brief}\n\n"
+                              + user_block)
             resp = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user",
-                     "content": f"REFERENCE MATERIAL\n{context}\n\nQUESTION\n{question}"},
+                    {"role": "user", "content": user_block},
                 ],
                 temperature=TEMPERATURE,
                 max_tokens=MAX_TOKENS,
@@ -315,21 +323,33 @@ def ask_llm(client, question: str, context: str, model: str) -> str:
 # --- 主流程 -----------------------------------------------------------------
 
 def answer(conn, oa_client, llm_client, question: str, model: str = DEFAULT_LLM_MODEL,
-           k: int = TOP_K, mode: str = "full", show_context: bool = False) -> dict:
-    """一问一答。返回 dict 便于 Step 9 直接拿去评估。"""
+           k: int = TOP_K, mode: str = "full", show_context: bool = False,
+           profile: dict | None = None) -> dict:
+    """一问一答。返回 dict 便于 Step 9 直接拿去评估。
+
+    profile：可选的用户画像（profile_extract.py 的输出格式）。传了则做 P3 个性化——
+    但只在"该个性化"时才生效（选课/职业类问题），客观事实问题不受影响。
+    """
     hits = retrieval.retrieve(conn, oa_client, question, k=k, mode=mode)
+
+    # P3：若该个性化，用扩展查询重检索（命中 career/course 类内容才触发）
+    hits, personalized = profile_personalize.personalize(
+        conn, oa_client, question, hits, profile, k=k, mode=mode)
+
     hits = resolve_conflicts(hits)   # 冲突组按 CONFLICT_MODE 取舍，在喂给 LLM 之前
 
     if not hits or (MIN_RELEVANCE and hits[0].score < MIN_RELEVANCE):
         # 检索不到就别调 LLM——没有资料还让它答，就是在请它编
         return {"question": question, "answer": "提供的资料中没有这项信息，建议直接联系招生办确认。",
-                "hits": hits, "sources": [], "llm_called": False}
+                "hits": hits, "sources": [], "llm_called": False, "personalized": personalized}
 
     context = build_context(hits)
     if show_context:
         print(f"\n--- 喂给 LLM 的资料 ---\n{context}\n--- 资料结束 ---\n")
 
-    text = ask_llm(llm_client, question, context, model)
+    # 只有真个性化了才把画像摘要塞进 prompt；客观事实问题不塞，避免无谓干扰
+    brief = profile_personalize.profile_brief(profile) if personalized else ""
+    text = ask_llm(llm_client, question, context, model, profile_brief=brief)
 
     # 出处按 chunk 顺序去重（同一个 FAQ 页面可能命中多条，只列一次），
     # 并滤掉明显不相关的——见 CITE_MIN_RELEVANCE 的说明。
@@ -341,7 +361,7 @@ def answer(conn, oa_client, llm_client, question: str, model: str = DEFAULT_LLM_
             sources.append((s, h.answer_type))
 
     return {"question": question, "answer": text, "hits": hits,
-            "sources": sources, "llm_called": True}
+            "sources": sources, "llm_called": True, "personalized": personalized}
 
 
 def show(result: dict) -> None:
@@ -370,10 +390,20 @@ def main() -> None:
     p.add_argument("--limit", type=int, metavar="N",
                    help="改跑 eval_set.jsonl 的前 N 题（调 prompt 时用小的，省时间）")
     p.add_argument("--show-context", action="store_true", help="打印喂给 LLM 的资料原文")
+    p.add_argument("--profile", metavar="JSON",
+                   help="用户画像（P3 个性化）：可传 JSON 字符串，或 .json 文件路径。"
+                        "格式见 profile_extract.py 的输出")
     args = p.parse_args()
 
     if not args.query and not args.limit:
         p.error("给一个问题，或者用 --limit N 跑评估集")
+
+    profile = None
+    if args.profile:
+        raw = args.profile
+        if raw.endswith(".json") and Path(raw).exists():
+            raw = Path(raw).read_text(encoding="utf-8")
+        profile = json.loads(raw)
 
     load_dotenv()
     db = os.getenv("DATABASE_URL", "").strip()
@@ -402,8 +432,13 @@ def main() -> None:
 
     with psycopg.connect(db) as conn:
         for q in questions:
-            show(answer(conn, oa_client, llm_client, q, model=model,
-                        k=args.k, mode=args.mode, show_context=args.show_context))
+            result = answer(conn, oa_client, llm_client, q, model=model,
+                            k=args.k, mode=args.mode, show_context=args.show_context,
+                            profile=profile)
+            show(result)
+            if profile is not None:
+                tag = "✅ 已按画像个性化" if result.get("personalized") else "➖ 未个性化（客观事实问题）"
+                print(f"  个性化：{tag}")
     print()
 
 
