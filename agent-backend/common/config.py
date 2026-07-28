@@ -40,7 +40,9 @@ def _read_file() -> dict:
     if not _SECRET_FILE.exists():
         return {}
     try:
-        return json.loads(_SECRET_FILE.read_text(encoding="utf-8"))
+        # utf-8-sig:兼容带 BOM 的 .deepseek.json(Windows/某些编辑器会写 BOM),
+        # 否则 json.loads 会因 BOM 解析失败、静默返回空,导致读不到 key。
+        return json.loads(_SECRET_FILE.read_text(encoding="utf-8-sig"))
     except (json.JSONDecodeError, OSError):
         return {}
 

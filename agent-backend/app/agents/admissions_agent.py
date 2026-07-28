@@ -13,7 +13,7 @@ Admissions Agent — two nodes in one module:
 
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI  # DeepSeek 走 OpenAI 兼容接口
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.agents.knowledge_agent import make_rag_agent
@@ -166,10 +166,13 @@ Assess it and provide a structured personalised assessment with these sections:
 """
 
 
-def _build_llm() -> ChatGroq:
-    return ChatGroq(
-        model="llama-3.3-70b-versatile",
-        api_key=os.getenv("GROQ_API_KEY"),
+def _build_llm() -> ChatOpenAI:
+    # 从 Groq 换成 DeepSeek(走 common.config,自动优先 NVIDIA 免费通道、回退 DeepSeek 官方)
+    from common import config
+    return ChatOpenAI(
+        model=config.get_model(),
+        api_key=config.get_api_key(),
+        base_url=config.get_base_url(),
         temperature=0.2,
         max_tokens=2048,
     )
