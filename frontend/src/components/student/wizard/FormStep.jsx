@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, ArrowLeft, Lock, Upload, FileText, X } from "lucide-react";
 import {
   applicationTypes,
@@ -10,22 +10,39 @@ import {
 } from "../../../data/wizard";
 import { StepIndicator } from "./LandingStep";
 
-export default function FormStep({ initial, onBack, onGenerate }) {
-  const isApplicant = initial.lifecycle_stage === "applicant";
-  const [form, setForm] = useState({
-    lifecycle_stage: initial.lifecycle_stage,
-    application_type: "",
-    degree_level: "",
-    field_of_study: "",
-    work_years: "",
-    country: "",
-    technical_proficiency: "",
-    finance_knowledge: "",
-    target_roles: [],
-    priority: "role_fit",
-    completed_modules: "",
+export default function FormStep({ initial, onBack, onGenerate, loading, error }) {
+  const isApplicant = initial?.lifecycle_stage === "applicant";
+  const [form, setForm] = useState(() => ({
+    lifecycle_stage: initial?.lifecycle_stage || "applicant",
+    application_type: initial?.application_type || "",
+    degree_level: initial?.degree_level || "",
+    field_of_study: initial?.field_of_study || "",
+    work_years: initial?.work_years || "",
+    country: initial?.country || "",
+    technical_proficiency: initial?.technical_proficiency || "",
+    finance_knowledge: initial?.finance_knowledge || "",
+    target_roles: Array.isArray(initial?.target_roles) ? initial.target_roles : [],
+    priority: initial?.priority || "role_fit",
+    completed_modules: initial?.completed_modules || "",
     uploads: {},
-  });
+  }));
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      lifecycle_stage: initial?.lifecycle_stage || "applicant",
+      application_type: initial?.application_type || "",
+      degree_level: initial?.degree_level || "",
+      field_of_study: initial?.field_of_study || "",
+      work_years: initial?.work_years || "",
+      country: initial?.country || "",
+      technical_proficiency: initial?.technical_proficiency || "",
+      finance_knowledge: initial?.finance_knowledge || "",
+      target_roles: Array.isArray(initial?.target_roles) ? initial.target_roles : [],
+      priority: initial?.priority || "role_fit",
+      completed_modules: initial?.completed_modules || "",
+    }));
+  }, [initial]);
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -52,7 +69,9 @@ export default function FormStep({ initial, onBack, onGenerate }) {
 
   const submit = (e) => {
     e.preventDefault();
-    onGenerate(form);
+    if (!loading) {
+      onGenerate(form);
+    }
   };
 
   return (
@@ -71,6 +90,12 @@ export default function FormStep({ initial, onBack, onGenerate }) {
       </div>
 
       <form onSubmit={submit} className="space-y-6">
+        {loading && (
+          <div className="rounded-lg border border-app-subtle bg-app-hover p-3 text-sm text-app-primary flex items-center gap-2">
+            <span className="h-4 w-4 rounded-full border-2 border-brand-300 border-t-transparent animate-spin" />
+            Generating analysis...
+          </div>
+        )}
         <div className="card p-5">
           <h2 className="font-display text-base font-semibold text-app-primary mb-2">Identity</h2>
           <div className="flex items-center gap-2 text-xs text-app-muted">
@@ -96,7 +121,7 @@ export default function FormStep({ initial, onBack, onGenerate }) {
               >
                 <option value="">(Undecided)</option>
                 {applicationTypes.map((a) => (
-                  <option key={a} value={a}>{a}</option>
+                  <option key={a.value} value={a.value}>{a.label}</option>
                 ))}
               </select>
             </Field>
@@ -108,7 +133,7 @@ export default function FormStep({ initial, onBack, onGenerate }) {
               >
                 <option value="">(Select)</option>
                 {degreeLevels.map((d) => (
-                  <option key={d} value={d}>{d}</option>
+                  <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
               </select>
             </Field>
@@ -120,7 +145,7 @@ export default function FormStep({ initial, onBack, onGenerate }) {
               >
                 <option value="">(Select)</option>
                 {fields.map((f) => (
-                  <option key={f} value={f}>{f}</option>
+                  <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
               </select>
             </Field>
@@ -160,7 +185,7 @@ export default function FormStep({ initial, onBack, onGenerate }) {
               >
                 <option value="">(Select)</option>
                 {proficiencies.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </Field>
@@ -172,7 +197,7 @@ export default function FormStep({ initial, onBack, onGenerate }) {
               >
                 <option value="">(Select)</option>
                 {proficiencies.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </Field>
@@ -183,21 +208,20 @@ export default function FormStep({ initial, onBack, onGenerate }) {
             <div className="mt-2 flex flex-wrap gap-2">
               {roles.map((r) => (
                 <button
-                  key={r}
+                  key={r.value}
                   type="button"
-                  onClick={() => toggleRole(r)}
+                  onClick={() => toggleRole(r.value)}
                   className={`chip border transition ${
-                    form.target_roles.includes(r)
+                    form.target_roles.includes(r.value)
                       ? "bg-brand-500/20 text-brand-300 border-brand-400/30"
                       : "bg-app-hover text-app-muted border-app-input hover:border-brand-400/20"
                   }`}
                 >
-                  {r}
+                  {r.label}
                 </button>
               ))}
             </div>
           </div>
-
           <Field label="Main priority for programme comparison" locked={!isApplicant} hint="Not needed for current students.">
             <select
               className="input"
@@ -266,11 +290,11 @@ export default function FormStep({ initial, onBack, onGenerate }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="btn-primary">
-            Generate analysis
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Generating..." : "Generate analysis"}
             <ArrowRight size={16} />
           </button>
-          <button type="button" onClick={onBack} className="btn-ghost text-sm">
+          <button type="button" onClick={onBack} className="btn-ghost text-sm" disabled={loading}>
             <ArrowLeft size={14} />
             Change profile type
           </button>

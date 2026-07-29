@@ -1,36 +1,105 @@
 // Data for the 3-step profile wizard converted from the HTML templates
 
-export const applicationTypes = ["Full-time", "Part-time"];
-export const degreeLevels = ["Bachelor", "Master", "PhD"];
-export const fields = [
-  "Computer Science",
-  "Finance",
-  "Engineering",
-  "Statistics",
-  "Mathematics",
-  "Business Analytics",
-  "Other",
+export const applicationTypes = [
+  { value: "full_time", label: "Full-time" },
+  { value: "part_time", label: "Part-time" },
 ];
-export const proficiencies = ["Beginner", "Intermediate", "Advanced", "Expert"];
+export const degreeLevels = [
+  { value: "high_school", label: "High School" },
+  { value: "bachelor", label: "Bachelor" },
+  { value: "master", label: "Master" },
+  { value: "phd", label: "PhD" },
+];
+export const fields = [
+  { value: "computer_science", label: "Computer Science" },
+  { value: "finance", label: "Finance" },
+  { value: "engineering", label: "Engineering" },
+  { value: "mathematics", label: "Mathematics" },
+  { value: "business", label: "Business Analytics" },
+  { value: "other", label: "Other" },
+];
+export const proficiencies = [
+  { value: "none", label: "None" },
+  { value: "basic", label: "Basic" },
+  { value: "intermediate", label: "Intermediate" },
+  { value: "advanced", label: "Advanced" },
+];
 export const roles = [
-  "FinTech Product Manager",
-  "Quantitative Analyst",
-  "Blockchain Engineer",
-  "Data Scientist (Finance)",
-  "Risk Technology Lead",
-  "Digital Banking Strategist",
-  "RegTech Consultant",
-  "Founder / Startup",
+  { value: "fintech_pm", label: "FinTech Product Manager" },
+  { value: "quant_risk", label: "Quantitative Analyst" },
+  { value: "payments", label: "Payments / Wallets" },
+  { value: "digital_banking", label: "Digital Banking Strategist" },
+  { value: "compliance_regtech", label: "RegTech Consultant" },
+  { value: "data_analytics", label: "Data Scientist (Finance)" },
 ];
 
 export const materials = [
-  { key: "transcript", label: "Academic Transcript (sealed)", required: "required", hint: "Official transcript in a sealed envelope from your institution." },
-  { key: "resume", label: "Resume / CV", required: "required", hint: "Current resume listing education and work experience." },
-  { key: "sop", label: "Statement of Purpose", required: "required", hint: "500-800 words on FinTech motivation and career goals." },
-  { key: "reference", label: "Academic Reference Letter", required: "required", hint: "At least one academic reference; two recommended." },
-  { key: "english", label: "English Proficiency Proof", required: "conditional", hint: "TOEFL iBT 90+ or IELTS 6.5+ (if non-English medium)." },
-  { key: "passport", label: "Passport Copy", required: "required", hint: "Clear scan of the biographical data page." },
-  { key: "fee", label: "Application Fee (S$50)", required: "required", hint: "Non-refundable fee payable online during submission." },
+  {
+    key: "personal_statement",
+    label: "Personal Statement",
+    required: "required",
+    hint: "Explains reasons for applying, preparation, career plans, and relevant background.",
+  },
+  {
+    key: "cv",
+    label: "Curriculum Vitae / CV",
+    required: "required",
+    hint: "Current resume listing education and work experience.",
+  },
+  {
+    key: "proof_of_residence",
+    label: "Proof of Residence / Passport / NRIC",
+    required: "required",
+    hint: "Singapore Citizens/PRs should upload both sides of NRIC; international applicants should upload passport and relevant passes.",
+  },
+  {
+    key: "degree_certificate",
+    label: "Degree Certificate / Expected Graduation Letter",
+    required: "required",
+    hint: "Upload a certificate or expected graduation letter from your institution.",
+  },
+  {
+    key: "transcript",
+    label: "Academic Transcript(s)",
+    required: "required",
+    hint: "Complete transcript showing grades for all courses.",
+  },
+  {
+    key: "english_proficiency",
+    label: "English Proficiency Proof",
+    required: "conditional",
+    hint: "TOEFL iBT 90+ or IELTS 6.5+ if your prior instruction language was not English.",
+  },
+  {
+    key: "standardised_test_scores",
+    label: "GRE / GMAT / GATE Score Report",
+    required: "supporting",
+    hint: "Optional supporting score report.",
+  },
+  {
+    key: "referee_reports",
+    label: "Referee Reports",
+    required: "required",
+    hint: "Upload referee confirmation evidence or report screenshots.",
+  },
+  {
+    key: "financial_support",
+    label: "Financial Support Document",
+    required: "supporting",
+    hint: "Bank statements, payslips, or sponsor letter if applicable.",
+  },
+  {
+    key: "application_fee",
+    label: "Application Fee Payment Proof",
+    required: "required",
+    hint: "Upload payment proof for the application fee.",
+  },
+  {
+    key: "other_supporting_documents",
+    label: "Other Supporting Documents",
+    required: "supporting",
+    hint: "Additional certificates or evidence relevant to your application.",
+  },
 ];
 
 export const moduleCatalogue = [
@@ -55,30 +124,90 @@ export const compareProgrammeRows = [
   {
     program: "MSc DFT (NUS)",
     isTarget: true,
-    facts: { focus: "AI + Finance + Systems", duration: "1.5-2 yrs", capstone: "Yes", tuition: "S$58,860" },
+    facts: {
+      curriculum_focus: "AI + Finance + Systems",
+      duration: "1.5-2 yrs",
+      format: "Full-time",
+      fees: "S$58,860",
+      intake: "August",
+      scholarship: "NUS Graduate Scholarship",
+      gmat_gre: "Not required",
+      typical_profile: "Quantitative finance + computing",
+      industry_orientation: "FinTech banking & blockchain",
+      technical_depth: "High",
+      career_pathways: "Product, data, risk roles",
+    },
     source_url: "https://www.nus.edu.sg",
   },
   {
     program: "MSc Financial Engineering (NUS RM)",
     isTarget: false,
-    facts: { focus: "Quant + Derivatives", duration: "1.5 yrs", capstone: "Yes", tuition: "S$60,000" },
+    facts: {
+      curriculum_focus: "Quantitative risk and derivatives",
+      duration: "1.5 yrs",
+      format: "Full-time",
+      fees: "S$60,000",
+      intake: "August",
+      scholarship: "NUS Graduate Scholarship",
+      gmat_gre: "Required",
+      typical_profile: "Strong maths/engineering background",
+      industry_orientation: "Capital markets & risk",
+      technical_depth: "Very high",
+      career_pathways: "Trading, risk analytics, quant research",
+    },
     source_url: "https://www.nus.edu.sg",
   },
   {
     program: "MSc Computer Science (NUS)",
     isTarget: false,
-    facts: { focus: "General Computing", duration: "1.5 yrs", capstone: "No", tuition: "S$54,000" },
+    facts: {
+      curriculum_focus: "General computing and systems",
+      duration: "1.5 yrs",
+      format: "Full-time",
+      fees: "S$54,000",
+      intake: "August",
+      scholarship: "NUS Graduate Scholarship",
+      gmat_gre: "May be required",
+      typical_profile: "Strong CS fundamentals",
+      industry_orientation: "Software & tech",
+      technical_depth: "High",
+      career_pathways: "Software engineering, AI, systems",
+    },
     source_url: "https://www.nus.edu.sg",
   },
   {
     program: "MSc FinTech (NTU)",
     isTarget: false,
-    facts: { focus: "Finance + Analytics", duration: "1 yr", capstone: "Yes", tuition: "S$52,000" },
+    facts: {
+      curriculum_focus: "Finance + Analytics",
+      duration: "1 yr",
+      format: "Full-time",
+      fees: "S$52,000",
+      intake: "August",
+      scholarship: "Industry-sponsored awards",
+      gmat_gre: "Not required",
+      typical_profile: "Finance + coding",
+      industry_orientation: "FinTech product & analytics",
+      technical_depth: "Medium",
+      career_pathways: "FinTech analyst, product, consulting",
+    },
     source_url: "https://www.ntu.edu.sg",
   },
 ];
 
-export const compareDimensions = ["focus", "duration", "capstone", "tuition"];
+export const compareDimensions = [
+  "curriculum_focus",
+  "duration",
+  "format",
+  "fees",
+  "intake",
+  "scholarship",
+  "gmat_gre",
+  "typical_profile",
+  "industry_orientation",
+  "technical_depth",
+  "career_pathways",
+];
 
 // Generate a mock analysis result from the submitted profile
 export function buildResults(profile) {

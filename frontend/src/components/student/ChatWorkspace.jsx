@@ -16,13 +16,15 @@ import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
 import { ROLE_META } from "../../data/roles";
 import { suggestedPrompts, aiResponses, agents } from "../../data/conversations";
-import { buildResults } from "../../data/wizard";
+import { extractProfile, generateAdvice, sendMessage as apiSendMessage } from "../../../api";
 import { cn } from "../../utils/cn";
 import ThemeToggle from "../ThemeToggle";
 import LandingStep from "./wizard/LandingStep";
 import FormStep from "./wizard/FormStep";
 import ResultsStep from "./wizard/ResultsStep";
 import SettingsModal from "./wizard/SettingsModal";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const WIZARD_LANDING = "landing";
 const WIZARD_FORM = "form";
@@ -43,17 +45,61 @@ export default function ChatWorkspace() {
   const [profile, setProfile] = useState(null);
   const [results, setResults] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleLandingAdvance = (data) => {
-    setLandingData(data);
-    setView(WIZARD_FORM);
+  const handleLandingAdvance = async (data) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("lifecycle_stage", data.lifecycle_stage);
+      formData.append("text", data.text || "");
+      if (data.cvFile) {
+        formData.append("cv", data.cvFile);
+      }
+      const response = await extractProfile(formData);
+      setLandingData({ ...response.prefill, cvFile: data.cvFile });
+      setView(WIZARD_FORM);
+    } catch (err) {
+      setError(err.message || "Unable to extract profile data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGenerate = (formProfile) => {
-    const fullProfile = { ...formProfile, cvName: landingData?.cvName };
-    setProfile(fullProfile);
-    setResults(buildResults(fullProfile));
-    setView(WIZARD_RESULTS);
+  const handleGenerate = async (formProfile) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("lifecycle_stage", formProfile.lifecycle_stage || "applicant");
+      formData.append("application_type", formProfile.application_type || "");
+      formData.append("degree_level", formProfile.degree_level || "");
+      formData.append("field_of_study", formProfile.field_of_study || "");
+      formData.append("work_years", formProfile.work_years || "");
+      formData.append("country", formProfile.country || "");
+      formData.append("technical_proficiency", formProfile.technical_proficiency || "");
+      formData.append("finance_knowledge", formProfile.finance_knowledge || "");
+      formData.append("priority", formProfile.priority || "role_fit");
+      formData.append("completed_modules", formProfile.completed_modules || "");
+      formProfile.target_roles?.forEach((role) => formData.append("target_roles", role));
+      const uploads = formProfile.uploads || {};
+      Object.keys(uploads).forEach((key) => {
+        const file = uploads[key];
+        if (file) {
+          formData.append(`material_${key}`, file);
+        }
+      });
+      const response = await generateAdvice(formData);
+      setProfile(response.data.profile);
+      setResults(response.data);
+      setView(WIZARD_RESULTS);
+    } catch (err) {
+      setError(err.message || "Unable to generate analysis.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStartChat = () => {
@@ -89,6 +135,10 @@ export default function ChatWorkspace() {
 
   const handleStartWizard = () => {
     setView(WIZARD_LANDING);
+    setLandingData(null);
+    setProfile(null);
+    setResults(null);
+    setError(null);
   };
 
   const handleRegenerate = () => {
@@ -98,7 +148,13 @@ export default function ChatWorkspace() {
   if (view === WIZARD_LANDING) {
     return (
       <div className="flex-1 flex flex-col h-full overflow-y-auto">
-        <LandingStep onAdvance={handleLandingAdvance} onOpenSettings={() => setSettingsOpen(true)} onSkip={handleSkip} />
+        <LandingStep
+          onAdvance={handleLandingAdvance}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onSkip={handleSkip}
+          loading={loading}
+          error={error}
+        />
         {settingsOpen && <SettingsModal status={SETTINGS_STATUS} onClose={() => setSettingsOpen(false)} onSave={() => {}} />}
       </div>
     );
@@ -111,6 +167,8 @@ export default function ChatWorkspace() {
           initial={landingData || { lifecycle_stage: "applicant" }}
           onBack={() => setView(WIZARD_LANDING)}
           onGenerate={handleGenerate}
+          loading={loading}
+          error={error}
         />
       </div>
     );
@@ -130,6 +188,7 @@ export default function ChatWorkspace() {
 function ChatView({ user, onStartWizard }) {
   const { messages, addMessage, isStreaming, setIsStreaming, clearMessages } = useChat();
   const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState(null);
   const scrollRef = useRef(null);
   const meta = ROLE_META[user?.role];
   const prompts = suggestedPrompts[user?.role] || [];
@@ -138,45 +197,46 @@ function ChatView({ user, onStartWizard }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
 
-  const findResponse = (text) => {
-    const match = prompts.find((p) => p.text.toLowerCase() === text.toLowerCase());
-    if (match) return aiResponses[match.intent] || aiResponses.default;
-    if (/eligib/i.test(text)) return aiResponses["Eligibility Check"];
-    if (/compare/i.test(text)) return aiResponses["Programme Comparison"];
-    if (/career/i.test(text)) return aiResponses["Career Outcomes"];
-    if (/module|curriculum|course/i.test(text)) return aiResponses["Curriculum Browse"];
-    if (/status/i.test(text)) return aiResponses["Status Check"];
-    if (/document|missing/i.test(text)) return aiResponses["Document Audit"];
-    if (/checklist/i.test(text)) return aiResponses["Checklist Build"];
-    if (/progress|graduat/i.test(text)) return aiResponses["Progress Audit"];
-    if (/plan.*module|degree.*plan/i.test(text)) return aiResponses["Degree Planning"];
-    return aiResponses.default;
-  };
-
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     const content = text || input.trim();
     if (!content || isStreaming) return;
 
     addMessage({ role: "user", content, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
     setInput("");
-
     setIsStreaming(true);
-    const response = findResponse(content);
-    const agent = agents.find((a) => a.id === response.agent) || agents[0];
 
-    setTimeout(() => {
+    try {
+      const response = await apiSendMessage(content, {
+        stage: meta?.stage || "prospect",
+        name: user?.name,
+      });
+      setSessionId(response.session_id);
+
+      const agent = agents.find((a) => a.id === response.agent_used) || agents[0];
       addMessage({
         role: "assistant",
-        content: response.text,
-        intent: response.intent,
-        stage: response.stage,
-        confidence: response.confidence,
-        source: response.source,
+        content: response.reply,
+        intent: response.intent || "AI chat",
+        stage: meta?.stage || "prospect",
+        confidence: 0.9,
+        source: response.agent_used || "AI Assistant",
         agent,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
+    } catch (err) {
+      addMessage({
+        role: "assistant",
+        content: err.message || "Chat failed. Please try again.",
+        intent: "Error",
+        stage: meta?.stage || "prospect",
+        confidence: 0,
+        source: "System",
+        agent: agents[0],
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+    } finally {
       setIsStreaming(false);
-    }, 900);
+    }
   };
 
   return (
@@ -358,7 +418,40 @@ function AssistantMessage({ msg }) {
             </div>
           )}
 
-          <p className="text-sm text-app-primary whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+          <div className="prose prose-sm prose-invert text-sm text-app-primary leading-relaxed break-words">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ node, ...props }) => {
+                  const href = props.href || "";
+                  if (href.startsWith("mailto:")) {
+                    return (
+                      <a
+                        {...props}
+                        href={href}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          window.location.href = href;
+                        }}
+                        className="text-brand-300 hover:underline"
+                      />
+                    );
+                  }
+                  return (
+                    <a
+                      {...props}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-300 hover:underline"
+                    />
+                  );
+                },
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
+          </div>
 
           {/* Metadata */}
           <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-app-subtle">

@@ -1,16 +1,38 @@
 import { ArrowLeft, MessageSquare } from "lucide-react";
-import { compareDimensions } from "../../../data/wizard";
 import { StepIndicator } from "./LandingStep";
 
 export default function ResultsStep({ results, onBack, onStartChat }) {
-  const { profile, material_analysis, material_summary, r } = results;
+  const profile = results?.profile || { lifecycle_stage: "applicant" };
+  const material_analysis = results?.material_analysis || [];
+  const material_summary = results?.material_summary || {};
+  const r = results?.r || {};
+  const recommendation = r.recommendation?.data || {};
+  const tracker = r.tracker?.data || {};
+  const checklist = r.checklist?.data || {};
+  const comparison = r.comparison?.data || {};
+  const escalation = tracker.escalation_packet || null;
+  const comparisonDimensions = comparison.dimensions || [];
+  const compareColumnLabels = {
+    curriculum_focus: "Curriculum Focus",
+    duration: "Duration",
+    format: "Format",
+    fees: "Fees",
+    intake: "Intake",
+    scholarship: "Scholarship",
+    gmat_gre: "GMAT/GRE",
+    typical_profile: "Typical Profile",
+    industry_orientation: "Industry Orientation",
+    technical_depth: "Technical Depth",
+    career_pathways: "Career Pathways",
+  };
   const isApplicant = profile.lifecycle_stage === "applicant";
-
+  console.log("ResultsStep: results", results, "profile", profile, "material_analysis", material_analysis, "material_summary", material_summary, "r", r, "recommendation", recommendation, "tracker", tracker, "checklist", checklist, "comparison", comparison, "escalation", escalation);
+  
   const sections = [];
-  if (material_analysis) sections.push({ id: "materials", icon: "📎", label: "Material analysis" });
+  if (material_analysis.length > 0) sections.push({ id: "materials", icon: "📎", label: "Material analysis" });
   if (r.checklist) sections.push({ id: "checklist", icon: "📋", label: "Application checklist" });
   if (r.tracker) sections.push({ id: "tracker", icon: "🔎", label: "Application status" });
-  if (r.tracker) sections.push({ id: "actions", icon: "🧭", label: "Supplement / human support" });
+  if (r.tracker && escalation) sections.push({ id: "actions", icon: "🧭", label: "Supplement / human support" });
   if (r.comparison) sections.push({ id: "compare", icon: "⚖️", label: "Programme comparison" });
   if (r.recommendation) sections.push({ id: "courses", icon: "🎓", label: "Courses and pathway" });
 
@@ -53,13 +75,13 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
         ))}
       </nav>
 
-      {material_analysis && (
+      {material_analysis.length > 0 && (
         <Section id="materials" icon="📎" title="Current material analysis">
-          {material_summary && (
+          {Object.keys(material_summary).length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <SummaryStat value={`${material_summary.submitted_required} / ${material_summary.required_total}`} label="required materials uploaded" />
-              <SummaryStat value={material_summary.missing_required} label="missing" />
-              <SummaryStat value={material_summary.rejected_required} label="invalid format/size" />
+              <SummaryStat value={`${material_summary.submitted_required || 0} / ${material_summary.required_total || 0}`} label="required materials uploaded" />
+              <SummaryStat value={material_summary.missing_required || 0} label="missing" />
+              <SummaryStat value={material_summary.rejected_required || 0} label="invalid format/size" />
               <SummaryStat value={material_summary.is_complete ? "Complete" : "Incomplete"} label="system material check" />
             </div>
           )}
@@ -87,7 +109,7 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
         <Section id="checklist" icon="📋" title="Application checklist: submission status">
           <p className="text-sm text-app-muted mb-3">{r.checklist.speakable}</p>
           <ul className="space-y-2">
-            {r.checklist.data.items.map((it, i) => (
+            {(checklist.items || []).map((it, i) => (
               <li key={i} className="rounded-lg border border-app-input bg-app-hover p-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-app-primary">{it.label}</span>
@@ -113,14 +135,14 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
           </span>
           <p className="text-sm text-app-muted">{r.tracker.speakable}</p>
           <div className="mt-3 rounded-lg bg-brand-500/5 border border-brand-400/10 p-3">
-            <p className="text-sm font-medium text-app-primary">{r.tracker.data.human_status}</p>
-            <p className="text-xs text-app-muted mt-1">{r.tracker.data.next_step}</p>
+            <p className="text-sm font-medium text-app-primary">{tracker.human_status || "No status available"}</p>
+            <p className="text-xs text-app-muted mt-1">{tracker.next_step || ""}</p>
           </div>
-          {r.tracker.data.demo_milestones && (
+          {tracker.demo_milestones?.length > 0 && (
             <div className="mt-4">
               <label className="text-sm font-medium text-app-secondary">Application timeline</label>
               <ol className="mt-2 space-y-2">
-                {r.tracker.data.demo_milestones.map((step, i) => (
+                {tracker.demo_milestones.map((step, i) => (
                   <li key={i} className="flex items-center gap-3">
                     <span
                       className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
@@ -140,21 +162,21 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
               </ol>
             </div>
           )}
-          {r.tracker.data.outstanding_documents?.length > 0 && (
+          {tracker.outstanding_documents?.length > 0 && (
             <div className="mt-4">
               <label className="text-sm font-medium text-app-secondary">Materials requiring action</label>
               <div className="mt-2 flex flex-wrap gap-2">
-                {r.tracker.data.outstanding_documents.map((d, i) => (
+                {tracker.outstanding_documents.map((d, i) => (
                   <Pill key={i} kind="warn">{d.label}</Pill>
                 ))}
               </div>
             </div>
           )}
-          {r.tracker.data.reminders?.length > 0 && (
+          {tracker.reminders?.length > 0 && (
             <div className="mt-4">
               <label className="text-sm font-medium text-app-secondary">Reminders</label>
               <ul className="mt-2 space-y-2">
-                {r.tracker.data.reminders.map((rem, i) => (
+                {tracker.reminders.map((rem, i) => (
                   <li key={i} className="rounded-lg border border-app-input bg-app-hover p-3">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-app-primary">{rem.name}</span>
@@ -169,9 +191,9 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
         </Section>
       )}
 
-      {r.tracker && (
+      {r.tracker && escalation && (
         <Section id="actions" icon="🧭" title="Supplementary material / human support entry">
-          {r.tracker.data.outstanding_documents?.length > 0 ? (
+          {tracker.outstanding_documents?.length > 0 ? (
             <p className="text-sm text-app-muted">
               <strong>Supplement recommendation:</strong> Some materials are missing or invalid.
               Return to the form, upload the correct files, and regenerate the analysis.
@@ -183,14 +205,14 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
             </p>
           )}
           <div className="mt-3 rounded-lg bg-app-hover border border-app-input p-3 space-y-1 text-sm">
-            <div><strong className="text-app-primary">Suggested route:</strong> {r.tracker.data.escalation_packet.suggested_team}</div>
-            <div><strong className="text-app-primary">Reason:</strong> {r.tracker.data.escalation_packet.reason}</div>
-            <div><strong className="text-app-primary">Application ID:</strong> {r.tracker.data.escalation_packet.application_id}</div>
-            <div><strong className="text-app-primary">Current status:</strong> {r.tracker.data.escalation_packet.current_status}</div>
+            <div><strong className="text-app-primary">Suggested route:</strong> {escalation.suggested_team || "TBD"}</div>
+            <div><strong className="text-app-primary">Reason:</strong> {escalation.reason || "N/A"}</div>
+            <div><strong className="text-app-primary">Application ID:</strong> {escalation.application_id || "N/A"}</div>
+            <div><strong className="text-app-primary">Current status:</strong> {escalation.current_status || "N/A"}</div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <a
-              href={r.tracker.data.escalation_packet.official_enquiry_url}
+              href={escalation.official_enquiry_url || "#"}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-outline text-xs"
@@ -198,7 +220,7 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
               Open NUS DFinTech official enquiry form ↗
             </a>
             <a
-              href={r.tracker.data.escalation_packet.graduate_admission_system_url}
+              href={escalation.graduate_admission_system_url || "#"}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-ghost text-xs"
@@ -216,54 +238,82 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
               <thead>
                 <tr className="border-b border-app-subtle">
                   <th className="text-left py-2 px-3 text-app-secondary font-medium">Programme</th>
-                  {compareDimensions.map((d) => (
-                    <th key={d} className="text-left py-2 px-3 text-app-secondary font-medium capitalize">{d}</th>
+                  {comparisonDimensions.map((d) => (
+                    <th key={d} className="text-left py-2 px-3 text-app-secondary font-medium">
+                      {compareColumnLabels[d] || d}
+                    </th>
                   ))}
+                  <th className="text-left py-2 px-3 text-app-secondary font-medium">Source</th>
                 </tr>
               </thead>
               <tbody>
-                {r.comparison.data.facts_table.rows.map((row) => (
-                  <tr
-                    key={row.program}
-                    className={`border-b border-app-soft ${row.isTarget ? "bg-brand-500/5" : ""}`}
-                  >
-                    <td className="py-2 px-3 text-app-primary font-medium">
-                      {row.program}
-                      {row.isTarget && <span className="text-brand-300 ml-1">★</span>}
-                    </td>
-                    {compareDimensions.map((d) => (
-                      <td key={d} className="py-2 px-3 text-app-muted">
-                        {row.facts[d] || "—"}
+                {(comparison.facts_table?.rows || []).map((row) => {
+                  const sourceUrl = row.source_url || comparisonDimensions.reduce((acc, dim) => {
+                    const cell = row.facts?.[dim];
+                    return acc || (cell && cell.source_url) || null;
+                  }, null);
+                  const fetchedAt = row.fetched_at || comparisonDimensions.reduce((acc, dim) => {
+                    const cell = row.facts?.[dim];
+                    return acc || (cell && cell.fetched_at) || null;
+                  }, null);
+                  return (
+                    <tr
+                      key={row.program}
+                      className={`border-b border-app-soft ${row.is_target ? "bg-brand-500/5" : ""}`}
+                    >
+                      <td className="py-2 px-3 text-app-primary font-medium">
+                        {row.program}
+                        {row.is_target && <span className="text-brand-300 ml-1">★</span>}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      {comparisonDimensions.map((d) => {
+                        const cell = row.facts?.[d] || {};
+                        return (
+                          <td key={d} className="py-2 px-3 text-app-muted">
+                            {typeof cell === "string" ? cell : cell?.text || "—"}
+                          </td>
+                        );
+                      })}
+                      <td className="py-2 px-3 text-app-muted">
+                        {sourceUrl ? (
+                          <>
+                            <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-brand-300 hover:underline">
+                              Official page ↗
+                            </a>
+                            {fetchedAt && <div className="text-[11px] text-app-faint mt-1">As of {fetchedAt}</div>}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          {r.comparison.data.synthesis && (
+          {comparison.synthesis && (
             <div className="mt-4 rounded-lg bg-brand-500/5 border border-brand-400/10 p-3">
               <p className="text-sm font-medium text-app-primary">AI synthesis analysis (not official fact)</p>
-              <p className="text-sm text-app-muted mt-1">{r.comparison.data.synthesis.narrative}</p>
+              <p className="text-sm text-app-muted mt-1">{comparison.synthesis.narrative}</p>
               <p className="text-sm text-app-muted mt-2">
-                Based on your preferences, <strong className="text-app-primary">{r.comparison.data.synthesis.best_for_you}</strong> is the closest fit under the current rules. This is not a school ranking.
+                Based on your preferences, <strong className="text-app-primary">{comparison.synthesis.best_for_you}</strong> is the closest fit under the current rules. This is not a school ranking.
               </p>
             </div>
           )}
-          <p className="text-xs text-app-faint mt-3">{r.comparison.data.disclaimer}</p>
+          {comparison.disclaimer && <p className="text-xs text-app-faint mt-3">{comparison.disclaimer}</p>}
         </Section>
       )}
 
       {r.recommendation && (
         <Section id="courses" icon="🎓" title={isApplicant ? "Post-enrolment course and career advice" : "Course and skill direction advice"}>
-          <p className="text-sm text-app-muted">{r.recommendation.data.explanation}</p>
+          <p className="text-sm text-app-muted">{recommendation.explanation || "No recommendation summary available."}</p>
           <p className="text-xs text-app-faint mt-1">
-            Selection method: {r.recommendation.data.selection_source === "llm" ? "AI-selected from candidates" : "rule-based ranking (AI not configured)"}
+            Selection method: {recommendation.selection_source === "llm" ? "AI-selected from candidates" : "rule-based ranking (AI not configured)"}
           </p>
 
           <label className="text-sm font-medium text-app-secondary mt-4 block">Recommended electives / modules to take</label>
           <ul className="mt-2 space-y-2">
-            {r.recommendation.data.recommended.map((mod) => (
+            {(recommendation.recommended || []).map((mod) => (
               <li key={mod.code} className="rounded-lg border border-app-input bg-app-hover p-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm text-app-primary">
@@ -278,84 +328,90 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
             ))}
           </ul>
 
-          {r.recommendation.data.already_completed?.length > 0 && (
+          {(recommendation.already_completed || []).length > 0 && (
             <p className="text-xs text-app-muted mt-3">
-              Completed ✓: {r.recommendation.data.already_completed.map((m) => m.code).join(", ")}
+              Completed ✓: {(recommendation.already_completed || []).map((m) => m.code).join(", ")}
             </p>
           )}
 
-          {r.recommendation.data.unrecognized_completed?.length > 0 && (
+          {(recommendation.unrecognized_completed || []).length > 0 && (
             <div className="mt-3 rounded-lg bg-brand-500/5 border border-brand-400/10 p-3 text-sm text-app-muted">
               The following completed module codes were not found in the course catalogue and may need
-              checking: {r.recommendation.data.unrecognized_completed.join(", ")}
+              checking: {(recommendation.unrecognized_completed || []).join(", ")}
             </div>
           )}
 
-          {r.recommendation.data.skill_gaps?.length > 0 && (
+          {(recommendation.skill_gaps || []).length > 0 && (
             <div className="mt-4">
               <label className="text-sm font-medium text-app-secondary">Skills to strengthen</label>
               <div className="mt-2 flex flex-wrap gap-2">
-                {r.recommendation.data.skill_gaps.map((s) => (
+                {(recommendation.skill_gaps || []).map((s) => (
                   <Pill key={s} kind="warn">{s}</Pill>
                 ))}
               </div>
             </div>
           )}
 
-          {(() => {
-            const gp = r.recommendation.data.graduation_progress;
-            const completedPct = Math.min(100, (gp.completed_credits / gp.required) * 100);
-            const totalPct = Math.min(100, ((gp.completed_credits + gp.planned_credits) / gp.required) * 100);
-            const plannedPct = Math.max(0, totalPct - completedPct);
-            return (
-              <div className="mt-4">
-                <label className="text-sm font-medium text-app-secondary">
-                  Graduation credit progress
-                  <span className="text-xs font-normal text-app-muted ml-2">
-                    {gp.completed_credits} / {gp.required} Units completed
-                  </span>
-                </label>
-                <div className="mt-2 h-3 w-full rounded-full bg-app-hover overflow-hidden flex">
-                  <div className="h-full bg-emerald2-500" style={{ width: `${completedPct}%` }} />
-                  <div className="h-full bg-brand-500" style={{ width: `${plannedPct}%` }} />
+          {recommendation.graduation_progress && (
+            (() => {
+              const gp = recommendation.graduation_progress;
+              const completedPct = Math.min(100, ((gp.completed_credits || 0) / (gp.required || 1)) * 100);
+              const totalPct = Math.min(100, (((gp.completed_credits || 0) + (gp.planned_credits || 0)) / (gp.required || 1)) * 100);
+              const plannedPct = Math.max(0, totalPct - completedPct);
+              return (
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-app-secondary">
+                    Graduation credit progress
+                    <span className="text-xs font-normal text-app-muted ml-2">
+                      {gp.completed_credits || 0} / {gp.required || 0} Units completed
+                    </span>
+                  </label>
+                  <div className="mt-2 h-3 w-full rounded-full bg-app-hover overflow-hidden flex">
+                    <div className="h-full bg-emerald2-500" style={{ width: `${completedPct}%` }} />
+                    <div className="h-full bg-brand-500" style={{ width: `${plannedPct}%` }} />
+                  </div>
+                  <div className="mt-2 flex items-center gap-4 text-xs text-app-muted">
+                    <span className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-emerald2-500" /> Completed: {gp.completed_credits || 0} Units
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-brand-500" /> Recommended plan: +{gp.planned_credits || 0} Units
+                    </span>
+                    <span>Remaining after plan: {gp.remaining || 0} Units</span>
+                  </div>
                 </div>
-                <div className="mt-2 flex items-center gap-4 text-xs text-app-muted">
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-emerald2-500" /> Completed: {gp.completed_credits} Units
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-brand-500" /> Recommended plan: +{gp.planned_credits} Units
-                  </span>
-                  <span>Remaining after plan: {gp.remaining} Units</span>
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()
+          )}
 
-          <label className="text-sm font-medium text-app-secondary mt-4 block">
-            {isApplicant ? "Post-enrolment study path reference" : "Next study path reference"} (full-time vs part-time)
-          </label>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.entries(r.recommendation.data.study_plans).map(([pw, plan]) => (
-              <div key={pw}>
-                <p className="text-xs text-app-muted mb-2">
-                  {pw === "full_time" ? "Full-time" : "Part-time"} · term cap {plan.term_credit_cap} Units · {plan.num_terms} terms
-                </p>
-                <div className="space-y-2">
-                  {plan.semesters.map((t, i) => (
-                    <div key={i} className="rounded-lg bg-app-hover border border-app-input p-3">
-                      <p className="text-sm font-medium text-app-primary">
-                        {t.term} · {t.credits} Units
-                      </p>
-                      <p className="text-xs text-app-muted mt-1">
-                        {t.modules.map((m) => m.code).join(" · ")}
-                      </p>
+          {recommendation.study_plans && (
+            <>
+              <label className="text-sm font-medium text-app-secondary mt-4 block">
+                {isApplicant ? "Post-enrolment study path reference" : "Next study path reference"} (full-time vs part-time)
+              </label>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Object.entries(recommendation.study_plans || {}).map(([pw, plan]) => (
+                  <div key={pw}>
+                    <p className="text-xs text-app-muted mb-2">
+                      {pw === "full_time" ? "Full-time" : "Part-time"} · term cap {plan.term_credit_cap || 0} Units · {plan.num_terms || 0} terms
+                    </p>
+                    <div className="space-y-2">
+                      {(plan.semesters || []).map((t, i) => (
+                        <div key={i} className="rounded-lg bg-app-hover border border-app-input p-3">
+                          <p className="text-sm font-medium text-app-primary">
+                            {t.term} · {t.credits} Units
+                          </p>
+                          <p className="text-xs text-app-muted mt-1">
+                            {(t.modules || []).map((m) => m.code).join(" · ")}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </Section>
       )}
     </div>

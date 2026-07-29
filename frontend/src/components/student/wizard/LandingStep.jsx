@@ -7,14 +7,15 @@ const STEPS = [
   { n: 3, label: "Get recommendations" },
 ];
 
-export default function LandingStep({ onAdvance, onOpenSettings, onSkip }) {
+export default function LandingStep({ onAdvance, onOpenSettings, onSkip, loading, error }) {
   const [stage, setStage] = useState("applicant");
   const [text, setText] = useState("");
+  const [cvFile, setCvFile] = useState(null);
   const [cvName, setCvName] = useState("");
 
   const submit = (e) => {
     e.preventDefault();
-    onAdvance({ lifecycle_stage: stage, text, cvName });
+    onAdvance({ lifecycle_stage: stage, text, cvFile });
   };
 
   return (
@@ -33,6 +34,17 @@ export default function LandingStep({ onAdvance, onOpenSettings, onSkip }) {
       <StepIndicator current={1} />
 
       <form onSubmit={submit} className="space-y-6">
+        {loading && (
+          <div className="rounded-lg border border-app-subtle bg-app-hover p-3 text-sm text-app-primary flex items-center gap-2">
+            <span className="h-4 w-4 rounded-full border-2 border-brand-300 border-t-transparent animate-spin" />
+            Extracting profile data...
+          </div>
+        )}
+        {error && (
+          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
         <div className="card p-5">
           <h2 className="font-display text-base font-semibold text-app-primary mb-3">
             1. Choose user type
@@ -90,7 +102,11 @@ export default function LandingStep({ onAdvance, onOpenSettings, onSkip }) {
                 type="file"
                 accept=".docx,.pdf"
                 className="hidden"
-                onChange={(e) => setCvName(e.target.files?.[0]?.name || "")}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setCvFile(file);
+                  setCvName(file?.name || "");
+                }}
               />
             </label>
             {cvName && (
@@ -102,8 +118,8 @@ export default function LandingStep({ onAdvance, onOpenSettings, onSkip }) {
         </div>
 
         <div className="flex items-center justify-between">
-          <button type="submit" className="btn-primary">
-            Next: confirm profile
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Extracting..." : "Next: confirm profile"}
             <ArrowRight size={16} />
           </button>
           <div className="flex items-center gap-3">

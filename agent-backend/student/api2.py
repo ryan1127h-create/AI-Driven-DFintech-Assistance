@@ -23,6 +23,9 @@ from common.profile import ConsentFlags, LifecycleStage, Proficiency, TargetRole
 from fastapi import APIRouter, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
+_ASSETS = str(Path(__file__).resolve().parents[1] / "webassets")
+_UPLOAD_ROOT = Path(__file__).resolve().parents[1] / "instance" / "uploads"
+
 _SECTION_KEYS = {
     "generate_application_checklist": "checklist",
     "get_application_status": "tracker",
@@ -384,7 +387,7 @@ async def api_advise(request: Request):
         material_analysis = pf.analyse_uploaded_materials(
             form,
             selected_stage,
-            save_dir=Path("./uploads"),
+            save_dir= _UPLOAD_ROOT.resolve(),
             token=upload_token,
         )
 
@@ -403,10 +406,43 @@ async def api_advise(request: Request):
         for intent in default_intents_for(profile):
             results[_SECTION_KEYS[intent]] = route(intent, profile, slots.get(intent))
 
-        return {
-            "ok": True,
-            "data": _react_payload(profile, results, material_analysis),
+        payload = {
+            "profile": {
+                "lifecycle_stage": profile.lifecycle_stage.value,
+                "degree_level": profile.academic_background.degree_level.value if profile.academic_background else None,
+                "field_of_study": profile.academic_background.field_of_study.value if profile.academic_background else None,
+                "work_years": profile.work_years,
+                "country": profile.country,
+                "technical_proficiency": profile.technical_proficiency.value if profile.technical_proficiency else None,
+                "finance_knowledge": profile.finance_knowledge.value if profile.finance_knowledge else None,
+                "target_roles": [r.value for r in profile.target_roles],
+                "application_type": profile.application_type.value if profile.application_type else None,
+                "completed_modules": profile.completed_modules,
+            },
+            "material_analysis": [
+                {
+                    "key": m.key,
+                    "label": m.label,
+                    "required": m.required,
+                    "filename": m.filename,
+                    "status": m.status,
+                    "reason": m.reason,
+                    "size_bytes": m.size_bytes,
+                    "view_url": m.view_url,
+                }
+                for m in material_analysis
+            ],
+            "material_summary": _material_summary(material_analysis),
+            "r": {
+                "checklist": results.get("checklist"),
+                "tracker": results.get("tracker"),
+                "comparison": results.get("comparison"),
+                "recommendation": results.get("recommendation"),
+                "career": results.get("career"),
+            },
         }
+        print("payload", payload)
+        return {"ok": True, "data": payload}
 
     except Exception as exc:
         return JSONResponse(
