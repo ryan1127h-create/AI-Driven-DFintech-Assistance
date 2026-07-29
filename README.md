@@ -116,3 +116,111 @@ project-root/
 ├── agent-backend/    # AI agents and FastAPI services
 └── frontend/         # React frontend
 ```
+
+## Environment Configuration
+
+This project uses multiple configuration files for different services.
+
+---
+
+### DeepSeek Configuration
+
+Place the DeepSeek configuration file in:
+
+```text
+agent-backend/data/.deepseek.json
+```
+
+Example:
+
+```text
+agent-backend/
+└── data/
+    └── .deepseek.json
+```
+
+---
+
+### RAG Backend Environment Variables
+
+Create a `.env` file in:
+
+```text
+agent-backend/rag_backend/.env
+```
+
+This file should contain:
+
+- Supabase credentials
+- Embedding model configuration
+- LLM model configuration
+- Other RAG-related settings
+
+Example:
+
+```env
+SUPABASE_URL=
+SUPABASE_KEY=
+
+OPENAI_API_KEY=
+OPENAI_MODEL=
+
+EMBEDDING_MODEL=
+```
+
+---
+
+### Agent Backend Environment Variables
+
+Create a `.env` file in:
+
+```text
+agent-backend/.env
+```
+
+This file should contain:
+
+- GROQ API Key
+- Redis configuration
+- Agent-specific settings
+
+Example:
+
+```env
+GROQ_API_KEY=
+
+REDIS_HOST=
+REDIS_PORT=
+REDIS_PASSWORD=
+```
+
+---
+
+## Configuration Structure
+
+```text
+project-root/
+│
+├── backend/
+│
+├── frontend/
+│
+└── agent-backend/
+    │
+    ├── .env                    # GROQ & Redis configuration
+    │
+    ├── data/
+    │   └── .deepseek.json      # DeepSeek configuration
+    │
+    └── rag_backend/
+        └── .env                # Supabase & model configuration
+```
+
+---
+
+## Important Notes
+
+- Do **not** commit `.env` files to Git.
+- Add all sensitive configuration files to `.gitignore`.
+- Ensure all required environment variables are configured before starting the services.
+- Restart the application after updating any `.env` file.
