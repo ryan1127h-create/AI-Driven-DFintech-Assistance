@@ -5,6 +5,13 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
   const profile = results?.profile || { lifecycle_stage: "applicant" };
   const material_analysis = results?.material_analysis || [];
   const material_summary = results?.material_summary || {};
+  const normalizedMaterialSummary = {
+    requiredTotal: material_summary.requiredTotal ?? material_summary.required_total ?? 0,
+    submittedRequired: material_summary.submittedRequired ?? material_summary.submitted_required ?? 0,
+    missingRequired: material_summary.missingRequired ?? material_summary.missing_required ?? 0,
+    rejectedRequired: material_summary.rejectedRequired ?? material_summary.rejected_required ?? 0,
+    isComplete: material_summary.isComplete ?? material_summary.is_complete ?? false,
+  };
   const r = results?.r || {};
   const recommendation = r.recommendation?.data || {};
   const tracker = r.tracker?.data || {};
@@ -79,10 +86,10 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
         <Section id="materials" icon="📎" title="Current material analysis">
           {Object.keys(material_summary).length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <SummaryStat value={`${material_summary.submitted_required || 0} / ${material_summary.required_total || 0}`} label="required materials uploaded" />
-              <SummaryStat value={material_summary.missing_required || 0} label="missing" />
-              <SummaryStat value={material_summary.rejected_required || 0} label="invalid format/size" />
-              <SummaryStat value={material_summary.is_complete ? "Complete" : "Incomplete"} label="system material check" />
+              <SummaryStat value={`${normalizedMaterialSummary.submittedRequired} / ${normalizedMaterialSummary.requiredTotal}`} label="required materials uploaded" />
+              <SummaryStat value={normalizedMaterialSummary.missingRequired} label="missing" />
+              <SummaryStat value={normalizedMaterialSummary.rejectedRequired} label="invalid format/size" />
+              <SummaryStat value={normalizedMaterialSummary.isComplete ? "Complete" : "Incomplete"} label="system material check" />
             </div>
           )}
           <ul className="space-y-2">

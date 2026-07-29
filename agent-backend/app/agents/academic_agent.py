@@ -27,4 +27,4 @@ Official information source (cite when helpful):
 - Live course availability: https://nusmods.com
 """
 
-academic_node = make_rag_agent(_PROMPT, "academic_agent", domain="academic")
+academic_node = make_rag_agent(_PROMPT, "academic_agent", boost_topics={"academic"})

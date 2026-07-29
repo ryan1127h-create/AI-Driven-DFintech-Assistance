@@ -1,92 +1,315 @@
 """
-Retriever module — 前端(/api/v1/chat)实际走的检索入口。
+Retriever module — hybrid retrieval (vector + BM25 + RRF) against the
+read-only Supabase knowledge base (`Dfintech-agent-db`, schema `app`,
+table `document_chunks`), with a Redis result cache in front.
 
-【整合】原为本地 ChromaDB + SentenceTransformers;现替换为队友的四层检索
-(Supabase pgvector + BM25 + RRF + Cohere rerank)。对外接口完全不变——
-`retrieve(query, top_k, domain) -> list[str]`,调用方(admissions_agent /
-knowledge_agent)无感知。旧 ChromaDB 实现保留在文件末尾(注释)以便回退。
+The knowledge base data and its embeddings are produced by a separate
+project (see data_process/rag-backend). This module only ever issues
+SELECT statements — it never writes to the knowledge database.
 
-domain 分类(admissions/academic/financial/general)映射到四层检索的 source_table。
+Query-time embedding uses the same model the chunks were embedded with
+(OpenAI text-embedding-3-small, 1536 dims) — using a different model here
+would put queries and stored vectors in different vector spaces, making
+cosine similarity meaningless.
+
+Cohere rerank is intentionally not used here (see plan): its evaluated
+marginal gain was small and its rate limit does not fit a multi-user
+backend. Adding it back later only means adding one more stage to
+`retrieve()`.
 """
 
-import os
-from pathlib import Path
+from __future__ import annotations
 
-# 四层检索适配器就在同项目的 rag_backend/ 子包里(整合时复制进来的)
-from rag_backend.retrieval_api import SupabaseRetriever
+import hashlib
+import json
+import re
+from dataclasses import asdict, dataclass, field
 
-# domain -> 四层检索的 source_table 集合。
-# 他的 domain(admissions/academic/financial/general)和适配器的 namespace
-# (admissions/curriculum/faq)不是一套词,所以这里单独映射到底层 source_table。
-_DOMAIN_TO_TABLES: dict[str, set[str]] = {
-    "admissions": {"admissions_items", "programme_pages", "application_status_translations"},
-    "academic":   {"courses", "course_rules", "career_roles"},
-    "financial":  {"programme_pages"},          # 学费/奖学金在网页正文里
-    "general":    set(),                         # 空集=不限,全库(见下)
+import psycopg
+from psycopg.rows import dict_row
+
+from app.core.config import settings
+from app.core.redis_client import get_redis_client
+
+APP_SCHEMA = "app"
+EMBED_MODEL = "text-embedding-3-small"
+
+# RRF weights: semantic-first, keyword as a booster for codes/numbers that
+# embeddings tend to blur together (e.g. FT5005 vs FT5009).
+W_SEMANTIC = 0.8
+W_BM25 = 0.2
+
+# Each of vector/BM25 first pulls this many candidates for RRF to fuse.
+# 50 is generous relative to the corpus size (~184 chunks).
+RECALL_K = 50
+
+# Score multiplier applied to hits whose topic is in an agent's boost_topics,
+# after RRF fusion. A soft nudge, not a hard filter — see plan Phase 3 for
+# why admissions/academic/financial/faq use boosting rather than filtering.
+TOPIC_BOOST_FACTOR = 1.3
+
+_CACHE_KEY_PREFIX = "rag:retrieve:"
+
+
+@dataclass
+class Hit:
+    chunk_key: str
+    source_table: str
+    content: str
+    context: str
+    answer_type: str
+    conflict_group: str | None
+    authoritative: bool
+    score: float
+    metadata: dict | None = field(default_factory=dict)
+    from_vector: bool = False
+    from_bm25: bool = False
+    topic: str = ""
+
+
+# Maps a document_chunks row to one of the topic buckets agents filter/boost
+# by. Grounded in the actual data (see plan Phase 3): source_table alone is
+# enough for most tables; knowledge_snippets and programme_pages need a
+# metadata field to disambiguate since they mix topics internally.
+_PAGE_TOPIC = {
+    "page_02": "academic",    # programme_overview
+    "page_03": "academic",    # capstone
+    "page_04": "admissions",  # admissions requirements
+    "page_05": "admissions",  # application information
+    "page_06": "financial",   # fees_scholarships
+    "page_07": "faq",         # faq
 }
 
-# 单例:连接与客户端只建一次,避免每次检索重连
-_retriever: SupabaseRetriever | None = None
+
+def _topic_of(source_table: str, metadata: dict | None) -> str:
+    md = metadata or {}
+    if source_table in ("admissions_items", "application_status_translations"):
+        return "admissions"
+    if source_table in ("courses", "course_rules"):
+        return "academic"
+    if source_table == "career_roles":
+        return "career"
+    if source_table == "competitor_programs":
+        return "comparison"
+    if source_table == "knowledge_snippets":
+        return "admissions" if md.get("namespace") == "admissions" else "faq"
+    if source_table == "programme_pages":
+        return _PAGE_TOPIC.get(md.get("page_id"), "faq")
+    return "faq"
 
 
-def _get_retriever() -> SupabaseRetriever:
-    global _retriever
-    if _retriever is None:
-        _retriever = SupabaseRetriever()
-    return _retriever
+# --- lazy singletons ---------------------------------------------------------
+
+_conn: psycopg.Connection | None = None
+_openai_client = None
+_CHUNKS: list[dict] | None = None
+_BM25 = None
 
 
-def retrieve(query: str, top_k: int = 3, domain: str = None) -> list[str]:
-    """
-    Return the top_k most relevant text chunks for the given query.
+def _get_conn() -> psycopg.Connection:
+    global _conn
+    if _conn is None or _conn.closed:
+        _conn = psycopg.connect(settings.knowledge_database_url, connect_timeout=5)
+    return _conn
 
-    Args:
-        query:  The user's question.
-        top_k:  Number of chunks to return.
-        domain: Optional filter ("admissions" | "academic" | "financial" | "general").
-                None or "general" searches across all sections.
 
-    返回纯文本列表(与原 ChromaDB 版行为一致),调用方无需改动。
-    """
+def _get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        from openai import OpenAI
+        _openai_client = OpenAI(api_key=settings.openai_api_key)
+    return _openai_client
+
+
+def _load_chunks(conn: psycopg.Connection) -> list[dict]:
+    """Read all document_chunks into memory once per process (small, static corpus)."""
+    global _CHUNKS
+    if _CHUNKS is None:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(f"""
+                select chunk_key, source_table, content, context,
+                       answer_type, conflict_group, authoritative, metadata
+                from {APP_SCHEMA}.document_chunks
+                order by id
+            """)
+            _CHUNKS = cur.fetchall()
+    return _CHUNKS
+
+
+def _tokenize(text: str) -> list[str]:
+    """English/digits by word, Chinese by character (no spaces to split on)."""
+    text = text.lower()
+    latin = re.findall(r"[a-z0-9][a-z0-9$,.\-]*", text)
+    han = re.findall(r"[一-鿿]", text)
+    return latin + han
+
+
+def _to_pgvector(vec: list[float]) -> str:
+    return "[" + ",".join(f"{x:.7f}" for x in vec) + "]"
+
+
+# --- retrieval layers ---------------------------------------------------------
+
+def _search_vector(conn: psycopg.Connection, query: str, k: int) -> list[Hit]:
+    client = _get_openai_client()
+    qvec = _to_pgvector(
+        client.embeddings.create(model=EMBED_MODEL, input=query).data[0].embedding
+    )
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(f"""
+            select chunk_key, source_table, content, context, answer_type,
+                   conflict_group, authoritative, metadata,
+                   1 - (embedding <=> %s::vector) as sim
+            from {APP_SCHEMA}.document_chunks
+            order by embedding <=> %s::vector
+            limit %s
+        """, (qvec, qvec, k))
+        return [
+            Hit(chunk_key=r["chunk_key"], source_table=r["source_table"],
+                content=r["content"], context=r["context"],
+                answer_type=r["answer_type"], conflict_group=r["conflict_group"],
+                authoritative=r["authoritative"], score=r["sim"],
+                metadata=r["metadata"], from_vector=True,
+                topic=_topic_of(r["source_table"], r["metadata"]))
+            for r in cur.fetchall()
+        ]
+
+
+def _search_bm25(conn: psycopg.Connection, query: str, k: int) -> list[Hit]:
+    global _BM25
+    from rank_bm25 import BM25Okapi
+
+    chunks = _load_chunks(conn)
+    if _BM25 is None:
+        corpus = [_tokenize(f"{c['context'] or ''}\n{c['content']}") for c in chunks]
+        _BM25 = BM25Okapi(corpus)
+
+    scores = _BM25.get_scores(_tokenize(query))
+    ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+
+    hits = []
+    for i in ranked:
+        if scores[i] <= 0:
+            continue
+        c = chunks[i]
+        hits.append(Hit(
+            chunk_key=c["chunk_key"], source_table=c["source_table"],
+            content=c["content"], context=c["context"],
+            answer_type=c["answer_type"], conflict_group=c["conflict_group"],
+            authoritative=c["authoritative"], score=float(scores[i]),
+            metadata=c["metadata"], from_bm25=True,
+            topic=_topic_of(c["source_table"], c["metadata"])))
+    return hits
+
+
+def _fuse_rrf(vector_hits: list[Hit], bm25_hits: list[Hit], k: int) -> list[Hit]:
+    v_rank = {h.chunk_key: i for i, h in enumerate(vector_hits)}
+    b_rank = {h.chunk_key: i for i, h in enumerate(bm25_hits)}
+    by_key = {h.chunk_key: h for h in vector_hits}
+    for h in bm25_hits:
+        by_key.setdefault(h.chunk_key, h)
+
+    fused = []
+    for key, hit in by_key.items():
+        score = 0.0
+        if key in v_rank:
+            score += W_SEMANTIC * (1 / (v_rank[key] + 1))
+        if key in b_rank:
+            score += W_BM25 * (1 / (b_rank[key] + 1))
+        hit.score = score
+        hit.from_vector = key in v_rank
+        hit.from_bm25 = key in b_rank
+        fused.append(hit)
+
+    fused.sort(key=lambda h: h.score, reverse=True)
+    return fused[:k]
+
+
+def _retrieve_uncached(
+    query: str, top_k: int,
+    filter_topics: set[str] | None, boost_topics: set[str] | None,
+) -> list[Hit]:
+    conn = _get_conn()
+    vector_hits = _search_vector(conn, query, RECALL_K)
+    bm25_hits = _search_bm25(conn, query, RECALL_K)
+
+    if filter_topics:
+        vector_hits = [h for h in vector_hits if h.topic in filter_topics]
+        bm25_hits = [h for h in bm25_hits if h.topic in filter_topics]
+
+    fused = _fuse_rrf(vector_hits, bm25_hits, RECALL_K if boost_topics else top_k)
+
+    if boost_topics:
+        for h in fused:
+            if h.topic in boost_topics:
+                h.score *= TOPIC_BOOST_FACTOR
+        fused.sort(key=lambda h: h.score, reverse=True)
+        fused = fused[:top_k]
+
+    return fused
+
+
+# --- Redis cache-aside ---------------------------------------------------------
+
+def _cache_key(
+    query: str, top_k: int,
+    filter_topics: set[str] | None, boost_topics: set[str] | None,
+) -> str:
+    normalized = query.strip().lower()
+    # filter/boost must be part of the key — otherwise two agents with
+    # different topic scoping would read each other's cached results.
+    scoping = f"f={sorted(filter_topics or [])}|b={sorted(boost_topics or [])}"
+    digest = hashlib.sha256(f"{normalized}|{scoping}".encode("utf-8")).hexdigest()
+    return f"{_CACHE_KEY_PREFIX}{digest}:{top_k}"
+
+
+def _cache_get(key: str) -> list[Hit] | None:
     try:
-        r = _get_retriever()
-        tables = _DOMAIN_TO_TABLES.get(domain or "", None)
-        # 底层适配器按 namespace 过滤;这里改成直接按 source_table 过滤更精确。
-        # tables 为空集或 None 都表示不限 domain(全库检索)。
-        chunks = r.retrieve_by_tables(query, tables or None, top_k=top_k)
-        return [c.text for c in chunks]
+        raw = get_redis_client().get(key)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    return [Hit(**d) for d in json.loads(raw)]
+
+
+def _cache_set(key: str, hits: list[Hit]) -> None:
+    try:
+        payload = json.dumps([asdict(h) for h in hits])
+        get_redis_client().set(key, payload, ex=settings.retrieval_cache_ttl_seconds)
+    except Exception:
+        pass  # cache is a best-effort optimisation, never block on it
+
+
+# --- public entry point ---------------------------------------------------------
+
+def retrieve(
+    query: str, top_k: int = 5,
+    filter_topics: set[str] | None = None, boost_topics: set[str] | None = None,
+) -> list[Hit]:
+    """
+    Hybrid retrieval (vector + BM25 + RRF) over the knowledge base, with a
+    Redis result cache in front. Never raises: any failure (missing keys,
+    unreachable database, etc.) is logged and results in an empty list, so
+    callers can fall back to a "no information available" response.
+
+    filter_topics: hard-restrict candidates to these topics before fusion
+        (use only for topics with no overlap elsewhere in the corpus, e.g.
+        "career", "comparison" — a bad guess here loses recall entirely).
+    boost_topics: soft-boost matching hits after fusion without excluding
+        anything else (safe default for topics whose boundaries aren't clean,
+        e.g. "admissions", "academic", "financial", "faq").
+    """
+    key = _cache_key(query, top_k, filter_topics, boost_topics)
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        hits = _retrieve_uncached(query, top_k, filter_topics, boost_topics)
     except Exception as exc:
-        print(f"[retriever] Warning: 四层检索失败 — {exc}")
+        print(f"[retriever] Warning: retrieval failed — {exc}")
         return []
 
-
-# ============================================================================
-# 旧实现(本地 ChromaDB + SentenceTransformers)——保留以便回退。
-# 若要切回:恢复下面代码、删除上面的四层检索版即可。
-# ============================================================================
-# from langchain_community.vectorstores import Chroma
-# from langchain_community.embeddings import SentenceTransformerEmbeddings
-#
-# PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# CHROMA_DIR   = str(PROJECT_ROOT / "chroma_db")
-# COLLECTION   = "msc_dft_knowledge"
-# EMBED_MODEL  = "all-MiniLM-L6-v2"
-# _vectorstore = None
-#
-# def _get_vectorstore() -> Chroma:
-#     global _vectorstore
-#     if _vectorstore is None:
-#         embeddings = SentenceTransformerEmbeddings(model_name=EMBED_MODEL)
-#         _vectorstore = Chroma(persist_directory=CHROMA_DIR,
-#                               embedding_function=embeddings, collection_name=COLLECTION)
-#     return _vectorstore
-#
-# def retrieve(query: str, top_k: int = 3, domain: str = None) -> list[str]:
-#     try:
-#         vs = _get_vectorstore()
-#         filter_dict = {"domain": domain} if domain else None
-#         docs = vs.similarity_search(query, k=top_k, filter=filter_dict)
-#         return [doc.page_content for doc in docs]
-#     except Exception as exc:
-#         print(f"[retriever] Warning: retrieval failed — {exc}")
-#         return []
+    _cache_set(key, hits)
+    return hits

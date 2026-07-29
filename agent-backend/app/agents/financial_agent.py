@@ -24,4 +24,4 @@ Official information source (cite when helpful):
 - NUS MSc DFinTech Fees and Scholarships: https://www.comp.nus.edu.sg/programmes/pg/mdft/scholarships/
 """
 
-financial_node = make_rag_agent(_PROMPT, "financial_agent", domain="financial")
+financial_node = make_rag_agent(_PROMPT, "financial_agent", boost_topics={"financial"})

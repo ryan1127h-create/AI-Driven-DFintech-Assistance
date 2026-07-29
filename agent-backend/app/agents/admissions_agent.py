@@ -13,10 +13,10 @@ Admissions Agent — two nodes in one module:
 
 import os
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI  # DeepSeek 走 OpenAI 兼容接口
+from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from app.agents.knowledge_agent import make_rag_agent
+from app.agents.knowledge_agent import make_rag_agent, build_context, cited_sources
 from app.rag.retriever import retrieve
 
 load_dotenv()
@@ -46,7 +46,7 @@ Official information sources (cite when helpful):
 {OFFICIAL_SOURCES}
 """
 
-admissions_node = make_rag_agent(_ADMISSIONS_PROMPT, "admissions_agent", domain="admissions")
+admissions_node = make_rag_agent(_ADMISSIONS_PROMPT, "admissions_agent", boost_topics={"admissions"})
 
 
 # ── Assessment node ────────────────────────────────────────────────────────────
@@ -166,13 +166,10 @@ Assess it and provide a structured personalised assessment with these sections:
 """
 
 
-def _build_llm() -> ChatOpenAI:
-    # 从 Groq 换成 DeepSeek(走 common.config,自动优先 NVIDIA 免费通道、回退 DeepSeek 官方)
-    from common import config
-    return ChatOpenAI(
-        model=config.get_model(),
-        api_key=config.get_api_key(),
-        base_url=config.get_base_url(),
+def _build_llm() -> ChatGroq:
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=os.getenv("GROQ_API_KEY"),
         temperature=0.2,
         max_tokens=2048,
     )
@@ -197,10 +194,10 @@ def assessment_node(state: dict) -> dict:
             "reply": fallback,
         }
 
-    # Retrieve broad context — no domain filter so both admissions requirements
-    # and programme overview are included
-    chunks = retrieve(last_user_message, top_k=5, domain=None)
-    context = "\n\n---\n\n".join(chunks) if chunks else (
+    # Broad retrieval (top_k=5) so both admissions requirements and programme
+    # overview are available — no domain filter (see app/rag/retriever.py).
+    hits = retrieve(last_user_message, top_k=5)
+    context = build_context(hits) if hits else (
         "No specific programme information is currently available. "
         "Please refer to the official NUS website for accurate details."
     )
@@ -209,8 +206,13 @@ def assessment_node(state: dict) -> dict:
     messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
     response = _build_llm().invoke(messages)
 
+    reply = response.content
+    if hits:
+        sources = cited_sources(hits)
+        reply += "\n\nSources:\n" + "\n".join(f"- {s}" for s in sources)
+
     return {
         "messages": [response],
         "agent_used": "assessment_agent",
-        "reply": response.content,
+        "reply": reply,
     }
