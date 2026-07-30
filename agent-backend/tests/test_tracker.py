@@ -1,9 +1,9 @@
 """Deterministic tests for #5 tracker (status translation + reminders)."""
 from datetime import date
 
-from agents.tracker.agent import handle
-from agents.tracker.reminders import build_reminders
-from agents.tracker.statemachine import (
+from app.agents.tracker.agent import handle
+from app.agents.tracker.reminders import build_reminders
+from app.agents.tracker.statemachine import (
     build_timeline,
     estimated_next_date,
     latest_status_date,
@@ -29,7 +29,7 @@ def test_reminder_within_window_for_docs_required():
     rs = build_reminders(p, today=date(2026, 5, 30))
     assert len(rs) == 1
     assert rs[0].name == "document_deadline"
-    assert "材料" in rs[0].message
+    assert "materials" in rs[0].message
 
 
 def test_reminder_outside_window_suppressed():
@@ -94,6 +94,40 @@ def test_docs_required_lists_outstanding_documents():
     assert transcript["status"] == "rejected"
 
 
+def test_outstanding_documents_exclude_optional_material():
+    """Only required items block: #5's list must match #4's outstanding_count."""
+    from app.agents.checklist.engine import build_checklist
+
+    p = mock_data.get_profile("4")
+    required_outstanding = build_checklist(p).outstanding_count
+    resp = handle(p, {"today": "2026-05-31"})
+    blocking = resp.data["outstanding_documents"]
+    assert len(blocking) == required_outstanding
+    # optional supporting material is reported separately, never as blocking
+    assert "other_supporting_documents" not in {d["key"] for d in blocking}
+    assert "other_supporting_documents" in {d["key"] for d in resp.data["optional_documents"]}
+
+
+def test_next_step_count_agrees_with_the_itemised_list():
+    """The spoken count is the #4 required count and names every listed item."""
+    from app.agents.checklist.engine import build_checklist
+
+    p = mock_data.get_profile("4")
+    required_outstanding = build_checklist(p).outstanding_count
+    resp = handle(p, {"today": "2026-05-31"})
+    next_step = resp.data["next_step"]
+    assert f"You still have {required_outstanding} required item(s) to handle" in next_step
+    for doc in resp.data["outstanding_documents"]:
+        assert doc["label"] in next_step
+
+
+def test_english_output_uses_no_chinese_punctuation():
+    p = mock_data.get_profile("4")
+    resp = handle(p, {"today": "2026-05-31"})
+    for text in (resp.speakable, resp.data["next_step"]):
+        assert not set(text) & set("、。，（）；：")
+
+
 # ---------- v2: notification preferences ----------
 def test_frequency_off_suppresses_reminders():
     p = mock_data.get_profile("4")
@@ -139,7 +173,7 @@ def test_profile_email_and_log_defaults():
 # ---------- notification engine: mute + due_now ----------
 from datetime import date as _date
 
-from agents.tracker.reminders import Notification, build_reminders as _build, due_now
+from app.agents.tracker.reminders import Notification, build_reminders as _build, due_now
 from common.profile import NotificationFrequency as _Freq
 
 
@@ -198,7 +232,7 @@ def test_due_now_off_is_empty():
 
 
 # ---------- notification engine: dispatch ----------
-from agents.tracker.reminders import dispatch_due
+from app.agents.tracker.reminders import dispatch_due
 from common.notifier import RecordingNotifier
 
 
@@ -265,7 +299,7 @@ def test_dispatch_failed_send_marks_not_delivered():
 
 
 # ---------- notification engine: configure + preview ----------
-from agents.tracker.agent import configure
+from app.agents.tracker.agent import configure
 
 
 def test_configure_updates_prefs():

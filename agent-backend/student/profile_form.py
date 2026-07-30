@@ -7,11 +7,14 @@ schema for future teammates, but they are not shown in the student-facing form.
 For applicants, uploaded application materials are converted into the
 Application.submitted_documents/document_status fields so the #4/#5 agents can
 make decisions from actual uploads rather than checkboxes.
+
+An optional email address is validated here and carried on the profile so #5's
+existing email notification channel has a recipient to send reminders to.
 """
 from __future__ import annotations
 
 import os
-import os
+import re
 from dotenv import load_dotenv
 from datetime import date
 from pathlib import Path
@@ -30,6 +33,8 @@ from common.profile import (
     DocStatus,
     FieldOfStudy,
     LifecycleStage,
+    NotificationChannel,
+    NotificationPrefs,
     Proficiency,
     StatusCode,
     TargetRole,
@@ -128,6 +133,18 @@ ALLOWED_MATERIAL_EXTENSIONS = {".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"}
 MAX_MATERIAL_BYTES = 10 * 1024 * 1024
 DEFAULT_APPLICATION_DEADLINE = "2026-01-31"
 
+# Optional contact address for the existing email notification channel.
+MAX_EMAIL_LENGTH = 254  # RFC 5321 practical maximum for a forward path
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$")
+EMAIL_ERROR_MESSAGE = (
+    "Please enter a valid email address (for example name@example.com), "
+    "or leave the field blank to skip email reminders."
+)
+
+
+class ProfileFormError(ValueError):
+    """Invalid student form input; the message is safe to show to the user."""
+
 
 @dataclass
 class UploadedMaterial:
@@ -161,6 +178,28 @@ def _int_or_none(raw: str):
         return None
 
 
+def parse_email(raw: str | None) -> str | None:
+    """Optional email address. Blank -> None; malformed -> ProfileFormError.
+
+    Fails fast instead of silently dropping the value: a typo'd address would
+    otherwise leave the applicant believing email reminders are enabled.
+    """
+    email = (raw or "").strip()
+    if not email:
+        return None
+    if len(email) > MAX_EMAIL_LENGTH or not EMAIL_PATTERN.match(email):
+        raise ProfileFormError(EMAIL_ERROR_MESSAGE)
+    return email.lower()
+
+
+def notification_prefs_for(email: str | None) -> NotificationPrefs:
+    """Enable the existing email channel only when an address was supplied."""
+    channels = [NotificationChannel.in_app]
+    if email:
+        channels.append(NotificationChannel.email)
+    return NotificationPrefs(channels=channels)
+
+
 def _getlist(form, key: str) -> list[str]:
     getlist = getattr(form, "getlist", lambda k: [])
     v = getlist(key)
@@ -168,11 +207,31 @@ def _getlist(form, key: str) -> list[str]:
 
 
 def normalize_stage(raw: str | None) -> LifecycleStage:
-    """Only applicant/current are exposed by the UI; default to applicant."""
-    stage = _enum_or_none(LifecycleStage, raw or "")
-    if stage == LifecycleStage.current:
-        return LifecycleStage.current
-    return LifecycleStage.applicant
+    """Resolve a submitted stage against the authority vocabulary.
+
+    Blank means "not supplied": the two-option UI submits applicant or current,
+    so a missing value is a form default rather than a user's choice.
+
+    A value the authority recognises is honoured AS GIVEN. Collapsing `alumni` or
+    `graduating` into `applicant` -- which this function used to do for every
+    value except `current` -- hands them an applicant's document checklist and
+    silently discards what the caller actually said. It also made widening the
+    extractor's stage whitelist inert, because everything it newly accepted was
+    flattened again here.
+
+    An unrecognised value raises for the same reason: a mistyped `alumnus` must
+    not become a confident wrong answer.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return LifecycleStage.applicant
+    try:
+        return LifecycleStage(text)
+    except ValueError:
+        accepted = ", ".join(s.value for s in LifecycleStage)
+        raise ProfileFormError(
+            f"Unknown profile stage {text!r}. Accepted values: {accepted}."
+        ) from None
 
 
 def material_name(key: str) -> str:
@@ -303,6 +362,7 @@ def material_summary(materials: list[UploadedMaterial]) -> dict:
 def build_profile(form, files=None, material_results: list[UploadedMaterial] | None = None) -> UserProfile:
     """form: Flask request.form-like mapping. files: optional request.files."""
     stage = normalize_stage(form.get("lifecycle_stage", ""))
+    email = parse_email(form.get("email", ""))
 
     degree = _enum_or_none(DegreeLevel, form.get("degree_level", ""))
     field = _enum_or_none(FieldOfStudy, form.get("field_of_study", ""))
@@ -356,6 +416,7 @@ def build_profile(form, files=None, material_results: list[UploadedMaterial] | N
         user_id="student_web",
         lifecycle_stage=stage,
         authenticated=True,
+        email=email,
         academic_background=academic,
         # Current students do not need these fields for #7, so ignore if posted.
         work_years=_int_or_none(form.get("work_years", "")) if stage == LifecycleStage.applicant else None,
@@ -367,4 +428,5 @@ def build_profile(form, files=None, material_results: list[UploadedMaterial] | N
         completed_modules=completed_modules,
         application=application,
         consent_flags=ConsentFlags(personalization=True, reminders=True),
+        notification_prefs=notification_prefs_for(email),
     )

@@ -2,7 +2,8 @@
 
 Returns application status (translated), a status timeline, an estimated next
 date, milestone reminders (preference-aware), and — when documents are required
-— the specific outstanding items from the #4 checklist engine.
+— the specific outstanding items from the #4 checklist engine. Only *required*
+items are reported as blocking; optional supporting material is listed separately.
 """
 from __future__ import annotations
 
@@ -21,16 +22,30 @@ from .statemachine import (
 )
 
 
-def _outstanding_documents(profile: UserProfile) -> list[dict]:
-    """When docs are required, ask the #4 engine which items still need action."""
+_OUTSTANDING_STATUSES = ("missing", "rejected")
+_LABEL_SEPARATOR = ", "  # output is English: no Chinese enumeration comma
+_SENTENCE_SEPARATOR = ". "
+
+
+def _document_dict(item) -> dict:
+    return {"key": item.key, "label": item.label, "status": item.status}
+
+
+def _split_outstanding_documents(profile: UserProfile) -> tuple[list[dict], list[dict]]:
+    """Ask the #4 engine which items still need action, split by `required`.
+
+    Only required items block the application. Optional supporting material is
+    returned separately so the blocking list (and any count derived from it)
+    matches the #4 checklist's `outstanding_count`.
+    """
     from app.agents.checklist.engine import build_checklist
 
     result = build_checklist(profile)
-    return [
-        {"key": it.key, "label": it.label, "status": it.status}
-        for it in result.items
-        if it.status in ("missing", "rejected")
-    ]
+    outstanding = [it for it in result.items if it.status in _OUTSTANDING_STATUSES]
+    return (
+        [_document_dict(it) for it in outstanding if it.required],
+        [_document_dict(it) for it in outstanding if not it.required],
+    )
 
 
 def _material_completion_from_profile(profile: UserProfile) -> dict:
@@ -120,14 +135,18 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
         for n in due
     ]
 
-    # Link to #4: surface the specific docs blocking the application.
+    # Link to #4: surface the specific docs blocking the application. Optional
+    # supporting material is reported separately and never counted as blocking.
     outstanding_docs: list[dict] = []
+    optional_docs: list[dict] = []
     next_step = t["next_step"]
     if app.status_code == StatusCode.DOCS_REQUIRED:
-        outstanding_docs = _outstanding_documents(profile)
+        outstanding_docs, optional_docs = _split_outstanding_documents(profile)
         if outstanding_docs:
-            labels = "、".join(d["label"] for d in outstanding_docs)
-            next_step = f"Please handle the following materials as soon as possible: {labels}."
+            labels = _LABEL_SEPARATOR.join(d["label"] for d in outstanding_docs)
+            next_step = (
+                f"You still have {len(outstanding_docs)} required item(s) to handle: {labels}."
+            )
 
     deadlines = [{"name": n, "date": d} for n, d in app.deadlines.items()]
     reminders_data = [
@@ -136,9 +155,9 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
         for r in reminders
     ]
 
-    speakable = t["human_status"] + "。" + next_step
+    speakable = t["human_status"] + _SENTENCE_SEPARATOR + next_step
     if eta_date:
-        speakable += f"(Expected progress by {eta_date})"
+        speakable += f" (Expected progress by {eta_date})"
     if reminders:
         speakable += " Also: " + reminders[0].message
 
@@ -153,6 +172,7 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
             "estimated_next_date": eta_date,
             "timeline": timeline,
             "outstanding_documents": outstanding_docs,
+            "optional_documents": optional_docs,
             "deadlines": deadlines,
             "reminders": reminders_data,
             "possible_next_states": next_states(app.status_code),

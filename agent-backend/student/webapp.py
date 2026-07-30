@@ -54,9 +54,24 @@ def index():
     return render_template("landing.html")
 
 
+def _renderable_stage(raw: str | None) -> str:
+    """A stage value the templates can safely branch on.
+
+    The rejected input may itself BE the stage, leaving the template nothing valid
+    to switch on, so fall back to the form's own default. A stage that IS valid is
+    preserved, so a user fixing some other field does not lose their selection.
+    """
+    text = (raw or "").strip()
+    return text if text in {s.value for s in pf.LifecycleStage} else pf.LifecycleStage.applicant.value
+
+
 @app.post("/extract")
 def extract():
-    selected_stage = pf.normalize_stage(request.form.get("lifecycle_stage", "applicant")).value
+    try:
+        selected_stage = pf.normalize_stage(request.form.get("lifecycle_stage", "applicant")).value
+    except pf.ProfileFormError as e:
+        return render_template("landing.html", error=str(e),
+                               selected_stage=pf.LifecycleStage.applicant.value)
     text = (request.form.get("text") or "").strip()
     upload = request.files.get("cv")
 
@@ -88,10 +103,27 @@ _PRIORITY_WEIGHTS = {
 
 @app.post("/advise")
 def advise():
-    selected_stage = pf.normalize_stage(request.form.get("lifecycle_stage", "applicant"))
     upload_token = uuid4().hex
-    material_analysis = pf.analyse_uploaded_materials(request.files, selected_stage, save_dir=_UPLOAD_ROOT, token=upload_token)
-    profile = pf.build_profile(request.form, request.files, material_results=material_analysis)
+    try:
+        selected_stage = pf.normalize_stage(request.form.get("lifecycle_stage", "applicant"))
+        material_analysis = pf.analyse_uploaded_materials(
+            request.files, selected_stage, save_dir=_UPLOAD_ROOT, token=upload_token
+        )
+        profile = pf.build_profile(request.form, request.files, material_results=material_analysis)
+    except pf.ProfileFormError as e:
+        # Invalid input is the user's to correct. normalize_stage and build_profile
+        # fail fast rather than silently dropping a typo'd value, but that must reach
+        # the applicant as a form message, not as an unhandled 500. Both are inside
+        # the guard: the stage is itself one of the values that can be rejected.
+        prefill = request.form.to_dict()
+        prefill["lifecycle_stage"] = _renderable_stage(prefill.get("lifecycle_stage"))
+        return render_template(
+            "form.html",
+            prefill=prefill,
+            selected_stage=prefill["lifecycle_stage"],
+            error=str(e),
+            **_form_options(),
+        )
     material_summary = pf.material_summary(material_analysis) if material_analysis else None
     priorities = _PRIORITY_WEIGHTS.get(request.form.get("priority", "role_fit"))
     slots = {
