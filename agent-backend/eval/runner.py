@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from agents.checklist.engine import build_checklist
-from agents.navigator.engine import guide_for_role
+from app.agents.checklist.engine import build_checklist
+from app.agents.navigator.engine import guide_for_role
 from common.mock_data import get_profile
 from common.profile import TargetRole, UserProfile
 from eval.metrics import set_prf

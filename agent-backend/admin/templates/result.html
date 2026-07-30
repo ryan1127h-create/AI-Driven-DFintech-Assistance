@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="panel reveal" style="margin-top:8px">
+  {% if error %}
+    <div class="note" style="color:var(--danger)">⚠️ {{ error }}</div>
+  {% elif result.status == "applied" %}
+    <div class="note note--info" style="color:var(--ok)">✓ Written and archived.</div>
+    <label>Changed fields</label>
+    <ul class="items">{% for c in result.changed_fields %}<li class="item"><code>{{ c }}</code></li>{% endfor %}</ul>
+    <label>Previous version archived at</label>
+    <pre>{{ result.version_archived }}</pre>
+    <div class="disc">This operation has been recorded in <code>data/_audit_log.jsonl</code>.</div>
+  {% elif result.status == "rolled_back" %}
+    <div class="note note--info" style="color:var(--ok)">✓ Rolled back (restored from {{ result.restored_from }}).</div>
+    <label>Changed fields</label>
+    <ul class="items">{% for c in result.changed_fields %}<li class="item"><code>{{ c }}</code></li>{% endfor %}</ul>
+    <label>Pre-rollback version archived at</label>
+    <pre>{{ result.version_archived }}</pre>
+    <div class="disc">This rollback has been recorded in <code>data/_audit_log.jsonl</code>.</div>
+  {% elif result.status == "rejected" %}
+    <div class="note" style="color:var(--danger)">Operation rejected ({{ result.reason }}); nothing was written.{% if result.error %}<br>{{ result.error }}{% endif %}</div>
+  {% elif result.status == "no_change" %}
+    <div class="note" style="color:var(--ok)">No changes; nothing was written.</div>
+  {% else %}
+    <div class="note">{{ result.status }}</div>
+  {% endif %}
+  <div style="margin-top:16px">
+    <a href="/" class="backlink">← Back to edit</a> &nbsp;·&nbsp; <a href="/history" class="backlink">View history / rollback →</a>
+  </div>
+</div>
+{% endblock %}

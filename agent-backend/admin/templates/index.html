@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head reveal">
+  <h1>Edit data using natural language</h1>
+  <p>Describe what you want to change. The assistant generates a draft, validates it, and only writes it after human confirmation. The runtime rule engines remain unchanged.</p>
+</div>
+
+<form class="panel reveal" method="post" action="/generate">
+  <label for="target">Select data to edit</label>
+  <select id="target" name="target">
+    {% for t in targets %}
+    <option value="{{ t.name }}">{{ t.name }} — risk {{ t.risk }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="admin">Operator name (recorded in audit log)</label>
+  <input type="text" id="admin" name="admin" placeholder="e.g. alice" required>
+
+  <label for="instruction">Natural-language edit instruction</label>
+  <textarea id="instruction" name="instruction"
+    placeholder="Example: Change the next step for OFFER status to ‘Please confirm acceptance within 7 days.’"></textarea>
+
+  <div style="margin-top:18px"><button type="submit" class="btn">Generate draft →</button></div>
+  <p class="disc">Requires environment variable <code>DEEPSEEK_API_KEY</code>, or configuration on the <a href="/settings">Credentials</a> page; model <code>deepseek-v4-pro</code>.</p>
+</form>
+
+<div class="panel reveal">
+  <div class="panel__head">
+    <span class="muted">View change history or roll back to an older version</span>
+    <a href="/history">History / rollback →</a>
+  </div>
+  <div class="panel__head" style="margin:0">
+    <span class="muted">Configure DeepSeek API key</span>
+    <a href="/settings">Credentials →</a>
+  </div>
+</div>
+{% endblock %}

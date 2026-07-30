@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head reveal">
+  <h1>DeepSeek credential settings</h1>
+  <p>Configure the API key used by the admin authoring tool to generate drafts.</p>
+</div>
+
+<div class="panel reveal">
+  <div class="note {{ 'note--info' if status.configured }}">
+    Current status:
+    {% if status.configured %}
+      Configured <strong>{{ status.key_hint }}</strong> · model <code>{{ status.model }}</code> · source {{ status.source }}
+    {% else %}
+      <span style="color:var(--danger)">Not configured</span>
+    {% endif %}
+  </div>
+
+  {% if message %}
+    <div class="note" style="margin-top:10px;color:{{ 'var(--ok)' if ok else 'var(--danger)' }}">
+      {{ '✓' if ok else '⚠️' }} {{ message }}
+    </div>
+  {% endif %}
+
+  <form method="post" action="/settings">
+    <label>API Key</label>
+    <input type="password" name="api_key" placeholder="sk-... (leave blank to keep current value)" autocomplete="off">
+    <label>Model</label>
+    <input type="text" name="model" value="{{ status.model }}" placeholder="deepseek-v4-pro">
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button type="submit" name="action" value="save" class="btn">Save</button>
+      <button type="submit" name="action" value="test" class="btn btn--ghost">Test connection</button>
+    </div>
+  </form>
+
+  <p class="disc">The key is stored in plain text locally at <code>data/.deepseek.json</code> (gitignored). Environment variables have higher priority.</p>
+  <a href="/" class="backlink">← Back</a>
+</div>
+{% endblock %}
