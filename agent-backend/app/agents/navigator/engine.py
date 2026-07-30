@@ -26,6 +26,11 @@ _VALID_SKILL_TAGS = {
 }
 
 
+def _normalize_code(code: str) -> str:
+    """Canonical module-code form used as the key for every code lookup."""
+    return code.strip().upper()
+
+
 def _load_module_skills() -> dict[str, list[str]]:
     """code -> [valid skill tags]. Unknown tags dropped; missing file -> {}."""
     if not _MODULE_SKILLS_PATH.exists():
@@ -35,7 +40,7 @@ def _load_module_skills() -> dict[str, list[str]]:
     except (json.JSONDecodeError, OSError):
         return {}
     return {
-        code: [t for t in tags if t in _VALID_SKILL_TAGS]
+        _normalize_code(code): [t for t in tags if t in _VALID_SKILL_TAGS]
         for code, tags in raw.items()
     }
 
@@ -47,13 +52,14 @@ def _load() -> dict:
 def _load_catalog() -> dict[str, dict]:
     """Return code -> authoritative module detail from the (refreshed) catalog.
 
-    Empty if the catalog is missing, so recommendations still work (degraded to
-    the role-map names).
+    Keys are normalised so a lowercase / padded input still matches instead of
+    silently reading as an unknown module.  Empty if the catalog is missing, so
+    recommendations still work (degraded to the role-map names).
     """
     if not _CATALOG_PATH.exists():
         return {}
     data = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
-    return {m["code"]: m for m in data.get("modules", [])}
+    return {_normalize_code(m["code"]): m for m in data.get("modules", [])}
 
 
 def _enrich_modules(modules: list[dict]) -> list[dict]:
@@ -65,7 +71,7 @@ def _enrich_modules(modules: list[dict]) -> list[dict]:
     catalog = _load_catalog()
     out = []
     for m in modules:
-        cat = catalog.get(m["code"])
+        cat = catalog.get(_normalize_code(m["code"]))
         if cat:
             out.append({
                 "code": m["code"],
@@ -137,10 +143,10 @@ def guide_for_role(profile: UserProfile, role: TargetRole, matcher=None) -> Role
     gaps = [s for s in required if s not in have]
     matched = [s for s in required if s in have]
 
-    done = {c.strip().upper() for c in profile.completed_modules}
+    done = {_normalize_code(c) for c in profile.completed_modules}
     modules = _enrich_modules(role_def["recommended_modules"])
     for m in modules:
-        m["completed"] = m["code"].upper() in done
+        m["completed"] = _normalize_code(m["code"]) in done
     remaining = [m for m in modules if not m["completed"]]
     completed_mods = [m for m in modules if m["completed"]]
 
@@ -173,7 +179,7 @@ def skills_from_completed(completed: list[str]) -> set[str]:
     table = _load_module_skills()
     out: set[str] = set()
     for code in completed:
-        out.update(table.get(code.strip().upper(), []))
+        out.update(table.get(_normalize_code(code), []))
     return out
 
 
@@ -181,14 +187,14 @@ def _known_module_codes() -> set[str]:
     """All codes we recognise: refreshed catalog union curated role-map modules."""
     codes = set(_load_catalog().keys())
     for role in _load()["roles"].values():
-        codes.update(m["code"] for m in role["recommended_modules"])
+        codes.update(_normalize_code(m["code"]) for m in role["recommended_modules"])
     return codes
 
 
 def unrecognized_completed(completed: list[str]) -> list[str]:
     """Completed codes not found in catalog union role-map (soft data-quality check)."""
     known = _known_module_codes()
-    return [c for c in completed if c.strip().upper() not in known]
+    return [c for c in completed if _normalize_code(c) not in known]
 
 
 def guide_role_codes(role: TargetRole) -> list[dict]:
@@ -198,7 +204,7 @@ def guide_role_codes(role: TargetRole) -> list[dict]:
 
 def _role_name(role: TargetRole, code: str) -> str | None:
     for m in guide_role_codes(role):
-        if m["code"] == code:
+        if _normalize_code(m["code"]) == _normalize_code(code):
             return m.get("name")
     return None
 
@@ -212,7 +218,7 @@ def build_candidates(profile: UserProfile, role: TargetRole, matcher=None) -> li
     gaps = set(g.skill_gaps)
     module_skills = _load_module_skills()
     catalog = _load_catalog()
-    done = {c.strip().upper() for c in profile.completed_modules}
+    done = {_normalize_code(c) for c in profile.completed_modules}
 
     role_codes = [m["code"] for m in guide_role_codes(role)]
     gap_codes = [
@@ -221,15 +227,16 @@ def build_candidates(profile: UserProfile, role: TargetRole, matcher=None) -> li
     ]
     ordered_codes: list[str] = []
     for code in [*role_codes, *gap_codes]:
-        cu = code.upper()
-        if cu in done or cu in {c.upper() for c in ordered_codes}:
+        cu = _normalize_code(code)
+        if cu in done or cu in {_normalize_code(c) for c in ordered_codes}:
             continue
         ordered_codes.append(code)
 
+    role_code_set = {_normalize_code(c) for c in role_codes}
     out: list[dict] = []
     for code in ordered_codes:
-        cat = catalog.get(code, {})
-        skills = module_skills.get(code, [])
+        cat = catalog.get(_normalize_code(code), {})
+        skills = module_skills.get(_normalize_code(code), [])
         tree = cat.get("prereq_tree")
         ok, missing = prereq_satisfied(tree, done)
         out.append({
@@ -241,7 +248,7 @@ def build_candidates(profile: UserProfile, role: TargetRole, matcher=None) -> li
             "prereq_ok": ok,
             "prereq_missing": missing,
             "verified": bool(cat),
-            "source": "role" if code in set(role_codes) else "gap",
+            "source": "role" if _normalize_code(code) in role_code_set else "gap",
         })
     return out
 
@@ -307,7 +314,7 @@ def select_modules(candidates: list[dict], gaps: list[str], n: int = 4,
         f"Candidates:\n{listing}\nChoose up to {n}."
     )
     raw = llm.explain(_SELECT_SYSTEM, user, "")
-    by_code = {c["code"].upper(): c for c in candidates}
+    by_code = {_normalize_code(c["code"]): c for c in candidates}
     picked: list[dict] = []
     seen: set[str] = set()
     for code in _parse_selected_codes(raw):

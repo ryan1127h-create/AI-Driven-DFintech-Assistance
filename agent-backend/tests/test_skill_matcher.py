@@ -14,7 +14,7 @@ def test_background_text_excludes_country():
 
 def test_rule_infer_user_skills_matches_legacy():
     # RuleSkillMatcher reproduces derive_user_skills exactly.
-    from agents.navigator.engine import derive_user_skills
+    from app.agents.navigator.engine import derive_user_skills
     p = get_profile("5")
     hits = RuleSkillMatcher().infer_user_skills(p)
     assert {h.id for h in hits} == derive_user_skills(p)
