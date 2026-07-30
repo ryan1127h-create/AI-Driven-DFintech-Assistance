@@ -30,7 +30,9 @@ load_dotenv()
 
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
-    user_stage: str     # prospect | applicant | admitted | student | alumni
+    # A common.profile.LifecycleStage value, resolved at the chat boundary:
+    # prospect | applicant | admitted | current | graduating | alumni
+    user_stage: str
     agent_used: str
     reply: str
     intent: str         # admissions | academic | financial | assessment | general

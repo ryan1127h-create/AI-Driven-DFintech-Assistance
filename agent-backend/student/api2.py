@@ -41,29 +41,42 @@ _DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 _MODULE_CATALOG = _DATA_DIR / "module_catalog.json"
 
 
-class RecommendationProfile(BaseModel):
-    """Compact JSON profile accepted by standalone recommendation APIs."""
+DEFAULT_API_USER_ID = "api_user"
 
-    user_id: str = "api_user"
-    lifecycle_stage: str = "current"
-    target_roles: list[str] = Field(default_factory=list)
-    target_role: str | None = None
+
+class RecommendationProfileInput(BaseModel):
+    """Wire shape accepted by the standalone recommendation endpoints.
+
+    Transport only -- the one authority profile is common.profile.UserProfile,
+    which _profile_from_recommendation_request builds from this. Every field is
+    typed with the authority's own vocabulary, so an unrecognised value is
+    rejected here (422, echoing the offending value) instead of being quietly
+    coerced to a default or dropped to None.
+    """
+
+    user_id: str = DEFAULT_API_USER_ID
+    lifecycle_stage: LifecycleStage = LifecycleStage.current
+    target_roles: list[TargetRole] = Field(default_factory=list)
+    target_role: TargetRole | None = None
     completed_modules: list[str] | str = Field(default_factory=list)
-    technical_proficiency: str | None = None
-    finance_knowledge: str | None = None
-    work_domain: str | None = None
-    personalization: bool = True
+    technical_proficiency: Proficiency | None = None
+    finance_knowledge: Proficiency | None = None
+    work_domain: WorkDomain | None = None
+    # Opt-IN, matching ConsentFlags.personalization. A caller who omits the key
+    # has expressed no consent, so this must default OFF -- defaulting to True
+    # here would personalise every request that never mentioned personalisation,
+    # which is the privacy-default inversion the authority model exists to prevent.
+    personalization: bool = False
 
 
 class RecommendationRequest(BaseModel):
-    profile: RecommendationProfile
-    target_role: str | None = None
+    profile: RecommendationProfileInput
+    target_role: TargetRole | None = None
 
 
-def _json_error(message: str, status: int = 400, **extra):
-    payload = {"ok": False, "error": message}
-    payload.update(extra)
-    return {(payload), status}
+def _json_error(message: str, status: int = 500) -> JSONResponse:
+    """Uniform JSON error response, in the shape the routes already return."""
+    return JSONResponse(status_code=status, content={"ok": False, "error": message})
 
 
 def _module_sources() -> dict[str, str | None]:
@@ -80,16 +93,6 @@ def _module_sources() -> dict[str, str | None]:
     }
 
 
-def _enum_value(enum_cls, raw):
-    raw = (raw or "").strip() if isinstance(raw, str) else raw
-    if not raw:
-        return None
-    try:
-        return enum_cls(raw)
-    except ValueError:
-        return None
-
-
 def _normalise_completed_modules(raw: list[str] | str) -> list[str]:
     if isinstance(raw, str):
         pieces = raw.replace(";", ",").split(",")
@@ -98,36 +101,49 @@ def _normalise_completed_modules(raw: list[str] | str) -> list[str]:
     return [str(code).strip().upper() for code in pieces if str(code).strip()]
 
 
-def _profile_from_recommendation_request(payload: RecommendationRequest) -> tuple[UserProfile, dict]:
+def _ordered_target_roles(
+    roles: list[TargetRole], override: TargetRole | None
+) -> list[TargetRole]:
+    """Order-preserving, de-duplicated roles; an explicit override leads the list.
+
+    Index 0 is the primary role by the authority's own convention: it is what
+    navigator.pick_primary_role advises on and what
+    common.profile_adapter.to_rag_data emits into their single `target_role_std`
+    slot. An override already present in `roles` is moved to the front rather
+    than left where it was -- otherwise "explicit override" would only win for
+    users who had not already listed that role.
+    """
+    leading = [override] if override else []
+    return list(dict.fromkeys([*leading, *roles]))
+
+
+def _profile_from_recommendation_request(payload: RecommendationRequest) -> UserProfile:
+    """Build the authority profile from an already-validated wire request.
+
+    No value mapping happens here: RecommendationProfileInput has already
+    rejected anything outside the authority vocabulary, including the stage. An
+    `alumni` request therefore stays `alumni` and gets the alumni-flow answer
+    from the supervisor, rather than being advised as a current student.
+
+    An explicit `target_role` is carried on the profile itself, at the head of
+    `target_roles`, and nowhere else. It used to be passed to the agents a second
+    time as a `target_role` slot, which `pick_primary_role` reads first; that
+    duplicate shadowed the ordering above entirely, so the profile could disagree
+    with the role actually advised on and nothing would notice.
+    """
     incoming = payload.profile
-    roles: list[TargetRole] = []
-    for raw in incoming.target_roles:
-        role = _enum_value(TargetRole, raw)
-        if role and role not in roles:
-            roles.append(role)
-
-    slot_role = payload.target_role or incoming.target_role
-    role_override = _enum_value(TargetRole, slot_role)
-    if role_override and role_override not in roles:
-        roles.insert(0, role_override)
-
-    stage = _enum_value(LifecycleStage, incoming.lifecycle_stage) or LifecycleStage.current
-    if stage not in (LifecycleStage.current, LifecycleStage.graduating, LifecycleStage.applicant, LifecycleStage.prospect, LifecycleStage.admitted):
-        stage = LifecycleStage.current
-
-    profile = UserProfile(
+    override = payload.target_role or incoming.target_role
+    return UserProfile(
         user_id=incoming.user_id,
-        lifecycle_stage=stage,
+        lifecycle_stage=incoming.lifecycle_stage,
         authenticated=True,
-        work_domain=_enum_value(WorkDomain, incoming.work_domain),
-        technical_proficiency=_enum_value(Proficiency, incoming.technical_proficiency),
-        finance_knowledge=_enum_value(Proficiency, incoming.finance_knowledge),
-        target_roles=roles,
+        work_domain=incoming.work_domain,
+        technical_proficiency=incoming.technical_proficiency,
+        finance_knowledge=incoming.finance_knowledge,
+        target_roles=_ordered_target_roles(incoming.target_roles, override),
         completed_modules=_normalise_completed_modules(incoming.completed_modules),
         consent_flags=ConsentFlags(personalization=incoming.personalization),
     )
-    slots = {"target_role": role_override.value} if role_override else {}
-    return profile, slots
 
 
 def _material_to_dict(material: pf.UploadedMaterial) -> dict:
@@ -367,11 +383,9 @@ async def api_extract_profile(
         }
 
     except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={"ok": False, "error": str(exc)},
-        )
-    
+        return _json_error(str(exc))
+
+
 @router.post("/advise")
 async def api_advise(request: Request):
     try:
@@ -409,17 +423,14 @@ async def api_advise(request: Request):
         }
 
     except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={"ok": False, "error": str(exc)},
-        )
+        return _json_error(str(exc))
 
 
 @router.post("/recommend/courses")
 async def api_recommend_courses(payload: RecommendationRequest):
     try:
-        profile, slots = _profile_from_recommendation_request(payload)
-        resp = route("recommend_courses", profile, slots)
+        profile = _profile_from_recommendation_request(payload)
+        resp = route("recommend_courses", profile)
         status = 200 if resp.status in {"ok", "need_clarification"} else 400
         return JSONResponse(
             status_code=status,
@@ -430,14 +441,14 @@ async def api_recommend_courses(payload: RecommendationRequest):
             },
         )
     except Exception as exc:
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
+        return _json_error(str(exc))
 
 
 @router.post("/recommend/career")
 async def api_recommend_career(payload: RecommendationRequest):
     try:
-        profile, slots = _profile_from_recommendation_request(payload)
-        resp = route("recommend_career_path", profile, slots)
+        profile = _profile_from_recommendation_request(payload)
+        resp = route("recommend_career_path", profile)
         status = 200 if resp.status in {"ok", "need_clarification"} else 400
         return JSONResponse(
             status_code=status,
@@ -448,4 +459,4 @@ async def api_recommend_career(payload: RecommendationRequest):
             },
         )
     except Exception as exc:
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
+        return _json_error(str(exc))
