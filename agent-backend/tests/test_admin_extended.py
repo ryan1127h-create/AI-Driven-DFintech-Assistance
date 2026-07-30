@@ -121,7 +121,7 @@ def test_history_page_renders(client):
     resp = client.get("/history")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "版本回滚" in body and "审计日志" in body
+    assert "Version rollback" in body and "Audit log" in body
 
 
 def test_rollback_route_rejects_bad_version(client):
@@ -129,4 +129,4 @@ def test_rollback_route_rejects_bad_version(client):
     resp = client.post("/rollback", data={
         "target": "status_translations", "admin": "x", "version": "nope.json"})
     assert resp.status_code == 200
-    assert "被拒绝" in resp.get_data(as_text=True)
+    assert "Operation rejected" in resp.get_data(as_text=True)
