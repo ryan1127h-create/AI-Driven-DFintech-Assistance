@@ -22,12 +22,21 @@ _SYSTEM = (
 )
 
 
+# comp.best_for_you is None only when every programme scored zero, i.e. the
+# verified data supports no recommendation at all. Saying the programmes merely
+# "have different strengths" would hide that, so state the absence and its reason.
+_NO_BEST_FIT = (
+    "no programme scored above zero on the criteria you weighted, so no single "
+    "best fit is highlighted; please weigh the facts against your specific goals. "
+)
+
+
 def _narrative(comp, target_roles) -> str:
     role_text = ", ".join(r.value for r in target_roles) if target_roles else "your goals"
     fallback = (
         f"Based on your goals ({role_text}), "
-        + (f"{comp.best_for_you} has stronger fit in the relevant dimensions. " if comp.best_for_you
-           else "each programme has different strengths, so you should weigh them against your specific goals. ")
+        + (f"{comp.best_for_you} has stronger fit in the relevant dimensions. "
+           if comp.best_for_you else _NO_BEST_FIT)
         + "The comparison below is for reference only."
     )
     if not llm.available():

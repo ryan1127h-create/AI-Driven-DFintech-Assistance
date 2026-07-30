@@ -1,5 +1,5 @@
 {
-  "_comment": "Competitor comparison data updated from DFT database and official pages on 2026-06-05. Facts are curated; unavailable fields are marked as not publicly disclosed. role_strengths are derived by engine from curriculum_focus.",
+  "_comment": "Competitor comparison data updated from DFT database and official pages on 2026-06-05. Facts are curated; unavailable fields are marked as not publicly disclosed. role_strengths are derived by engine from curriculum_focus. A cell of the four PDF dimensions (typical_profile / industry_orientation / technical_depth / career_pathways) may only be marked verified when its text restates a fact published on the row source_url; qualitative judgements stay synthesis.",
   "dimensions": [
     "curriculum_focus",
     "duration",
@@ -13,7 +13,7 @@
     "technical_depth",
     "career_pathways"
   ],
-  "disclaimer": "The comparison is based on official public information and the curated programme database. It is for fit analysis only and is not a ranking. Fees, deadlines, and curriculum arrangements may change; please refer to each school’s latest official page.",
+  "disclaimer": "The comparison is based on official public information and the curated programme database. It is for fit analysis only and is not a ranking. Fees, deadlines, and curriculum arrangements may change; please refer to each school's latest official page.",
   "programs": [
     {
       "program": "NUS MSc in Digital Financial Technology",
@@ -33,16 +33,16 @@
           "kind": "synthesis"
         },
         "industry_orientation": {
-          "text": "Includes the two-semester FT5007 capstone, which may be an industry-linked or internship-style project.",
-          "kind": "synthesis"
+          "text": "Two-semester FT5007 FinTech Capstone Project; the capstone can be an academic research project or an industry-linked/internship-style project.",
+          "kind": "verified"
         },
         "technical_depth": {
           "text": "High technical depth: computing technologies, financial data analytics and intelligence, and digital financial transactions and risk.",
           "kind": "synthesis"
         },
         "career_pathways": {
-          "text": "AI software developer, data scientist, FinTech security specialist, and financial quantitative analyst.",
-          "kind": "synthesis"
+          "text": "Career outcomes stated by the programme: AI software developer, data scientist, FinTech security specialist, and financial quantitative analyst.",
+          "kind": "verified"
         }
       }
     },
@@ -64,8 +64,8 @@
           "kind": "synthesis"
         },
         "industry_orientation": {
-          "text": "Provides internship options through the SMU partner network, with an applied-finance orientation.",
-          "kind": "synthesis"
+          "text": "Coursework programme with an internship option offered through the SMU partner network.",
+          "kind": "verified"
         },
         "technical_depth": {
           "text": "Moderate technical depth: primarily applied finance, with FinTech as a specialisation option.",

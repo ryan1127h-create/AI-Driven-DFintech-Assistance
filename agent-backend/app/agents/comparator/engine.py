@@ -21,15 +21,35 @@ _DATA_PATH = Path(__file__).resolve().parents[3] / "data" / "programs_dataset.js
 # HKD -> SGD approximate rate (for rough cost comparability only).
 _HKD_TO_SGD = 0.17
 
-# Role -> curriculum keywords (zh/en). Matching is substring, case-insensitive.
+# Role -> curriculum-evidence keywords, case-insensitive. English only: the
+# dataset is English, so zh keywords were unreachable dead weight.
+#
+# A keyword must name CURRICULUM CONTENT that can tell programmes apart. Two
+# kinds of keyword are deliberately absent, and re-adding them is a regression:
+#   - domain/title terms ("fintech", "financial technology"): every programme in
+#     the comparison set carries FinTech in its own name, so matching one
+#     restates the title instead of evidencing curriculum fit.
+#   - adjacent-but-different topics ("risk management" for compliance_regtech):
+#     the score would be real but justified with text about something else.
+# When the dataset holds no evidence for a role, it scores a truthful zero.
 _ROLE_KEYWORDS: dict[str, list[str]] = {
-    "fintech_pm": ["金融科技", "fintech", "产品", "创业", "venture", "洞察"],
-    "quant_risk": ["风险", "量化", "risk", "quantitative", "建模", "金融工程"],
-    "digital_banking": ["银行", "banking", "数字金融"],
-    "payments": ["支付", "payment", "区块链", "blockchain", "交易"],
-    "compliance_regtech": ["合规", "监管", "compliance", "regulation", "反洗钱", "风险管理"],
-    "data_analytics": ["数据", "分析", "analytics", "机器学习", "machine learning", "数据科学", "智能", "ai"],
+    "fintech_pm": ["product", "venture", "entrepreneurship", "insight"],
+    "quant_risk": ["risk", "quantitative", "modelling", "modeling",
+                   "financial engineering"],
+    "digital_banking": ["bank", "banking", "digital finance",
+                        "digital financial services"],
+    "payments": ["payment", "blockchain", "transaction"],
+    "compliance_regtech": ["compliance", "regulation", "regulatory", "regtech",
+                           "anti-money laundering"],
+    "data_analytics": ["data", "analysis", "analytics", "machine learning",
+                       "data science", "intelligence", "ai"],
 }
+
+# Multi-word keywords are joined by this class so matching tolerates either
+# separator. The table itself mixes both -- "machine learning" is spaced while
+# "anti-money laundering" is hyphenated -- and matching must not depend on which
+# separator a future dataset refresh happens to use.
+_KEYWORD_SEPARATOR = r"[\s\-]+"
 
 _CRITERIA = ("role_fit", "cost", "duration")
 
@@ -101,13 +121,37 @@ def _load() -> dict:
 
 
 # ---------- role derivation (explainable) ----------
+def _keyword_pattern(keyword: str) -> re.Pattern[str]:
+    """Word-boundary regex for one keyword.
+
+    A keyword must not match inside a longer word: bare containment let "ai" hit
+    "blockchain"/"training" and inflate role_reasons. An optional trailing "s"
+    keeps plurals ("transactions") matching, and multi-word keywords tolerate
+    either separator ("anti-money laundering" / "anti money laundering").
+    """
+    parts = [re.escape(part) for part in re.split(_KEYWORD_SEPARATOR, keyword.lower()) if part]
+    body = _KEYWORD_SEPARATOR.join(parts)
+    return re.compile(rf"\b{body}s?\b")
+
+
+_KEYWORD_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
+    role: [(kw, _keyword_pattern(kw)) for kw in kws]
+    for role, kws in _ROLE_KEYWORDS.items()
+}
+
+
+def _keyword_hits(text: str, role: str) -> list[str]:
+    """Keywords of `role` present in `text` (already lower-cased)."""
+    return [kw for kw, pattern in _KEYWORD_PATTERNS[role] if pattern.search(text)]
+
+
 def derive_role_strengths(curriculum_focus: str) -> tuple[list[str], dict[str, list[str]]]:
     """Return (roles, reasons) where reasons[role] = matched keywords."""
     text = (curriculum_focus or "").lower()
     roles: list[str] = []
     reasons: dict[str, list[str]] = {}
-    for role, kws in _ROLE_KEYWORDS.items():
-        hits = [kw for kw in kws if kw.lower() in text]
+    for role in _ROLE_KEYWORDS:
+        hits = _keyword_hits(text, role)
         if hits:
             roles.append(role)
             reasons[role] = hits
@@ -251,7 +295,10 @@ def compare(target_roles: list[TargetRole],
 
     best = None
     if rows:
+        # is_target breaks a score tie in favour of the target programme.
         best_row = max(rows, key=lambda r: (r.synthesis.weighted_score, r.is_target))
+        # A zero top score means nothing in the verified data supports a
+        # recommendation; emit none rather than an evidence-free "best fit".
         if best_row.synthesis.weighted_score > 0:
             best = best_row.program
 
