@@ -112,6 +112,47 @@ def test_engine_evaluates_every_condition_the_admin_layer_allows():
     assert SUPPORTED_CONDITIONS == set(_CONDITION_EVALUATORS)
 
 
+def test_engine_maps_every_requirement_level_the_admin_layer_allows():
+    """Same drift guard, one field over: a level that validates must be mappable."""
+    from typing import get_args
+
+    from admin.schemas import RequirementLevel
+    from app.agents.checklist.engine import _REQUIREMENT_LEVELS
+
+    assert set(get_args(RequirementLevel)) == set(_REQUIREMENT_LEVELS)
+
+
+@pytest.mark.parametrize("condition,value", [
+    ("foreign_institution", True),
+    ("application_type", "full_time"),
+])
+def test_a_condition_no_shipped_rule_uses_is_still_authorable(monkeypatch, condition, value):
+    """These two evaluators run on no shipped rule; they exist for authors.
+
+    admin/registry.py names them in the prompt that generates drafts, so an admin
+    can write a rule on one. Keeping them is only honest if such a rule really
+    does pass authoring validation and then reach the checklist — otherwise they
+    are dead code advertised as an API.
+    """
+    from admin import schemas
+    from app.agents.checklist import engine
+
+    rules = engine._load_rules()
+    rules["conditional_items"].append({
+        "key": "authored_item", "label": "Authored", "why": "an admin wrote this rule",
+        "requirement": "required", "applies_when": {condition: value},
+    })
+
+    ok, err = schemas.validate_draft(schemas.AdmissionsRules, rules)
+    assert ok, err
+
+    monkeypatch.setattr(engine, "_load_rules", lambda: rules)
+    # Profile 1: institution "Overseas University" + country IN, application full_time.
+    r = build_checklist(mock_data.get_profile("1"))
+    assert "authored_item" in _keys(r)
+    assert r.unknown_condition is None
+
+
 # ---------- v3: English proof keyed on medium of instruction ----------
 def test_english_medium_institution_waives_proof_despite_nationality():
     # Non-exempt nationality + a degree from a known English-medium institution:
@@ -170,11 +211,12 @@ def test_a_conditional_item_asks_the_applicant_to_confirm_it():
 
 @pytest.mark.parametrize("level", ["optional", None])
 def test_unmappable_requirement_level_is_rejected_rather_than_guessed(monkeypatch, level):
-    """The rules file is authored, partly by the admin LLM pipeline.
+    """The rules file is plain JSON and can be hand-edited outside the admin tool.
 
-    Its pydantic schema does not model `requirement`, so an edit that drops the
-    key (None) or invents a synonym ("optional") reaches the engine unchallenged.
-    Either must fail loudly rather than silently re-classify a document.
+    admin/schemas.py rejects a dropped key (None) or an invented synonym
+    ("optional") at authoring time, but nothing revalidates the file on load, so
+    the engine keeps its own guard: fail loudly rather than silently re-classify
+    a document.
     """
     from app.agents.checklist import engine
 

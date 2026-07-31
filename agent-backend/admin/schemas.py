@@ -52,16 +52,22 @@ class StatusTranslations(BaseModel):
 SUPPORTED_CONDITIONS = {
     "foreign_institution",
     "english_proof_required",
-    "low_experience",
     "application_type",
     "degree_classification_below",
 }
+
+# How strongly an item binds the applicant. Must stay in step with
+# agents/checklist/engine.py::_REQUIREMENT_LEVELS (parity-tested): a level this
+# schema accepts but the engine cannot map would pass authoring and then fail at
+# runtime, which is exactly what validating here is meant to prevent.
+RequirementLevel = Literal["required", "conditional", "supporting"]
 
 
 class DocItem(BaseModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
     why: str = Field(min_length=1)
+    requirement: RequirementLevel  # mandatory: the engine refuses to guess it
     deadline_key: str | None = None  # optional link to an application deadline
 
 
@@ -92,7 +98,10 @@ class AdmissionsRules(BaseModel):
     conditional_items: list[ConditionalDocItem] = Field(default_factory=list)
     english_exempt_countries: list[str]
     local_institution_keywords: list[str]
-    low_experience_threshold_years: int = Field(ge=0)
+    # Mandatory, not defaulted: the engine falls back to "medium of instruction
+    # unconfirmed" when this list is absent, so a draft that silently drops it
+    # would withdraw every waiver without any visible failure.
+    english_medium_institution_keywords: list[str]
 
     @model_validator(mode="after")
     def _keys_unique(self) -> "AdmissionsRules":

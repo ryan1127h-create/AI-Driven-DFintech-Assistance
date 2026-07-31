@@ -19,8 +19,11 @@ _RULES_PATH = Path(__file__).resolve().parents[3] / "data" / "admissions_rules.j
 # Honours classification ordered best -> worst (index = rank).
 _CLASSIFICATION_ORDER = ["first", "second_upper", "second_lower", "third", "pass"]
 
-# A document still needs applicant action when in one of these states.
-_OUTSTANDING = {"missing", "rejected"}
+# A document still needs applicant action when in one of these states. This is
+# the single definition of "outstanding": this module owns `ChecklistItem.status`,
+# so #4's agent and #5's tracker both read the vocabulary from here rather than
+# restating it, which is how the three surfaces stay in step.
+OUTSTANDING_STATUSES = frozenset({"missing", "rejected"})
 
 _ENGLISH_MEDIUM_KEYWORDS_FIELD = "english_medium_institution_keywords"
 
@@ -124,11 +127,6 @@ def _english_proof_unconfirmed(profile: UserProfile, rules: dict) -> bool:
     return profile.country not in rules["english_exempt_countries"]
 
 
-def _low_experience(profile: UserProfile, rules: dict) -> bool:
-    years = profile.work_years or 0
-    return years < rules["low_experience_threshold_years"]
-
-
 def _classification_below(profile: UserProfile, threshold: str) -> bool:
     """True if the applicant's honours class is strictly worse than `threshold`.
 
@@ -155,8 +153,6 @@ _CONDITION_EVALUATORS: dict[str, Callable[[UserProfile, dict, object], bool]] = 
         lambda p, r, v: _is_foreign_institution(p, r) == v,
     "english_proof_required":
         lambda p, r, v: _english_proof_unconfirmed(p, r) == v,
-    "low_experience":
-        lambda p, r, v: _low_experience(p, r) == v,
     "application_type":
         lambda p, r, v: p.application_type is not None and p.application_type.value == v,
     "degree_classification_below":
@@ -182,11 +178,12 @@ def _spec_applies(spec: dict, profile: UserProfile, rules: dict) -> bool:
 def _requirement_level(spec: dict) -> str:
     """Read an item's requirement level, rejecting anything the engine cannot map.
 
-    The rules file is authored, partly by the admin LLM pipeline, and its pydantic
-    schema does not model this field — so a missing or unrecognised level is an
-    authoring error the engine has to catch. It raises instead of guessing:
-    guessing "required" would re-impose a requirement we cannot justify, and
-    guessing "not required" would silently drop a mandatory document.
+    admin/schemas.py::RequirementLevel already rejects a bad level at authoring
+    time, but the rules file is plain JSON on disk and is loaded here without
+    going through that schema, so a hand edit can still reach this point. It
+    raises instead of guessing: guessing "required" would re-impose a requirement
+    we cannot justify, and guessing "not required" would silently drop a
+    mandatory document.
     """
     level = spec.get("requirement")
     if level not in _REQUIREMENT_LEVELS:
@@ -236,7 +233,7 @@ def _deadline_and_urgency(status: str, profile: UserProfile,
     if not iso:
         return None, None
     # Urgency only matters while the item is still outstanding.
-    if status not in _OUTSTANDING:
+    if status not in OUTSTANDING_STATUSES:
         return iso, None
     try:
         days_left = (date.fromisoformat(iso) - today).days
@@ -283,7 +280,7 @@ def build_checklist(profile: UserProfile, today: date | None = None) -> Checklis
             unknown = str(e)
 
     missing = sum(1 for it in items if it.status == "missing")
-    outstanding = sum(1 for it in items if it.required and it.status in _OUTSTANDING)
+    outstanding = sum(1 for it in items if it.required and it.status in OUTSTANDING_STATUSES)
     return ChecklistResult(
         items=items, missing_count=missing, outstanding_count=outstanding,
         unknown_condition=unknown,

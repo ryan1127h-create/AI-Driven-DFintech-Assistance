@@ -10,7 +10,7 @@ from common import llm
 from common.envelope import AgentResponse, EscalationRequest
 from common.profile import UserProfile
 
-from .engine import REQUIREMENT_CONDITIONAL, build_checklist
+from .engine import OUTSTANDING_STATUSES, REQUIREMENT_CONDITIONAL, build_checklist
 
 _SYSTEM = (
     "You help applicants understand a Master's application checklist. You are "
@@ -29,8 +29,6 @@ _STATUS_LABEL = {
     "verified": "Verified",
     "rejected": "Rejected",
 }
-
-_OUTSTANDING_STATUSES = ("missing", "rejected")
 
 # One sentence per urgency bucket that is worth speaking about. A past-due date
 # must not be described as "close to the deadline": the profile records that the
@@ -137,12 +135,12 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
     ]
 
     outstanding = [it for it in result.items
-                   if it.required and it.status in _OUTSTANDING_STATUSES]
+                   if it.required and it.status in OUTSTANDING_STATUSES]
     # Conditional items are not blocking, but they are not settled either: the
     # application cannot be called complete while one is still open.
     unresolved = [it for it in result.items
                   if it.requirement == REQUIREMENT_CONDITIONAL
-                  and it.status in _OUTSTANDING_STATUSES]
+                  and it.status in OUTSTANDING_STATUSES]
     speakable = _summarise(outstanding, unresolved)
 
     return AgentResponse(
