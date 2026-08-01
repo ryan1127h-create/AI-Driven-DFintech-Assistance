@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI  # DeepSeek 走 OpenAI 兼容接口
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, HumanMessage
 
 from app.agents.admissions_agent import admissions_node, assessment_node
 from app.agents.academic_agent import academic_node
@@ -88,6 +88,38 @@ to apply to the programme. Look for phrases such as "my background is", \
 programme facts: greetings, thank-you messages, follow-up conversational \
 questions, questions about the AI assistant itself, or requests for opinions.
 
+"my_documents" — The user is asking what THEY personally still have to submit, \
+or whether THEIR OWN application is complete: "what am I still missing", "have I \
+submitted everything", "what is left on my application", "is my application \
+complete". Choose "admissions" instead when the question is about what the \
+programme requires of applicants in general.
+
+"my_courses" — The user is asking what THEY personally should take, given their \
+own progress or goals: "what should I take next semester", "which modules fit my \
+target role", "plan my remaining courses", "how many units do I have left". \
+Choose "academic" instead when the question is about the curriculum in general.
+
+"my_status" — The user is asking where THEIR OWN application currently stands, \
+or what happens next for them specifically: "what is the status of my \
+application", "where is my application now", "what happens next for me", "has my \
+application been reviewed". Choose "admissions" instead for general timelines \
+such as "how long does a decision usually take".
+
+"my_comparison" — The user is asking which programme suits THEM, weighing their \
+own goals: "which programme is the best fit for me", "should I pick NUS or NTU \
+given my background", "which one suits my career goals". Choose "academic" \
+instead when the question compares programmes in general, with no reference to \
+the user's own situation.
+
+"my_career" — The user is asking which career direction suits THEM: "what career \
+should I aim for", "which role fits my skills", "what should I work on to become \
+a quant". Choose "academic" instead for general questions about what graduates \
+of the programme go on to do.
+
+A note on all five "my_" intents: choose them only when the answer would differ \
+from one user to another. If two different users would get the same correct \
+answer, it is a general question — use the category that matches its subject.
+
 Respond with ONLY a valid JSON object — no markdown, no explanation:
 {"intent": "admissions"}
 or
@@ -97,12 +129,35 @@ or
 or
 {"intent": "assessment"}
 or
+{"intent": "my_documents"}
+or
+{"intent": "my_status"}
+or
+{"intent": "my_comparison"}
+or
+{"intent": "my_courses"}
+or
+{"intent": "my_career"}
+or
 {"intent": "general"}"""
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-_VALID_INTENTS = {"admissions", "academic", "financial", "assessment", "general"}
+# Fallback when the chat surface supplied no stage. Matches app/api/chat.py's own
+# default rather than assuming a later stage the user never claimed.
+DEFAULT_CHAT_STAGE = "prospect"
+
+# Intents answered by the RAG agents from programme documentation.
+_RAG_INTENTS = {"admissions", "academic", "financial", "assessment", "general"}
+
+# Intents answered from the user's own profile by the #4-#7 agents. Kept as a
+# separate set so the RAG routes above are unaffected by this addition.
+_PERSONALISED_INTENTS = {
+    "my_documents", "my_status", "my_comparison", "my_courses", "my_career",
+}
+
+_VALID_INTENTS = _RAG_INTENTS | _PERSONALISED_INTENTS
 
 
 def _build_llm(temperature: float = 0.7) -> ChatOpenAI:
@@ -148,6 +203,47 @@ def classify_intent_node(state: AgentState) -> dict:
     return {"intent": intent}
 
 
+def _personalised_node(state: AgentState, chat_intent: str, agent_used: str) -> dict:
+    """Answer from the user's own profile via the #4-#7 agents.
+
+    Imported lazily so this module still imports in an environment without the
+    profile stack, mirroring how the RAG nodes tolerate a missing retriever.
+    """
+    from app.agents.personal_advice import advise
+
+    reply = advise(chat_intent, state.get("user_stage") or DEFAULT_CHAT_STAGE)
+    return {
+        "messages": [AIMessage(content=reply)],
+        "agent_used": agent_used,
+        "reply": reply,
+    }
+
+
+def my_documents_node(state: AgentState) -> dict:
+    """#4 — what THIS applicant still has to submit."""
+    return _personalised_node(state, "my_documents", "checklist_agent")
+
+
+def my_status_node(state: AgentState) -> dict:
+    """#5 — where THIS application currently stands."""
+    return _personalised_node(state, "my_status", "tracker_agent")
+
+
+def my_comparison_node(state: AgentState) -> dict:
+    """#6 — which programme suits THIS user, not which is better in general."""
+    return _personalised_node(state, "my_comparison", "comparator_agent")
+
+
+def my_courses_node(state: AgentState) -> dict:
+    """#7 — what THIS student should take next."""
+    return _personalised_node(state, "my_courses", "navigator_agent")
+
+
+def my_career_node(state: AgentState) -> dict:
+    """#7 — which direction suits THIS user's skills and goals."""
+    return _personalised_node(state, "my_career", "navigator_agent")
+
+
 def supervisor_node(state: AgentState) -> dict:
     """Handles general conversation that does not require RAG retrieval."""
     llm = _build_llm()
@@ -178,6 +274,11 @@ def build_supervisor_graph():
     graph.add_node("academic",        academic_node)
     graph.add_node("financial",       financial_node)
     graph.add_node("assessment",      assessment_node)
+    graph.add_node("my_documents",    my_documents_node)
+    graph.add_node("my_status",       my_status_node)
+    graph.add_node("my_comparison",   my_comparison_node)
+    graph.add_node("my_courses",      my_courses_node)
+    graph.add_node("my_career",       my_career_node)
 
     graph.set_entry_point("classify_intent")
 
@@ -185,18 +286,24 @@ def build_supervisor_graph():
         "classify_intent",
         route_by_intent,
         {
-            "admissions": "admissions",
-            "academic":   "academic",
-            "financial":  "financial",
-            "assessment": "assessment",
-            "general":    "supervisor",
+            "admissions":    "admissions",
+            "academic":      "academic",
+            "financial":     "financial",
+            "assessment":    "assessment",
+            "my_documents":  "my_documents",
+            "my_status":     "my_status",
+            "my_comparison": "my_comparison",
+            "my_courses":    "my_courses",
+            "my_career":     "my_career",
+            "general":       "supervisor",
         },
     )
 
-    graph.add_edge("admissions", END)
-    graph.add_edge("academic",   END)
-    graph.add_edge("financial",  END)
-    graph.add_edge("assessment", END)
+    for _terminal in (
+        "admissions", "academic", "financial", "assessment",
+        "my_documents", "my_status", "my_comparison", "my_courses", "my_career",
+    ):
+        graph.add_edge(_terminal, END)
     graph.add_edge("supervisor", END)
 
     return graph.compile()
