@@ -271,6 +271,26 @@ def test_document_status_takes_precedence():
     assert _item(r, "personal_statement").status == "under_review"
 
 
+def test_every_outstanding_status_is_chased_by_the_checklist():
+    """Both members of the engine's outstanding vocabulary must reach the applicant.
+
+    The statuses are spelled out here rather than read from `OUTSTANDING_STATUSES`,
+    so shrinking that constant fails this test instead of silently telling an
+    applicant that a rejected (or missing) document needs no action. #5's tracker
+    reads the same constant and is guarded by the matching test in test_tracker.py.
+    """
+    p = mock_data.get_profile("4")
+    r = build_checklist(p, today=date(2026, 5, 31))
+    rejected = _item(r, "transcript")
+    missing = _item(r, "referee_reports")
+    assert (rejected.status, missing.status) == ("rejected", "missing")
+    assert rejected.required and missing.required
+
+    speakable = handle(p, {"today": "2026-05-31"}).speakable
+    assert rejected.label in speakable
+    assert missing.label in speakable
+
+
 def test_outstanding_counts_missing_and_rejected_only():
     p = mock_data.get_profile("4")
     r = build_checklist(p, today=date(2026, 5, 31))

@@ -94,6 +94,21 @@ def test_docs_required_lists_outstanding_documents():
     assert transcript["status"] == "rejected"
 
 
+def test_every_outstanding_status_reaches_the_tracker_document_list():
+    """#5 reports the same outstanding vocabulary #4's engine defines.
+
+    The tracker imports `OUTSTANDING_STATUSES` from the checklist engine instead
+    of restating it. The statuses are spelled out here rather than read from that
+    constant, so shrinking it fails this test — and its twin in test_checklist.py —
+    instead of quietly dropping a blocking document from the tracker's list.
+    """
+    p = mock_data.get_profile("4")
+    resp = handle(p, {"today": "2026-05-31"})
+    statuses = {d["key"]: d["status"] for d in resp.data["outstanding_documents"]}
+    assert statuses.get("transcript") == "rejected"
+    assert statuses.get("referee_reports") == "missing"
+
+
 def test_outstanding_documents_exclude_optional_material():
     """Only required items block: #5's list must match #4's outstanding_count."""
     from app.agents.checklist.engine import build_checklist

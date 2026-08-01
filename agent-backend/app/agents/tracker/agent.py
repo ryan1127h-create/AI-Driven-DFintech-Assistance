@@ -22,7 +22,6 @@ from .statemachine import (
 )
 
 
-_OUTSTANDING_STATUSES = ("missing", "rejected")
 _LABEL_SEPARATOR = ", "  # output is English: no Chinese enumeration comma
 _SENTENCE_SEPARATOR = ". "
 
@@ -36,12 +35,15 @@ def _split_outstanding_documents(profile: UserProfile) -> tuple[list[dict], list
 
     Only required items block the application. Optional supporting material is
     returned separately so the blocking list (and any count derived from it)
-    matches the #4 checklist's `outstanding_count`.
+    matches the #4 checklist's `outstanding_count`. "Outstanding" is the #4
+    engine's word: it owns `ChecklistItem.status`, so it also owns which of those
+    states still need action — restating the vocabulary here would let the two
+    surfaces disagree about the same items.
     """
-    from app.agents.checklist.engine import build_checklist
+    from app.agents.checklist.engine import OUTSTANDING_STATUSES, build_checklist
 
     result = build_checklist(profile)
-    outstanding = [it for it in result.items if it.status in _OUTSTANDING_STATUSES]
+    outstanding = [it for it in result.items if it.status in OUTSTANDING_STATUSES]
     return (
         [_document_dict(it) for it in outstanding if it.required],
         [_document_dict(it) for it in outstanding if not it.required],
