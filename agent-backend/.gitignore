@@ -1,3 +1,7 @@
+# 用户上传的申请材料含真实个人信息,绝不入库
+uploads/
+instance/
+
 .env
 data/.deepseek.json
 data/.smtp.json
