@@ -53,7 +53,6 @@ class ProfileMappingError(ValueError):
     def __init__(self, field: str, value: object, reason: str) -> None:
         self.field = field
         self.value = value
-        self.reason = reason
         super().__init__(f"{field}={value!r}: {reason}")
 
 
@@ -78,7 +77,6 @@ RAG_STAGE_TO_AUTHORITY: dict[str, LifecycleStage] = {
 # confidently wrong course advice. The cost is that a graduating profile pushed
 # to their store cannot be read back as graduating -- `from_rag_data` raises on
 # the missing stage rather than inventing one, so the loss is loud on return.
-STAGE_WITHOUT_RAG_DATA_WORD = LifecycleStage.graduating
 AUTHORITY_STAGE_TO_RAG: dict[LifecycleStage, str | None] = {
     LifecycleStage.prospect: "prospect",
     LifecycleStage.applicant: "applicant",

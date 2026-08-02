@@ -14,7 +14,7 @@ from common import config
 from supervisor import default_intents_for, route
 
 from . import profile_form as pf
-from .extract_profile import ProfileExtractionError, extract_fields, parse_file
+from .extract_profile import extract_fields, parse_file
 
 from pydantic import BaseModel, Field
 

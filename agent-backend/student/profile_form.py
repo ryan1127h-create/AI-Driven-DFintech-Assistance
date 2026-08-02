@@ -18,9 +18,7 @@ import re
 from dotenv import load_dotenv
 from datetime import date
 from pathlib import Path
-from uuid import uuid4
 from dataclasses import dataclass
-from typing import Mapping
 
 from werkzeug.utils import secure_filename
 

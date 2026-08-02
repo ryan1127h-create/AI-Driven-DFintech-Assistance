@@ -238,7 +238,3 @@ def get_profile(profile_id: str) -> UserProfile:
             f"unknown mock profile {profile_id!r}; available: {list(_PROFILES)}"
         )
     return _PROFILES[profile_id].model_copy(deep=True)
-
-
-def all_profile_ids() -> list[str]:
-    return list(_PROFILES)

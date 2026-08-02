@@ -50,10 +50,12 @@ def _load_thresholds(backend: str = "bm25") -> dict[str, float]:
         return defaults
 
 
+# Matched as substrings (`k in text`), so a phrase whose shorter form is also
+# listed would never add a match: "deadline extension" is covered by "extension".
 _HIGH_RISK_KEYWORDS = (
-    "appeal", "complaint", "exception", "waiver", "deadline extension",
+    "appeal", "complaint", "exception", "waiver", "extension",
     "missed deadline", "late application", "special case", "case by case",
-    "appeal", "complaint", "exception", "waiver", "extension", "missed deadline", "special circumstance",
+    "special circumstance",
 )
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]")
