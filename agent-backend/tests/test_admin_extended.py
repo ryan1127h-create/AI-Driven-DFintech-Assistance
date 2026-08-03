@@ -13,14 +13,17 @@ from admin.registry import EditableTarget, get_target
 def _valid_rules() -> dict:
     return {
         "_comment": "test",
-        "base_items": [{"key": "cv", "label": "CV", "why": "background"}],
+        "base_items": [
+            {"key": "cv", "label": "CV", "why": "background", "requirement": "required"},
+        ],
         "conditional_items": [
             {"key": "eng", "label": "English", "why": "lang",
+             "requirement": "conditional",
              "applies_when": {"english_proof_required": True}},
         ],
         "english_exempt_countries": ["SG"],
         "local_institution_keywords": ["nus"],
-        "low_experience_threshold_years": 1,
+        "english_medium_institution_keywords": ["nus"],
     }
 
 
@@ -38,7 +41,7 @@ def test_admissions_rules_rejects_unsupported_condition():
 
 def test_admissions_rules_rejects_duplicate_keys():
     d = _valid_rules()
-    d["base_items"].append({"key": "cv", "label": "x", "why": "y"})
+    d["base_items"].append({"key": "cv", "label": "x", "why": "y", "requirement": "required"})
     ok, err = schemas.validate_draft(schemas.AdmissionsRules, d)
     assert not ok and "duplicate" in err.lower()
 
@@ -48,6 +51,38 @@ def test_admissions_rules_rejects_empty_base_items():
     d["base_items"] = []
     ok, _ = schemas.validate_draft(schemas.AdmissionsRules, d)
     assert not ok
+
+
+# ---------- fields the checklist engine reads, so drafts must carry them ----------
+@pytest.mark.parametrize("mutate", [
+    pytest.param(lambda i: i.pop("requirement"), id="omitted"),
+    pytest.param(lambda i: i.update(requirement="optional"), id="invented_synonym"),
+    pytest.param(lambda i: i.update(requirment="required") or i.pop("requirement"),
+                 id="misspelled_key"),
+])
+def test_admissions_rules_rejects_an_item_without_a_usable_requirement_level(mutate):
+    """The engine refuses to guess this level, so authoring must not let it through.
+
+    Without it a draft reaches build_checklist and raises there — after the write
+    was already approved and archived.
+    """
+    d = _valid_rules()
+    mutate(d["base_items"][0])
+    ok, err = schemas.validate_draft(schemas.AdmissionsRules, d)
+    assert not ok and "requirement" in err
+
+
+def test_admissions_rules_rejects_a_draft_that_drops_the_english_medium_list():
+    """Dropping it silently withdraws every TOEFL/IELTS waiver.
+
+    The engine reads the list with a default, so its absence produces no error at
+    all: every applicant is simply asked to confirm their medium of instruction.
+    Authoring is the only layer that can notice.
+    """
+    d = _valid_rules()
+    del d["english_medium_institution_keywords"]
+    ok, err = schemas.validate_draft(schemas.AdmissionsRules, d)
+    assert not ok and "english_medium_institution_keywords" in err
 
 
 def test_real_admissions_file_validates():
@@ -121,7 +156,7 @@ def test_history_page_renders(client):
     resp = client.get("/history")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "版本回滚" in body and "审计日志" in body
+    assert "Version rollback" in body and "Audit log" in body
 
 
 def test_rollback_route_rejects_bad_version(client):
@@ -129,4 +164,4 @@ def test_rollback_route_rejects_bad_version(client):
     resp = client.post("/rollback", data={
         "target": "status_translations", "admin": "x", "version": "nope.json"})
     assert resp.status_code == 200
-    assert "被拒绝" in resp.get_data(as_text=True)
+    assert "Operation rejected" in resp.get_data(as_text=True)

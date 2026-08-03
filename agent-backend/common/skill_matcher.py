@@ -83,7 +83,7 @@ _THRESHOLDS_PATH = Path(__file__).resolve().parents[1] / "data" / "match_thresho
 
 
 def _match_thresholds(backend: str) -> dict:
-    defaults = {"skill_threshold": 0.5, "module_threshold": 0.5}
+    defaults = {"skill_threshold": 0.5}
     try:
         data = json.loads(_THRESHOLDS_PATH.read_text(encoding="utf-8"))
         section = data.get(backend, {})
@@ -99,8 +99,7 @@ def get_skill_matcher() -> SkillMatcher:
 
         if embedding_available():
             t = _match_thresholds("embedding")
-            return EmbeddingSkillMatcher(skill_threshold=t["skill_threshold"],
-                                         module_threshold=t["module_threshold"])
+            return EmbeddingSkillMatcher(skill_threshold=t["skill_threshold"])
     except Exception:
         pass
     return RuleSkillMatcher()
@@ -125,11 +124,10 @@ def _cosine(a: list[float], b: list[float]) -> float:
 class EmbeddingSkillMatcher:
     """Semantic backend over the taxonomy + module_catalog, fingerprinted cache."""
 
-    def __init__(self, skill_threshold: float = 0.5, module_threshold: float = 0.5) -> None:
+    def __init__(self, skill_threshold: float = 0.5) -> None:
         from common.skill_taxonomy import load_taxonomy
 
         self.skill_threshold = skill_threshold
-        self.module_threshold = module_threshold
         self._skills = load_taxonomy()
         self._model = config.get_embedding_model()
         self._skill_vecs = self._load_or_build_cache()

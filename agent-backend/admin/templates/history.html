@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head reveal">
+  <h1>Version rollback</h1>
+  <p>Restore any archived version in one click. Rollback is a single-step operation and is recorded in the audit log.</p>
+</div>
+
+<div class="panel reveal">
+  <h2>Archived versions by data file</h2>
+  {% for t in targets %}
+  <div style="margin-top:16px">
+    <div class="panel__head" style="margin-bottom:8px">
+      <span><code>{{ t.name }}</code></span>
+      <span class="risk {{ t.risk }}">risk {{ t.risk }}</span>
+    </div>
+    {% if t.versions %}
+      <ul class="items">
+        {% for v in t.versions %}
+        <li class="item">
+          <div class="item__row" style="justify-content:space-between">
+            <span>{{ v.timestamp }}</span>
+            <form method="post" action="/rollback" style="display:flex;gap:8px;align-items:center;margin:0"
+                  onsubmit="return confirm('Roll back {{ t.name }} to {{ v.timestamp }}?');">
+              <input type="hidden" name="target" value="{{ t.name }}">
+              <input type="hidden" name="version" value="{{ v.name }}">
+              <input type="text" name="admin" placeholder="Operator" required style="width:130px">
+              <button type="submit" class="btn btn--ghost">Roll back to this version</button>
+            </form>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="note">No archived versions yet.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel reveal">
+  <h2>Audit log <span class="muted" style="font-weight:400;font-size:13px">latest {{ records|length }} records (newest first)</span></h2>
+  {% if records %}
+  <pre>{% for r in records %}{{ r.timestamp }}  [{{ r.action or 'edit' }}]  {{ r.target }}  by {{ r.admin }}{% if r.approved %} ✓{% else %} ✗{% endif %}
+    {{ r.instruction }}
+    Changed fields: {{ r.changed_fields|join(', ') }}
+{% endfor %}</pre>
+  {% else %}
+  <div class="note">No audit records yet.</div>
+  {% endif %}
+  <a href="/" class="backlink">← Back to edit</a>
+</div>
+{% endblock %}

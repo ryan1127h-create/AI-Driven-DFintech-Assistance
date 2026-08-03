@@ -1,78 +1,84 @@
 {
-  "_comment": "MSc DFinTech application document rules for MVP. Based on NUS Computing application information and DFT database. Mandatory docs are uploaded online before submission; real submission uses PDF and English/certified translations. GMAT/GRE/GATE is treated as optional/supporting because DFT admission notes say it is not mandatory.",
+  "_comment": "MSc DFinTech application document rules for MVP. Based on NUS Computing application information and DFT database. Mandatory docs are uploaded online before submission. GMAT/GRE/GATE is treated as optional/supporting because DFT admission notes say it is not mandatory. Every item declares a `requirement` level: required (blocks the application) | conditional (applies only if a fact the profile does not record is true; surfaced for confirmation) | supporting (optional).",
   "base_items": [
     {
       "key": "personal_statement",
       "label": "Personal Statement",
       "why": "Explains your reasons for applying, preparation for the field, career plans, and relevant background.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "cv",
       "label": "Curriculum Vitae / CV",
       "why": "Summarises your education, work/internship experience, projects, achievements and readiness for the programme.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "proof_of_residence",
       "label": "Proof of Residence / Passport / NRIC",
       "why": "Confirms your identity and residence status for the online application.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "degree_certificate",
       "label": "Official Degree Certificate / Expected Graduation Letter",
       "why": "Confirms award or expected completion of your Bachelor’s degree or higher degree.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "transcript",
       "label": "Official Transcript(s)",
       "why": "Verifies your academic record and must show grades for all courses taken.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "referee_reports",
       "label": "Two Referee Reports",
       "why": "At least two referee reports are required through the online application system.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "application_fee",
       "label": "Application Fee Payment",
       "why": "Only submitted applications with the S$109 application fee paid by the deadline will be processed.",
-      "deadline_key": "application_deadline"
+      "requirement": "required"
     },
     {
       "key": "standardised_test_scores",
       "label": "GRE / GMAT / GATE Score Report",
       "why": "Not mandatory according to current programme notes, but useful as supporting evidence if available.",
-      "deadline_key": "application_deadline",
-      "required": false
+      "requirement": "supporting"
     },
     {
       "key": "financial_support",
       "label": "Financial Support Document",
-      "why": "Bank statement, payslip or sponsor letter supports financial readiness for at least one academic year.",
-      "deadline_key": "application_deadline",
-      "required": false
+      "why": "A bank statement, payslip or sponsor letter can be uploaded as evidence of financial support.",
+      "requirement": "supporting"
     },
     {
       "key": "other_supporting_documents",
       "label": "Other Supporting Documents",
       "why": "Upload awards, professional certificates or other supporting evidence if applicable.",
-      "deadline_key": "application_deadline",
-      "required": false
+      "requirement": "supporting"
     }
   ],
   "conditional_items": [
     {
       "key": "english_proficiency",
       "label": "TOEFL / IELTS Score Report",
-      "why": "Required if your previous university education was not mainly taught in English.",
-      "deadline_key": "application_deadline",
+      "why": "Required only if your previous university education was not mainly taught in English. Your profile does not record the medium of instruction, so please confirm it — if that degree was taught in English, this item may not apply to you.",
+      "requirement": "conditional",
       "applies_when": {
         "english_proof_required": true
+      }
+    },
+    {
+      "key": "academic_justification",
+      "label": "Statement on Academic Performance",
+      "why": "Optional supporting statement, not an official document requirement. Your recorded degree classification is below second-upper (2:1), so a short note on your academic record and any relevant context helps the reviewer read it in full.",
+      "requirement": "supporting",
+      "applies_when": {
+        "degree_classification_below": "second_upper"
       }
     }
   ],
@@ -90,5 +96,10 @@
     "nanyang",
     "singapore management university"
   ],
-  "low_experience_threshold_years": 1
+  "_comment_english_medium": "Institutions whose degrees are known to be taught in English. Used ONLY to waive the TOEFL/IELTS item; an institution that is absent stays 'unconfirmed' (the applicant is asked, never told). Seeded from local_institution_keywords (Singapore universities, already treated as English-exempt via english_exempt_countries); extend with sourced entries only.",
+  "english_medium_institution_keywords": [
+    "national university of singapore",
+    "nanyang",
+    "singapore management university"
+  ]
 }

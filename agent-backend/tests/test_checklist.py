@@ -1,8 +1,10 @@
 """Deterministic tests for #4 checklist rule engine (no LLM dependency)."""
 from datetime import date
 
-from agents.checklist.agent import handle
-from agents.checklist.engine import build_checklist, urgency_for
+import pytest
+
+from app.agents.checklist.agent import handle
+from app.agents.checklist.engine import build_checklist, urgency_for
 from common import mock_data
 from common.profile import DegreeClassification
 
@@ -90,6 +92,176 @@ def test_unknown_classification_no_extra_academic_statement():
     assert "academic_justification" not in _keys(build_checklist(p))
 
 
+def test_low_classification_adds_academic_justification():
+    """`degree_classification_below` must actually reach the output."""
+    p = mock_data.get_profile("4")  # second_lower == below 2:1
+    item = _item(build_checklist(p), "academic_justification")
+    assert item.required is False  # supporting statement, not an official requirement
+
+
+def test_threshold_classification_is_not_below_threshold():
+    p = mock_data.get_profile("5")  # second_upper == the threshold itself
+    assert "academic_justification" not in _keys(build_checklist(p))
+
+
+def test_engine_evaluates_every_condition_the_admin_layer_allows():
+    """Drift guard: an authored rule that validates must be evaluable at runtime."""
+    from admin.schemas import SUPPORTED_CONDITIONS
+    from app.agents.checklist.engine import _CONDITION_EVALUATORS
+
+    assert SUPPORTED_CONDITIONS == set(_CONDITION_EVALUATORS)
+
+
+def test_engine_maps_every_requirement_level_the_admin_layer_allows():
+    """Same drift guard, one field over: a level that validates must be mappable."""
+    from typing import get_args
+
+    from admin.schemas import RequirementLevel
+    from app.agents.checklist.engine import _REQUIREMENT_LEVELS
+
+    assert set(get_args(RequirementLevel)) == set(_REQUIREMENT_LEVELS)
+
+
+@pytest.mark.parametrize("condition,value", [
+    ("foreign_institution", True),
+    ("application_type", "full_time"),
+])
+def test_a_condition_no_shipped_rule_uses_is_still_authorable(monkeypatch, condition, value):
+    """These two evaluators run on no shipped rule; they exist for authors.
+
+    admin/registry.py names them in the prompt that generates drafts, so an admin
+    can write a rule on one. Keeping them is only honest if such a rule really
+    does pass authoring validation and then reach the checklist — otherwise they
+    are dead code advertised as an API.
+    """
+    from admin import schemas
+    from app.agents.checklist import engine
+
+    rules = engine._load_rules()
+    rules["conditional_items"].append({
+        "key": "authored_item", "label": "Authored", "why": "an admin wrote this rule",
+        "requirement": "required", "applies_when": {condition: value},
+    })
+
+    ok, err = schemas.validate_draft(schemas.AdmissionsRules, rules)
+    assert ok, err
+
+    monkeypatch.setattr(engine, "_load_rules", lambda: rules)
+    # Profile 1: institution "Overseas University" + country IN, application full_time.
+    r = build_checklist(mock_data.get_profile("1"))
+    assert "authored_item" in _keys(r)
+    assert r.unknown_condition is None
+
+
+# ---------- v3: English proof keyed on medium of instruction ----------
+def test_english_medium_institution_waives_proof_despite_nationality():
+    # Non-exempt nationality + a degree from a known English-medium institution:
+    # the applicant must NOT be told to sit IELTS.
+    p = mock_data.get_profile("1")  # country IN
+    p.academic_background.institution = "National University of Singapore"
+    assert "english_proficiency" not in _keys(build_checklist(p))
+
+
+def test_unconfirmed_english_proof_does_not_inflate_the_outstanding_count():
+    """An unconfirmed requirement is surfaced but must not block: it is not outstanding.
+
+    Compares the same profile with and without a waiver signal: raising the
+    "please confirm" item must leave the outstanding count untouched.
+    """
+    unconfirmed = mock_data.get_profile("1")
+    unconfirmed.country = None  # no signal either way; institution not English-medium
+    waived = mock_data.get_profile("1")
+    waived.country = "SG"  # exempt education system -> item never raised
+
+    r_unconfirmed = build_checklist(unconfirmed, today=date(2026, 6, 1))
+    r_waived = build_checklist(waived, today=date(2026, 6, 1))
+
+    assert "english_proficiency" in _keys(r_unconfirmed)  # surfaced, not dropped
+    assert "english_proficiency" not in _keys(r_waived)
+    item = _item(r_unconfirmed, "english_proficiency")
+    assert item.required is False  # cannot be asserted from missing data
+    assert r_unconfirmed.outstanding_count == 5
+    assert r_waived.outstanding_count == 5
+
+
+def test_a_conditional_item_is_not_flattened_into_optional_supporting_material():
+    """`conditional` (unresolved) and `supporting` (genuinely optional) differ.
+
+    Both are non-blocking, so a single `required` boolean cannot tell them apart —
+    and the difference is what stops the system claiming an application is
+    complete while an unresolved requirement is still open.
+    """
+    r = build_checklist(mock_data.get_profile("1"))  # country IN -> medium unknown
+    assert _item(r, "english_proficiency").requirement == "conditional"
+    assert _item(r, "standardised_test_scores").requirement == "supporting"
+    assert _item(r, "transcript").requirement == "required"
+
+
+def test_a_conditional_item_asks_the_applicant_to_confirm_it():
+    """The honesty of `conditional` rests on the copy the applicant actually reads.
+
+    The item is kept out of the outstanding count precisely because the engine
+    cannot tell whether it applies; copy that asserted the requirement would tell
+    the applicant to sit an exam we have no grounds to demand.
+    """
+    item = _item(build_checklist(mock_data.get_profile("1")), "english_proficiency")
+    assert item.requirement == "conditional"
+    assert "confirm" in item.why.lower()
+
+
+@pytest.mark.parametrize("level", ["optional", None])
+def test_unmappable_requirement_level_is_rejected_rather_than_guessed(monkeypatch, level):
+    """The rules file is plain JSON and can be hand-edited outside the admin tool.
+
+    admin/schemas.py rejects a dropped key (None) or an invented synonym
+    ("optional") at authoring time, but nothing revalidates the file on load, so
+    the engine keeps its own guard: fail loudly rather than silently re-classify
+    a document.
+    """
+    from app.agents.checklist import engine
+
+    rules = engine._load_rules()
+    if level is None:
+        rules["base_items"][0].pop("requirement")
+    else:
+        rules["base_items"][0]["requirement"] = level
+    monkeypatch.setattr(engine, "_load_rules", lambda: rules)
+
+    with pytest.raises(ValueError, match="unknown requirement level"):
+        build_checklist(mock_data.get_profile("1"))
+
+
+def test_english_proof_waived_for_exempt_education_system():
+    p = mock_data.get_profile("2")  # country SG, no institution on record
+    assert "english_proficiency" not in _keys(build_checklist(p))
+
+
+# ---------- v3: only a document-submission deadline may reach an item ----------
+def test_document_deadline_is_used_when_it_is_the_only_one():
+    p = mock_data.get_profile("3")  # only document_deadline: 2026-06-10
+    item = _item(build_checklist(p, today=date(2026, 6, 5)), "transcript")
+    assert item.deadline == "2026-06-10"
+    assert item.urgency == "soon"  # 5 days left
+
+
+def test_offer_acceptance_date_is_never_shown_as_a_document_deadline():
+    """Profile 1's only date is offer_acceptance 2026-07-15 — a different kind of date.
+
+    Replying to an offer is not a document submission, so no item (least of all
+    "Application Fee Payment", already paid at UNDER_REVIEW) may claim it. With
+    no document deadline on record the honest output is no deadline at all.
+    """
+    p = mock_data.get_profile("1")
+    r = build_checklist(p, today=date(2026, 7, 14))  # 1 day before offer_acceptance
+    assert all(it.deadline is None for it in r.items)
+    assert all(it.urgency is None for it in r.items)
+
+
+def test_application_deadline_wins_over_an_unrelated_offer_acceptance_date():
+    p = mock_data.get_profile("5")  # application_deadline 2026-06-05 + offer_acceptance
+    assert _item(build_checklist(p, today=date(2026, 6, 1)), "transcript").deadline == "2026-06-05"
+
+
 # ---------- v2: rich document status ----------
 def test_document_status_takes_precedence():
     p = mock_data.get_profile("4")
@@ -97,6 +269,26 @@ def test_document_status_takes_precedence():
     assert _item(r, "cv").status == "verified"
     assert _item(r, "transcript").status == "rejected"
     assert _item(r, "personal_statement").status == "under_review"
+
+
+def test_every_outstanding_status_is_chased_by_the_checklist():
+    """Both members of the engine's outstanding vocabulary must reach the applicant.
+
+    The statuses are spelled out here rather than read from `OUTSTANDING_STATUSES`,
+    so shrinking that constant fails this test instead of silently telling an
+    applicant that a rejected (or missing) document needs no action. #5's tracker
+    reads the same constant and is guarded by the matching test in test_tracker.py.
+    """
+    p = mock_data.get_profile("4")
+    r = build_checklist(p, today=date(2026, 5, 31))
+    rejected = _item(r, "transcript")
+    missing = _item(r, "referee_reports")
+    assert (rejected.status, missing.status) == ("rejected", "missing")
+    assert rejected.required and missing.required
+
+    speakable = handle(p, {"today": "2026-05-31"}).speakable
+    assert rejected.label in speakable
+    assert missing.label in speakable
 
 
 def test_outstanding_counts_missing_and_rejected_only():
@@ -111,6 +303,8 @@ def test_outstanding_counts_missing_and_rejected_only():
 
 # ---------- v2: deadline + urgency ----------
 def test_urgency_buckets():
+    assert urgency_for(-1) == "overdue"  # a date that has gone is not "approaching"
+    assert urgency_for(0) == "urgent"
     assert urgency_for(2) == "urgent"
     assert urgency_for(6) == "soon"
     assert urgency_for(30) == "info"
@@ -122,6 +316,8 @@ def test_urgency_only_on_outstanding_items():
     assert _item(r, "transcript").urgency == "urgent"   # rejected -> outstanding
     assert _item(r, "cv").urgency is None               # verified -> not outstanding
     assert _item(r, "cv").deadline == "2026-06-03"      # deadline still shown
+    # An optional item is never urgent: we only chase what we actually require.
+    assert _item(r, "standardised_test_scores").urgency is None  # missing but required=False
 
 
 def test_explanations_batched_into_one_llm_call(monkeypatch):
@@ -132,17 +328,102 @@ def test_explanations_batched_into_one_llm_call(monkeypatch):
         calls["n"] += 1
         return fallback
 
-    monkeypatch.setattr("agents.checklist.agent.llm.explain_map", fake_map)
+    monkeypatch.setattr("app.agents.checklist.agent.llm.explain_map", fake_map)
     resp = handle(mock_data.get_profile("4"), {"today": "2026-05-31"})
     assert resp.status == "ok"
     assert calls["n"] == 1  # one batched call regardless of item count
 
 
-def test_handle_today_injection_and_outstanding_summary():
+def test_handle_outstanding_summary_and_rich_fields():
     p = mock_data.get_profile("4")
     resp = handle(p, {"today": "2026-05-31"})
     assert resp.status == "ok"
     assert resp.data["outstanding_count"] >= 1
-    assert "待处理" in resp.speakable
+    assert f"You still have {resp.data['outstanding_count']} item(s) to handle" in resp.speakable
     # rich fields surfaced
-    assert all("status_label" in it and "urgency" in it for it in resp.data["items"])
+    assert all(
+        {"status_label", "urgency", "requirement"} <= set(it) for it in resp.data["items"]
+    )
+
+
+def test_handle_uses_the_injected_today_and_not_the_wall_clock():
+    """`slots["today"]` must drive every date-derived field, or tests lie about time."""
+    p = mock_data.get_profile("4")  # application_deadline 2026-06-03
+
+    def urgency(today: str) -> str | None:
+        resp = handle(p, {"today": today})
+        return next(it["urgency"] for it in resp.data["items"] if it["key"] == "transcript")
+
+    assert urgency("2026-05-01") == "info"      # 33 days left
+    assert urgency("2026-06-01") == "urgent"    # 2 days left
+    assert urgency("2026-07-01") == "overdue"   # 28 days past
+
+
+def test_status_labels_reach_the_response():
+    resp = handle(mock_data.get_profile("4"), {"today": "2026-05-31"})
+    labels = {it["key"]: it["status_label"] for it in resp.data["items"]}
+    assert labels["cv"] == "Verified"
+    assert labels["transcript"] == "Rejected"
+    assert labels["personal_statement"] == "Under review"
+    assert labels["referee_reports"] == "To prepare"
+
+
+def test_a_past_due_deadline_is_not_announced_as_close_to_the_deadline():
+    """Profile 4's deadline is 2026-06-03; a month later it has passed, not neared."""
+    late = handle(mock_data.get_profile("4"), {"today": "2026-07-01"})
+    assert "close to the deadline" not in late.speakable
+    assert "The deadline for" in late.speakable and "2026-06-03" in late.speakable
+
+
+def test_all_materials_present_is_only_claimed_when_nothing_is_unresolved():
+    """Completeness is a claim like any other: it needs the data to support it.
+
+    Both applicants have submitted every item we can confirm as required. Only the
+    one whose medium of instruction is on record (via the exempt education system)
+    may be told the materials are complete.
+    """
+    resolved = mock_data.get_profile("1")
+    resolved.country = "SG"  # exempt -> the conditional item is never raised
+    unresolved = mock_data.get_profile("1")  # country IN -> medium of instruction unknown
+    for p in (resolved, unresolved):
+        p.application.submitted_documents = [
+            it.key for it in build_checklist(p).items if it.required
+        ]
+
+    done = handle(resolved, {"today": "2026-06-01"})
+    still_open = handle(unresolved, {"today": "2026-06-01"})
+
+    assert done.data["outstanding_count"] == 0
+    assert still_open.data["outstanding_count"] == 0
+    assert "All required application materials are present" in done.speakable
+    assert "All required application materials are present" not in still_open.speakable
+    assert "TOEFL / IELTS Score Report" in still_open.speakable
+
+
+def test_speakable_only_claims_a_deadline_the_profile_records():
+    """The reported symptom of the deadline misattribution was a spoken warning.
+
+    Profile 1 records only an `offer_acceptance` date, so the summary must name no
+    deadline at all; profile 4 records a real `application_deadline`, so the same
+    code path must still warn.
+    """
+    silent = handle(mock_data.get_profile("1"), {"today": "2026-07-14"})
+    assert "2026-07-15" not in silent.speakable
+    assert "deadline" not in silent.speakable
+
+    warned = handle(mock_data.get_profile("4"), {"today": "2026-05-31"})
+    assert "close to the deadline (2026-06-03)" in warned.speakable
+
+
+def test_speakable_uses_english_punctuation():
+    resp = handle(mock_data.get_profile("4"), {"today": "2026-05-31"})
+    assert "、" not in resp.speakable  # Chinese enumeration comma must not appear
+    assert ", " in resp.speakable  # multiple outstanding labels joined in English
+
+
+def test_llm_prompt_asks_for_english_output():
+    """Prompt language must match the offline fallback template (English)."""
+    from app.agents.checklist.agent import _SYSTEM
+
+    assert "English" in _SYSTEM
+    assert "Chinese" not in _SYSTEM

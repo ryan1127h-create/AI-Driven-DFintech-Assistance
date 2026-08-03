@@ -10,15 +10,17 @@ from common import llm
 from common.envelope import AgentResponse, EscalationRequest
 from common.profile import UserProfile
 
-from .engine import build_checklist
+from .engine import OUTSTANDING_STATUSES, REQUIREMENT_CONDITIONAL, build_checklist
 
 _SYSTEM = (
     "You help applicants understand a Master's application checklist. You are "
     "given a JSON object mapping each document key to {label, why}. Return a "
-    "JSON object mapping the SAME keys to ONE short, friendly Chinese sentence "
+    "JSON object mapping the SAME keys to ONE short, friendly English sentence "
     "explaining that document in plain language. Do not invent new requirements. "
     "Output JSON only."
 )
+
+_LABEL_SEPARATOR = ", "  # output is English: no Chinese enumeration comma
 
 _STATUS_LABEL = {
     "missing": "To prepare",
@@ -27,6 +29,47 @@ _STATUS_LABEL = {
     "verified": "Verified",
     "rejected": "Rejected",
 }
+
+# One sentence per urgency bucket that is worth speaking about. A past-due date
+# must not be described as "close to the deadline": the profile records that the
+# date has gone, not that it is approaching.
+_DEADLINE_SENTENCES = {
+    "urgent": "{label} is close to the deadline ({deadline}); please handle it as soon as possible.",
+    "overdue": "The deadline for {label} ({deadline}) has already passed.",
+}
+
+_ALL_PRESENT = (
+    "All required application materials are present. The demo will proceed to material "
+    "completeness checking; real submission must still be completed in the NUS Graduate "
+    "Admission System."
+)
+
+
+def _deadline_sentence(items) -> str:
+    """Warn about the deadline only in the terms the recorded date supports."""
+    flagged = next((it for it in items if it.urgency in _DEADLINE_SENTENCES), None)
+    if flagged is None:
+        return ""
+    template = _DEADLINE_SENTENCES[flagged.urgency]
+    return " " + template.format(label=flagged.label, deadline=flagged.deadline)
+
+
+def _summarise(outstanding: list, unresolved: list) -> str:
+    """Spoken summary. Completeness is only claimed when nothing is unresolved."""
+    if outstanding:
+        labels = _LABEL_SEPARATOR.join(it.label for it in outstanding)
+        return (
+            f"You still have {len(outstanding)} item(s) to handle: {labels}."
+            + _deadline_sentence(outstanding)
+        )
+    if unresolved:
+        labels = _LABEL_SEPARATOR.join(it.label for it in unresolved)
+        return (
+            f"Every item we can confirm as required is present, but {len(unresolved)} "
+            f"item(s) depend on details your profile does not record: {labels}. Please "
+            "confirm whether they apply to you before treating the application as complete."
+        )
+    return _ALL_PRESENT
 
 
 def _explain_all(items) -> dict[str, str]:
@@ -81,6 +124,7 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
             "key": it.key,
             "label": it.label,
             "required": it.required,
+            "requirement": it.requirement,
             "status": it.status,
             "status_label": _STATUS_LABEL.get(it.status, it.status),
             "why": explanations[it.key],
@@ -90,15 +134,14 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
         for it in result.items
     ]
 
-    outstanding = [it for it in result.items if it.required and it.status in ("missing", "rejected")]
-    if outstanding:
-        labels = "、".join(it.label for it in outstanding)
-        speakable = f"You still have {len(outstanding)} item(s) to handle: {labels}."
-        urgent = [it for it in outstanding if it.urgency == "urgent"]
-        if urgent:
-            speakable += f" {urgent[0].label} is close to the deadline ({urgent[0].deadline}); please handle it as soon as possible."
-    else:
-        speakable = "All required application materials are present. The demo will proceed to material completeness checking; real submission must still be completed in the NUS Graduate Admission System."
+    outstanding = [it for it in result.items
+                   if it.required and it.status in OUTSTANDING_STATUSES]
+    # Conditional items are not blocking, but they are not settled either: the
+    # application cannot be called complete while one is still open.
+    unresolved = [it for it in result.items
+                  if it.requirement == REQUIREMENT_CONDITIONAL
+                  and it.status in OUTSTANDING_STATUSES]
+    speakable = _summarise(outstanding, unresolved)
 
     return AgentResponse(
         status="ok",

@@ -17,7 +17,7 @@ def test_index_renders_form(client):
     resp = client.get("/")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "用自然语言修改数据" in body
+    assert "Edit data using natural language" in body
     assert "status_translations" in body  # target listed
 
 
@@ -28,19 +28,19 @@ def test_generate_shows_diff(client, monkeypatch):
 
     def fake_extract(t, cur, instruction):
         d = json.loads(json.dumps(cur))
-        d["translations"]["OFFER"]["next_step"] = "请在 7 天内确认"
+        d["translations"]["OFFER"]["next_step"] = "Please confirm within 7 days"
         return d
 
     monkeypatch.setattr("admin.extract.extract", fake_extract)
     resp = client.post(
         "/generate",
         data={"target": "status_translations", "admin": "alice",
-              "instruction": "改 OFFER 下一步"},
+              "instruction": "change the OFFER next step"},
     )
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "translations.OFFER.next_step" in body  # diff shown
-    assert "确认写入" in body  # apply button present
+    assert "Confirm and write" in body  # apply button present
 
 
 def test_generate_validation_failure_hides_apply(client, monkeypatch):
@@ -55,15 +55,15 @@ def test_generate_validation_failure_hides_apply(client, monkeypatch):
         data={"target": "status_translations", "admin": "a", "instruction": "x"},
     )
     body = resp.get_data(as_text=True)
-    assert "校验失败" in body
-    assert "确认写入" not in body  # no write button on invalid draft
+    assert "Draft validation failed" in body
+    assert "Confirm and write" not in body  # no write button on invalid draft
 
 
 def test_generate_extraction_error_shown(client, monkeypatch):
     from admin.extract import ExtractionError
 
     def boom(t, cur, instruction):
-        raise ExtractionError("DEEPSEEK_API_KEY 未设置")
+        raise ExtractionError("DEEPSEEK_API_KEY is not set")
 
     monkeypatch.setattr("admin.extract.extract", boom)
     resp = client.post(
@@ -72,4 +72,4 @@ def test_generate_extraction_error_shown(client, monkeypatch):
     )
     body = resp.get_data(as_text=True)
     assert "DEEPSEEK_API_KEY" in body
-    assert "确认写入" not in body
+    assert "Confirm and write" not in body

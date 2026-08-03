@@ -21,6 +21,8 @@
   </p>
 </div>
 
+{% if error %}<div class="panel reveal"><div class="note" style="color:var(--danger)">⚠️ {{ error }}</div></div>{% endif %}
+
 {% if p.get('_notice') %}<div class="panel reveal"><div class="note">{{ p.get('_notice') }} You can still fill in the profile manually below.</div></div>{% endif %}
 
 {% set has_extracted = p.get('_extraction_method') or p.get('degree_level') or p.get('field_of_study') or p.get('work_years') is not none or p.get('country') or p.get('technical_proficiency') or p.get('finance_knowledge') or p.get('application_type') or p.get('target_roles') or p.get('completed_modules') %}
@@ -89,6 +91,10 @@
       <div class="field-lock {{ 'is-disabled' if is_student }}" title="The current-student flow does not require country/region.">
         <label>Country/region (two-letter code, e.g. SG / IN)</label>
         <input type="text" name="country" maxlength="2" value="{{ p.get('country','') }}" placeholder="SG" {{ 'disabled' if is_student }}>
+      </div>
+      <div title="Optional. Supplied only to send you deadline and status reminders by email; leave blank to keep in-app reminders only.">
+        <label>Email for reminders (optional)</label>
+        <input type="email" name="email" maxlength="254" value="{{ p.get('email','') }}" placeholder="name@example.com">
       </div>
     </div>
   </div>

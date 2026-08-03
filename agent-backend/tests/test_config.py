@@ -126,7 +126,7 @@ def test_settings_post_save(module, tmp_path, monkeypatch):
     resp = client.post("/settings", data={"action": "save", "api_key": "sk-web123", "model": "deepseek-v4-pro"})
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "已保存" in body
+    assert "Saved." in body
     assert "…b123" in body          # masked hint = last 4 of sk-web123
     assert "sk-web123" not in body  # full key never rendered
     assert c.get_api_key() == "sk-web123"

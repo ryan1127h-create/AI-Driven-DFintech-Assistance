@@ -13,7 +13,7 @@ from .engine import (
     build_candidates, guide_for_role, pick_primary_role, select_modules,
     unrecognized_completed,
 )
-from .planner import graduation_progress, prereq_warnings, what_if_pathways
+from .planner import PATHWAYS, graduation_progress, prereq_warnings, what_if_pathways
 
 _SYSTEM = (
     "You advise a Master's student on module choices for a target job role. "
@@ -47,7 +47,8 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
         if not w.satisfied
     ]
     progress = graduation_progress(profile.completed_modules, selected_codes)
-    plans = what_if_pathways(selected_codes)
+    # Per-pathway: an infeasible part-time layout must not hide a valid full-time one.
+    plans, plan_error = what_if_pathways(selected_codes, profile.completed_modules)
     unknown = unrecognized_completed(profile.completed_modules)
 
     module_names = ", ".join(m["name"] for m in selected) or "(no recommended modules available)"
@@ -70,6 +71,13 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
         speakable += f" Note: {len(warnings)} module(s) have prerequisites you have not completed."
     if unknown:
         speakable += f" Also, {len(unknown)} completed module code(s) could not be recognised; please check them."
+    if plan_error:
+        # Name the pathways that failed: a partial failure must not read as a total one.
+        failed = ", ".join(p.replace("_", "-") for p in PATHWAYS if p not in plans)
+        speakable += (
+            f" I could not build a valid semester timetable for the {failed} pathway;"
+            " see the details in the plan notes."
+        )
 
     return AgentResponse(
         status="ok",
@@ -87,6 +95,7 @@ def handle(profile: UserProfile, slots: dict | None = None) -> AgentResponse:
             "prereq_warnings": warnings,
             "graduation_progress": progress,
             "study_plans": plans,
+            "study_plan_error": plan_error,
             "unrecognized_completed": unknown,
         },
         sources=["role_module_map", "module_skills", "module_catalog"],

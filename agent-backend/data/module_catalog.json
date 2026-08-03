@@ -8,10 +8,6 @@
       "credits": 4,
       "description": "The course covers corporate governance from a multidisciplinary perspective including law, finance, accounting and economics. The course covers enterprise risk management in terms of the Integrated Framework issued by the Committee of Sponsoring Organizations of the Treadway Commission (COSO).",
       "source_url": "https://nusmods.com/courses/ACC3706",
-      "semesters": [
-        1,
-        2
-      ],
       "prereq_tree": {
         "and": [
           {
@@ -23,7 +19,11 @@
           "BSP1702%:D"
         ]
       },
-      "workload_hours": 10.0
+      "workload_hours": 10.0,
+      "semesters": [
+        1,
+        2
+      ]
     },
     {
       "code": "ACC4713",
@@ -31,9 +31,9 @@
       "credits": 4,
       "description": "This course equips students with internal audit, risk and compliance knowledge and skills. With a slant towards internal auditing, students will learn the key risks and controls in the major banking products such as global markets, credit and lending, wealth management, as well as the major banking regulations such as anti-money laundering/countering of terrorist financing rules. Students will learn how to design internal audit programmes to assess the adequacy and effectiveness of internal controls in these areas. Topics covered include data analytics, common modus operandi of banking frauds and control lapses, internal auditing standards, and internal audit report writing.",
       "source_url": "https://nusmods.com/courses/ACC4713",
-      "semesters": [],
       "prereq_tree": "ACC3701%:D",
-      "workload_hours": 10.0
+      "workload_hours": 10.0,
+      "semesters": []
     },
     {
       "code": "BMD5301",
@@ -65,11 +65,11 @@
       "credits": 2,
       "description": "This course introduces students to non-technical fundamentals and economics of blockchain. We will focus on the applications of blockchain, not the technology itself. We will occasionally invite an industry expert(s) to interact with students and give a guest lecture(s) on the real-world application(s).",
       "source_url": "https://nusmods.com/courses/BME5301",
+      "prereq_tree": null,
+      "workload_hours": 5.0,
       "semesters": [
         3
-      ],
-      "prereq_tree": null,
-      "workload_hours": 5.0
+      ]
     },
     {
       "code": "BMF5342",
@@ -80,7 +80,7 @@
       "semesters": [
         1
       ],
-      "prereq_tree": null,
+      "prereq_tree": "BMF5322",
       "workload_hours": 10.0
     },
     {
@@ -113,11 +113,16 @@
       "credits": 4,
       "description": "Applied financial risk management for financial institutions and markets.",
       "source_url": "https://nusmods.com/courses/BMF5356",
+      "prereq_tree": {
+        "and": [
+          "BMF5332",
+          "BMF5333"
+        ]
+      },
+      "workload_hours": 10.0,
       "semesters": [
-        2
-      ],
-      "prereq_tree": null,
-      "workload_hours": 10.0
+        1
+      ]
     },
     {
       "code": "BMF5358",
@@ -125,10 +130,8 @@
       "credits": 4,
       "description": "Covers entrepreneurship and venture creation in financial technology.",
       "source_url": "https://nusmods.com/courses/BMF5358",
-      "semesters": [
-        1
-      ],
-      "prereq_tree": null,
+      "semesters": [],
+      "prereq_tree": "BMF5324",
       "workload_hours": 10.0
     },
     {
@@ -137,16 +140,16 @@
       "credits": 4,
       "description": "Applied machine learning for investment problems.",
       "source_url": "https://nusmods.com/courses/BMF5360",
-      "semesters": [
-        2
-      ],
       "prereq_tree": {
         "and": [
           "BMF5324",
           "BMF5332"
         ]
       },
-      "workload_hours": 10.0
+      "workload_hours": 10.0,
+      "semesters": [
+        1
+      ]
     },
     {
       "code": "BMS5312",
@@ -154,11 +157,11 @@
       "credits": 4,
       "description": "Covers management and business aspects of financial technology.",
       "source_url": "https://nusmods.com/courses/BMS5312",
+      "prereq_tree": null,
+      "workload_hours": 10.0,
       "semesters": [
         1
-      ],
-      "prereq_tree": null,
-      "workload_hours": 10.0
+      ]
     },
     {
       "code": "BMT5202",
@@ -166,11 +169,11 @@
       "credits": 4,
       "description": "Banks play a vital role in providing liquidity to the economy, facilitating trade and commerce, and providing credit to businesses and individuals. The global financial crisis, money laundering scandals, digital banking disruptions, etc. have led to tighter regulations by Central Banks. These banking regulations are punitive for banks who fail to comply. Banks are in the business of managing risks. This course seeks to provide students with an understanding of the key risks that banks manage, as well as the key regulations which banks are required to comply with.",
       "source_url": "https://nusmods.com/courses/BMT5202",
+      "prereq_tree": null,
+      "workload_hours": 10.0,
       "semesters": [
         2
-      ],
-      "prereq_tree": null,
-      "workload_hours": 10.0
+      ]
     },
     {
       "code": "BT4016",
@@ -181,7 +184,12 @@
       "semesters": [
         2
       ],
-      "prereq_tree": null,
+      "prereq_tree": {
+        "and": [
+          "BT2101:D",
+          "BT2102:D"
+        ]
+      },
       "workload_hours": 10.0
     },
     {
@@ -190,11 +198,11 @@
       "credits": 4,
       "description": "Applied machine learning methods for business analytics.",
       "source_url": "https://nusmods.com/courses/BT5153",
+      "prereq_tree": null,
+      "workload_hours": 10.0,
       "semesters": [
         2
-      ],
-      "prereq_tree": null,
-      "workload_hours": 10.0
+      ]
     },
     {
       "code": "CS5231",
@@ -276,11 +284,11 @@
       "credits": 4,
       "description": "This course covers analytics tools, including machine learning, statistical modelling, and optimisation methods, to model, estimate, and manage quantitative risk. Hands-on implementation of these analytics tools in Python is an important component of this course.",
       "source_url": "https://nusmods.com/courses/DBA3713",
+      "prereq_tree": "DAO2702%:D",
+      "workload_hours": 10.0,
       "semesters": [
         2
-      ],
-      "prereq_tree": "DAO2702%:D",
-      "workload_hours": 10.0
+      ]
     },
     {
       "code": "DBA5105",
@@ -288,11 +296,11 @@
       "credits": 4,
       "description": "Fintech refer to emerging financial services (backed by technology). Technology companies are moving into financial services and financial institutions are looking to technology to enhance their services. As the two worlds merges, understanding of fintech will be increasingly relevant to the skillset of anyone seeking to work in technology or finance. This course provides a primer to current developments in fintech and the relevant technologies. Students will have an opportunity to learn from real world case studies and dive into technologies that are being used in the industry such as Blockchain and AI.",
       "source_url": "https://nusmods.com/courses/DBA5105",
+      "prereq_tree": null,
+      "workload_hours": 10.0,
       "semesters": [
         2
-      ],
-      "prereq_tree": null,
-      "workload_hours": 10.0
+      ]
     },
     {
       "code": "DBA5107",
@@ -300,11 +308,11 @@
       "credits": 4,
       "description": "Data analytics applications in banking.",
       "source_url": "https://nusmods.com/courses/DBA5107",
-      "semesters": [
-        1
-      ],
       "prereq_tree": null,
-      "workload_hours": 10.0
+      "workload_hours": 10.0,
+      "semesters": [
+        2
+      ]
     },
     {
       "code": "DBA5109",
@@ -312,11 +320,11 @@
       "credits": 4,
       "description": "Covers quantitative risk management techniques for finance.",
       "source_url": "https://nusmods.com/courses/DBA5109",
-      "semesters": [
-        1
-      ],
       "prereq_tree": null,
-      "workload_hours": 10.0
+      "workload_hours": 10.0,
+      "semesters": [
+        2
+      ]
     },
     {
       "code": "FE5108",
@@ -425,6 +433,15 @@
       ],
       "prereq_tree": null,
       "workload_hours": 10.0
+    },
+    {
+      "code": "FT5007",
+      "name": "FinTech Capstone Project",
+      "credits": 12,
+      "description": "Industry-linked, credit-bearing and graded capstone project that typically spans two semesters; students apply their coursework to a substantial research or industry-based project.",
+      "source_url": "https://nusmods.com/courses/FT5007",
+      "prereq_tree": null,
+      "workload_hours": 30.0
     },
     {
       "code": "FT5009",

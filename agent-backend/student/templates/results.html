@@ -128,6 +128,13 @@
       {% for d in t.data["outstanding_documents"] %}<span class="pill pill--warn">{{ d.label }}</span>{% endfor %}
     </div>
     {% endif %}
+    {% if t.data["optional_documents"] %}
+    <label>Additional materials (not blocking)</label>
+    <div class="checks">
+      {% for d in t.data["optional_documents"] %}<span class="pill pill--mute">{{ d.label }}</span>{% endfor %}
+    </div>
+    <div class="why">These are not counted as outstanding requirements and do not hold up your application.</div>
+    {% endif %}
     {% if t.data["reminders"] %}
     <label>Reminders</label>
     <ul class="items">
@@ -309,7 +316,7 @@
         </div>
         {% for t in plan.semesters %}
         <div class="note" style="margin-bottom:6px">
-          <strong>{{ t.term }}</strong> · {{ t.credits }} Units{% if t.overload %} <span class="pill pill--danger">Overload</span>{% endif %}
+          <strong>{{ t.term }}</strong> · {{ t.credits }} Units{% if t.at_credit_cap %} <span class="pill pill--warn">At term maximum</span>{% endif %}
           <div class="why">{% for m in t.modules %}{{ m.code }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
         </div>
         {% endfor %}

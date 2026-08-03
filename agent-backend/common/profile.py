@@ -148,6 +148,10 @@ class Application(BaseModel):
 
 
 class ConsentFlags(BaseModel):
+    # Personalization is OPT-IN. The rag-data pipeline carries the inverse
+    # switch (`personalization_opt_out`, default false = personalization on);
+    # negating it is the adapter's job, not this model's -- do not flip this
+    # default to accommodate that field.
     personalization: bool = False  # privacy-safe default (schema doc §5)
     reminders: bool = False
     alumni_matching: bool = False
@@ -168,6 +172,13 @@ class NotificationRecord(BaseModel):
     date: str           # ISO date dispatched
     channels: list[str] = Field(default_factory=list)
     delivered: bool = True   # False if a real send failed (record kept for dedup)
+
+
+# Any four-digit calendar year. Deliberately NOT a moving window around the
+# current year: a hardcoded 2025-2027 range would silently expire and need a
+# code change every intake. This only rejects nonsense like `25` or `226`.
+MIN_INTAKE_YEAR = 1000
+MAX_INTAKE_YEAR = 9999
 
 
 # ---------- Root ----------
@@ -194,3 +205,38 @@ class UserProfile(BaseModel):
     consent_flags: ConsentFlags = Field(default_factory=ConsentFlags)
     notification_prefs: NotificationPrefs = Field(default_factory=NotificationPrefs)
     notification_log: list[NotificationRecord] = Field(default_factory=list)
+
+    # ---- Fields owned by the rag-data extraction pipeline ----
+    # Source: rag-data/docs/user_profile_schema.md (that pipeline is read-only
+    # for us). Every field here is optional with a safe default, so all callers
+    # written before this block keep working unchanged.
+
+    # Selects the right cohort in the retrieval side's `course_rules.intake`.
+    # A plain int (not an enum of 2025/2026/2027) so a new intake needs no edit.
+    intake_year: int | None = Field(default=None, ge=MIN_INTAKE_YEAR, le=MAX_INTAKE_YEAR)
+    application_term: str | None = None  # free text, e.g. "2026 Fall"
+
+    # Admission test scores. Stored exactly as reported -- never converted
+    # between scales. `ge=0` is the only bound: real score ranges (GMAT Focus
+    # vs classic, etc.) change, and guessing one here would be fabricated data.
+    gmat: int | None = Field(default=None, ge=0)
+    gre: int | None = Field(default=None, ge=0)
+    toefl: int | None = Field(default=None, ge=0)
+    # IELTS is reported in half bands (6.5, 7.0). An int would truncate 6.5 -> 6.
+    ielts: float | None = Field(default=None, ge=0)
+
+    asked_topics: list[str] = Field(default_factory=list)  # intent labels already asked
+    updated_at: str | None = None  # ISO 8601 timestamp, same convention as StatusEvent.date
+
+    # Record-only for now (rag-data doc §六 defers both to their v2). Left as
+    # free text because no controlled vocabulary has been agreed for them yet.
+    school_tier: str | None = None
+    target_industry: str | None = None
+
+    # The user's own wording, keyed by the field of THIS model it was mapped
+    # into, e.g. {"technical_proficiency": "会一点 Python"}. The rag-data schema
+    # stores {raw, std} pairs and its settings page shows `raw` back to the
+    # user; keeping one dict here preserves that wording losslessly without
+    # adding a parallel `*_raw` column per field or weakening any type above.
+    # Values are display-only: never route them into retrieval or matching.
+    raw_inputs: dict[str, str] = Field(default_factory=dict)

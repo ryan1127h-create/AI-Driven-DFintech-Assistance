@@ -1,6 +1,6 @@
 """Deterministic tests for #7 navigator (skill derivation + gaps + modules)."""
-from agents.navigator.agent import handle
-from agents.navigator.engine import derive_user_skills, guide_for_role, pick_primary_role
+from app.agents.navigator.agent import handle
+from app.agents.navigator.engine import derive_user_skills, guide_for_role, pick_primary_role
 from common import mock_data
 from common.profile import TargetRole
 
@@ -79,7 +79,7 @@ def test_handle_excludes_completed_and_flags_unknown():
 
 
 # ---------- progress-aware: module_skills loader ----------
-from agents.navigator.engine import _load_module_skills, _VALID_SKILL_TAGS
+from app.agents.navigator.engine import _load_module_skills, _VALID_SKILL_TAGS
 
 
 def test_module_skills_loads_and_tags_are_valid():
@@ -90,7 +90,7 @@ def test_module_skills_loads_and_tags_are_valid():
 
 
 # ---------- D: completed -> skills ; E: unrecognized codes ----------
-from agents.navigator.engine import skills_from_completed, unrecognized_completed
+from app.agents.navigator.engine import skills_from_completed, unrecognized_completed
 
 
 def test_skills_from_completed_aggregates_valid_tags():
@@ -115,6 +115,23 @@ def test_unrecognized_completed_empty():
     assert unrecognized_completed([]) == []
 
 
+# ---------- 3: module code lookups are case / whitespace insensitive ----------
+def test_lowercase_completed_code_is_recognised():
+    assert unrecognized_completed(["bms5312", " ft5005 "]) == []
+
+
+def test_lowercase_completed_code_contributes_skills():
+    assert skills_from_completed(["bms5312"]) == {"product", "finance"}
+
+
+def test_lowercase_completed_module_marked_done():
+    p = mock_data.get_profile("1")
+    p.completed_modules = ["bms5312"]
+    g = guide_for_role(p, TargetRole.fintech_pm)
+    assert "BMS5312" in {m["code"] for m in g.already_completed}
+    assert "BMS5312" not in {c["code"] for c in build_candidates(p, TargetRole.fintech_pm)}
+
+
 # ---------- A + D: guide_for_role is completed-aware ----------
 def test_guide_marks_completed_modules():
     p = mock_data.get_profile("1")
@@ -136,7 +153,7 @@ def test_guide_completed_shrinks_gap():
 
 
 # ---------- F: candidate pool + deterministic ranking ----------
-from agents.navigator.engine import build_candidates, rank_candidates
+from app.agents.navigator.engine import build_candidates, rank_candidates
 
 
 def test_candidates_exclude_completed_and_annotate():
@@ -163,8 +180,8 @@ def test_rank_prioritises_more_gaps_closed():
 
 
 # ---------- F: LLM-constrained selection with validation ----------
-from agents.navigator import engine as nav_engine
-from agents.navigator.engine import select_modules
+from app.agents.navigator import engine as nav_engine
+from app.agents.navigator.engine import select_modules
 
 
 def _cands(p=None):
@@ -203,7 +220,7 @@ def test_select_all_invalid_falls_back(monkeypatch):
 
 
 # ---------- C: career view + routing ----------
-from agents.navigator.agent import career
+from app.agents.navigator.agent import career
 
 
 def test_career_focuses_on_skills_not_scheduling():
@@ -224,7 +241,7 @@ def test_supervisor_routes_career_path():
 
 # ---------- consent: opt-out must not send raw gaps to the external LLM ----------
 def test_optout_does_not_leak_gaps_to_llm(monkeypatch):
-    from agents.navigator import engine as nav_engine
+    from app.agents.navigator import engine as nav_engine
     prompts: list[str] = []
     monkeypatch.setattr(nav_engine.llm, "available", lambda: True)
 

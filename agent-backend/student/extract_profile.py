@@ -28,9 +28,14 @@ from .profile_form import COMMON_DOCS
 ALLOWED_EXTENSIONS = {".docx", ".pdf"}
 MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 
-# Allowed values per field (single-value unless noted as list).
+# Allowed values per field (single-value unless noted as list). Every vocabulary
+# is derived from the authority enum in common/profile.py -- a second hand-typed
+# copy of a controlled vocabulary is how the profile definitions drifted apart.
 _ALLOWED = {
-    "lifecycle_stage": {"applicant", "current"},
+    # All six authority stages. It used to accept only {applicant, current},
+    # which meant a prospect / admitted / graduating / alumni CV could not be
+    # extracted at all: the value was dropped and the field came back missing.
+    "lifecycle_stage": {e.value for e in LifecycleStage},
     "degree_level": {e.value for e in DegreeLevel},
     "field_of_study": {e.value for e in FieldOfStudy},
     "technical_proficiency": {e.value for e in Proficiency},
@@ -71,10 +76,14 @@ def parse_file(filename: str, data: bytes) -> str:
 
 
 # ---------- LLM extraction ----------
+# Interpolated from the enum for the same reason the whitelist above is: the
+# prompt and the whitelist must never advertise different stage vocabularies.
+_LIFECYCLE_STAGE_WORDS = "|".join(e.value for e in LifecycleStage)
+
 _SYSTEM = (
     "You extract a graduate-school applicant's profile from free text or a CV. "
     "Return ONLY a JSON object with these keys (omit a key if unknown):\n"
-    "lifecycle_stage (applicant|current), degree_level "
+    f"lifecycle_stage ({_LIFECYCLE_STAGE_WORDS}), degree_level "
     "(high_school|bachelor|master|phd), field_of_study (computer_science|finance|"
     "economics|engineering|mathematics|business|other), work_years (integer), "
     "country (ISO 3166-1 alpha-2, e.g. SG), technical_proficiency/finance_knowledge "
@@ -82,7 +91,11 @@ _SYSTEM = (
     "quant_risk|digital_banking|payments|compliance_regtech|data_analytics), "
     "application_type (full_time|part_time), submitted_documents (array of valid "
     "application material keys such as personal_statement|cv|proof_of_residence|"
-    "degree_certificate|transcript). Use ONLY the allowed "
+    "degree_certificate|transcript).\n"
+    "For lifecycle_stage: prospect is still exploring, applicant has applied with "
+    "no decision yet, admitted holds an offer but has not started classes, "
+    "current is already taking classes, graduating is a current student in their "
+    "final semester, alumni has graduated. Use ONLY the allowed "
     "values. Do not invent facts. Output valid JSON only."
 )
 

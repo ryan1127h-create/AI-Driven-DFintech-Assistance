@@ -1,6 +1,10 @@
 """Deterministic tests for #6 comparator v2 (derivation + scoring + weighting)."""
-from agents.comparator.agent import handle
-from agents.comparator.engine import (
+import json as _json
+from pathlib import Path as _Path
+
+from app.agents.comparator import engine
+from app.agents.comparator.agent import handle
+from app.agents.comparator.engine import (
     compare,
     derive_role_strengths,
     parse_fee_sgd,
@@ -8,6 +12,10 @@ from agents.comparator.engine import (
 )
 from common import mock_data
 from common.profile import TargetRole
+
+# Anchored on this file, not the cwd: pytest is run from the project parent dir,
+# so a relative "data/..." path would not resolve.
+_DATASET_PATH = _Path(__file__).resolve().parents[1] / "data" / "programs_dataset.json"
 
 PROGRAMS = {
     "NUS MSc in Digital Financial Technology",
@@ -35,14 +43,70 @@ def test_rows_carry_provenance():
 
 # ---------- role derivation (explainable) ----------
 def test_derivation_finds_roles_with_reasons():
-    roles, reasons = derive_role_strengths("金融自动化、区块链、数据科学、机器学习、数字金融服务")
-    assert "payments" in roles and "区块链" in reasons["payments"]
-    assert "data_analytics" in roles  # 数据/机器学习
+    roles, reasons = derive_role_strengths(
+        "financial automation, blockchain, data science, machine learning, "
+        "digital financial services"
+    )
+    assert "payments" in roles and "blockchain" in reasons["payments"]
+    assert "data_analytics" in roles and "machine learning" in reasons["data_analytics"]
+    assert "digital_banking" in roles
+    assert "digital financial services" in reasons["digital_banking"]
 
 
 def test_derivation_empty_text():
     roles, reasons = derive_role_strengths("")
     assert roles == [] and reasons == {}
+
+
+def test_keyword_needs_word_boundary():
+    # "ai" used to match inside "blockchain"/"training" under bare containment.
+    roles, _ = derive_role_strengths("Blockchain and training rails")
+    assert "data_analytics" not in roles
+    _, reasons = derive_role_strengths("AI and data science")
+    assert "ai" in reasons["data_analytics"]
+
+
+def test_keyword_still_matches_plural():
+    _, reasons = derive_role_strengths("Digital Financial Transactions and Risk Management")
+    assert "transaction" in reasons["payments"]
+
+
+def test_multi_word_keyword_matches_hyphenated_variant():
+    # Separator tolerance, not a claim about any real page: re.escape() made the
+    # keyword table's own separator mandatory, so matching depended on which one a
+    # dataset refresh happened to use. No shipped text is hyphenated today.
+    _, reasons = derive_role_strengths("Machine-learning and data-science electives")
+    assert "machine learning" in reasons["data_analytics"]
+    assert "data science" in reasons["data_analytics"]
+
+
+def test_roles_without_curriculum_evidence_score_zero():
+    """Truthful zero for roles the verified curriculum text does not evidence.
+
+    Regression guard for two evidence misattributions that must not come back:
+      - "risk management" credited compliance_regtech, but risk management is not
+        compliance/RegTech -- the score was real, the justifying text was wrong.
+      - "fintech" / "financial technology" credited fintech_pm, but all five
+        programmes carry FinTech in their own name, so the match restated the
+        title rather than evidencing curriculum fit (and dropping only the
+        two-word spelling left SMU MITB alone at 0.0 purely because its text
+        writes "Financial Technology", a false negative driven by spelling).
+    Only add genuine evidence to the dataset to change this expectation.
+    """
+    for role in (TargetRole.compliance_regtech, TargetRole.fintech_pm):
+        fits = {r.program: r.synthesis.score_breakdown["role_fit"]
+                for r in compare([role]).rows}
+        assert set(fits.values()) == {0.0}, f"{role.value} claims evidence: {fits}"
+
+
+def test_digital_banking_differentiates_via_verified_evidence():
+    # NTU's curriculum_focus names "Digital Financial Services" verbatim; it is a
+    # specialisation, not the programme title, so the discrimination is real.
+    fits = {r.program: r.synthesis.score_breakdown["role_fit"]
+            for r in compare([TargetRole.digital_banking]).rows}
+    ntu = next(p for p in fits if p.startswith("NTU"))
+    assert fits[ntu] == 1.0
+    assert set(fits.values()) == {0.0, 1.0}, fits
 
 
 def test_matched_roles_intersect_target_with_reasons():
@@ -79,20 +143,86 @@ def test_weights_normalised():
 
 
 def test_cost_priority_changes_best_fit():
+    """A cost-dominant weighting must move the recommendation to the cheapest row.
+
+    The expectation is derived from the fee cells, never from weighted_score:
+    fintech_pm has no curriculum evidence anywhere, so role_fit is 0.0 for every
+    row and the cost criterion alone decides. Under the default role_fit-only
+    weighting there is therefore no recommendation at all -- that is the "change".
+    """
+    assert compare([TargetRole.fintech_pm]).best_for_you is None
     comp = compare([TargetRole.fintech_pm], {"cost": 0.9, "role_fit": 0.1})
-    best = max(comp.rows, key=lambda r: r.synthesis.weighted_score)
-    assert best.synthesis.weighted_score == comp.rows[0].synthesis.weighted_score \
-        or best.program == comp.best_for_you
     cheapest = min(
         (r for r in comp.rows if _verified_text(r.facts, "fees") is not None),
         key=lambda r: parse_fee_sgd(_verified_text(r.facts, "fees")) or 1e9,
     )
     assert cheapest.synthesis.score_breakdown["cost"] == 1.0
+    assert comp.best_for_you == cheapest.program
 
 
-def test_target_wins_ties():
+def test_best_for_you_is_the_row_with_the_most_role_evidence():
+    # NUS is the only programme whose curriculum evidences quant_risk, so it wins
+    # on score alone. This does NOT exercise the is_target tiebreak: NUS is also
+    # the first dataset row, so max() returns it either way -- see
+    # test_is_target_breaks_a_weighted_score_tie for that.
     comp = compare([TargetRole.fintech_pm, TargetRole.quant_risk])
-    assert "Digital Financial Technology" in comp.best_for_you  # NUS via target tiebreak
+    assert "Digital Financial Technology" in comp.best_for_you
+
+
+def _tie_dataset() -> dict:
+    """Two indistinguishable programmes, the target one deliberately NOT first."""
+    shared = {
+        "curriculum_focus": "Blockchain and payment transaction rails.",
+        "duration": "1 year full-time.",
+        "fees": "S$50,000 tuition fee.",
+    }
+    return {
+        "dimensions": list(shared),
+        "disclaimer": "Fit analysis only, not a ranking.",
+        "programs": [
+            {"program": "Rival", "is_target": False, "source_url": "http://x",
+             "fetched_at": "2026-06-05", "values": dict(shared)},
+            {"program": "Target", "is_target": True, "source_url": "http://x",
+             "fetched_at": "2026-06-05", "values": dict(shared)},
+        ],
+    }
+
+
+def test_is_target_breaks_a_weighted_score_tie(monkeypatch):
+    """On an exact score tie the target programme must be the one surfaced.
+
+    The shipped dataset cannot show this: NUS is both the target and row 0, so
+    max() returns it with or without the tiebreak. Ordering the target row last
+    makes the tiebreak the only thing that decides.
+    """
+    monkeypatch.setattr(engine, "_load", _tie_dataset)
+    comp = compare([TargetRole.payments])
+    assert [r.synthesis.weighted_score for r in comp.rows] == [1.0, 1.0]
+    assert comp.best_for_you == "Target"
+
+
+def test_no_evidence_yields_no_best_for_you():
+    """Every row scoring zero must produce no recommendation at all.
+
+    compliance_regtech has no curriculum evidence in any row (see
+    test_roles_without_curriculum_evidence_score_zero), so the zero guard is the
+    only thing between the user and a "best fit" backed by nothing.
+    """
+    comp = compare([TargetRole.compliance_regtech])
+    assert [r.synthesis.weighted_score for r in comp.rows] == [0.0] * len(comp.rows)
+    assert comp.best_for_you is None
+
+
+def test_no_best_fit_is_explained_to_the_user():
+    """The absence of a recommendation must be stated, not silently omitted."""
+    profile = mock_data.get_profile("1").model_copy(
+        update={"target_roles": [TargetRole.compliance_regtech]})
+    resp = handle(profile)
+    assert resp.data["synthesis"]["best_for_you"] is None
+    narrative = resp.data["synthesis"]["narrative"]
+    assert narrative == resp.speakable
+    assert "no single best fit is highlighted" in narrative
+    assert not engine.violates_ranking(narrative)
 
 
 # ---------- compliance + envelope ----------
@@ -106,7 +236,7 @@ def test_envelope_has_facts_table_and_synthesis_zones():
                for cell in r["facts"].values() if cell["kind"] != "verified")
     assert d["synthesis"]["best_for_you"] is not None
     assert d["synthesis"]["weights"]
-    assert "排名" in d["disclaimer"]
+    assert "not a ranking" in d["disclaimer"]
 
 
 def test_priorities_via_slots():
@@ -120,7 +250,7 @@ def test_narrative_offline_deterministic():
 
 
 def test_ranking_narrative_falls_back(monkeypatch):
-    from agents.comparator import agent as cagent
+    from app.agents.comparator import agent as cagent
     monkeypatch.setattr(cagent.llm, "available", lambda: True)
     monkeypatch.setattr(cagent.llm, "explain", lambda *a, **k: "NUS 优于其他所有项目,排名第一")
     resp = handle(mock_data.get_profile("1"))
@@ -129,7 +259,7 @@ def test_ranking_narrative_falls_back(monkeypatch):
 
 
 # ---------- v3: three-state cell normalization ----------
-from agents.comparator.engine import FactCell, RowSynthesis, _normalize_cell, _verified_text
+from app.agents.comparator.engine import FactCell, RowSynthesis, _normalize_cell, _verified_text
 
 
 def test_row_has_facts_and_synthesis_split():
@@ -147,11 +277,48 @@ def test_unknown_fee_scores_neutral_cost():
     assert ntu.synthesis.score_breakdown["cost"] == 0.5
 
 
-def test_synthesis_cells_never_affect_role_fit():
-    comp = compare([TargetRole.payments])
+def test_synthesis_curriculum_focus_never_grants_role_fit(monkeypatch):
+    """Only a VERIFIED curriculum_focus cell may feed role_fit (v3 spec 2.1).
+
+    The expectation is derived from the dataset text, not from the engine: NUS's
+    curriculum_focus names "Digital Financial Transactions" and NTU's names
+    "blockchain", so both earn payments while both cells are verified. Relabelling
+    ONLY the NUS cell as synthesis must strip NUS's credit and leave NTU's intact.
+    """
+    def payments_fit() -> dict[str, float]:
+        return {r.program: r.synthesis.score_breakdown["role_fit"]
+                for r in compare([TargetRole.payments]).rows}
+
+    before = payments_fit()
+    nus_name = next(p for p in before if p.startswith("NUS"))
+    ntu_name = next(p for p in before if p.startswith("NTU"))
+    assert before[nus_name] == 1.0 and before[ntu_name] == 1.0
+
+    raw = _json.loads(_DATASET_PATH.read_text(encoding="utf-8"))
+    nus = next(p for p in raw["programs"] if p["program"] == nus_name)
+    nus["values"]["curriculum_focus"] = {
+        "text": nus["values"]["curriculum_focus"], "kind": "synthesis"}
+    monkeypatch.setattr(engine, "_load", lambda: raw)
+
+    after = payments_fit()
+    assert after[nus_name] == 0.0, "synthesis curriculum_focus was still scored"
+    assert after[ntu_name] == 1.0, "an unrelated verified row lost its evidence"
+
+
+def test_new_dimension_cells_verified_only_when_sourced():
+    """The 4 PDF dimensions carry real provenance where the fact is published.
+
+    career_pathways / industry_orientation restate facts printed on the NUS
+    programme page, so they are verified; technical_depth is a qualitative
+    judgement and must never claim verified provenance (v3 spec §1.1).
+    """
+    comp = compare([TargetRole.fintech_pm])
+    nus = next(r for r in comp.rows if r.program.startswith("NUS"))
+    for dim in ("career_pathways", "industry_orientation"):
+        assert nus.facts[dim].kind == "verified", dim
+        assert nus.facts[dim].source_url and nus.facts[dim].fetched_at
     for r in comp.rows:
-        derived, _ = derive_role_strengths(_verified_text(r.facts, "curriculum_focus") or "")
-        assert set(r.synthesis.matched_roles) <= set(derived)
+        assert r.facts["technical_depth"].kind == "synthesis", r.program
 
 
 def test_normalize_bare_string_is_verified_with_row_source():
@@ -189,7 +356,7 @@ def test_verified_text_only_returns_verified():
 
 
 # ---------- v3: anti-ranking guard ----------
-from agents.comparator.engine import violates_ranking
+from app.agents.comparator.engine import violates_ranking
 
 
 def test_ranking_phrases_are_flagged():
@@ -246,12 +413,8 @@ def test_schema_rejects_bad_kind():
 
 
 # ---------- v3: dataset has 11 dims incl 4 new, validates, has 3 kinds ----------
-import json as _json
-from pathlib import Path as _Path
-
-
 def test_dataset_has_new_dimensions_and_validates():
-    raw = _json.loads((_Path("data") / "programs_dataset.json").read_text(encoding="utf-8"))
+    raw = _json.loads(_DATASET_PATH.read_text(encoding="utf-8"))
     dims = set(raw["dimensions"])
     assert {"typical_profile", "industry_orientation",
             "technical_depth", "career_pathways"} <= dims

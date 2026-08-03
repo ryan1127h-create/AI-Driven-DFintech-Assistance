@@ -103,7 +103,7 @@ def route(intent: str, profile: UserProfile, slots: dict | None = None) -> Agent
     if intent not in _ROUTES:
         return AgentResponse(
             status="error",
-            speakable=f"未知意图: {intent}",
+            speakable=f"Unknown intent: {intent}",
         )
 
     flow_error = _check_lifecycle_compatibility(intent, profile)
@@ -122,7 +122,7 @@ def route(intent: str, profile: UserProfile, slots: dict | None = None) -> Agent
     except ModuleNotFoundError:
         return AgentResponse(
             status="error",
-            speakable=f"该功能尚未实现: {intent}",
+            speakable=f"This feature is not implemented yet: {intent}",
         )
     handler = getattr(module, func_name)
     return handler(profile, slots) if _takes_slots(handler) else handler(profile)
@@ -135,13 +135,16 @@ def _check_lifecycle_compatibility(intent: str, profile: UserProfile) -> AgentRe
         return None
 
     if "applicant" in allowed and current == "student":
-        msg = "你当前是在读学生流程,不需要申请材料清单、申请状态追踪或项目对比。我会优先提供选课、技能方向和职业路径建议。"
+        msg = ("You are on the current-student flow, so the application checklist, "
+               "application status tracking and programme comparison do not apply. "
+               "I will focus on course selection, skill directions and career paths.")
     elif allowed == ("student",) and current == "applicant":
-        msg = "你当前是申请者流程,该功能只适用于在读学生。"
+        msg = "You are on the applicant flow; this feature only applies to current students."
     elif current == "alumni":
-        msg = "你当前是校友流程,此意图不适用于校友阶段。"
+        msg = "You are on the alumni flow; this intent does not apply to the alumni stage."
     else:
-        msg = "你的当前阶段与该功能不匹配,请先确认用户身份/阶段。"
+        msg = ("Your current lifecycle stage does not match this feature; "
+               "please confirm the user's stage first.")
 
     return AgentResponse(
         status="need_clarification",

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head reveal">
+  <h1>Review changes</h1>
+  <p>Operator: {{ admin }} · Instruction: {{ instruction }}</p>
+</div>
+
+<div class="panel reveal">
+  <div class="panel__head">
+    <span class="panel__title">{{ target.name }}</span>
+    <span class="risk {{ target.risk }}">risk {{ target.risk }}</span>
+  </div>
+
+  {% if error %}
+    <div class="note" style="color:var(--danger);white-space:pre-wrap">⚠️ {{ error }}</div>
+    <a href="/" class="backlink" style="margin-top:14px">← Back and try again</a>
+
+  {% elif not changes %}
+    <div class="note" style="color:var(--ok)">The draft is identical to the current content. No changes are needed.</div>
+    <a href="/" class="backlink" style="margin-top:14px">← Back</a>
+
+  {% else %}
+    <label>The following fields will be changed</label>
+    <ul class="items">
+      {% for c in changes %}<li class="item"><code>{{ c }}</code></li>{% endfor %}
+    </ul>
+
+    <label>Draft preview</label>
+    <pre>{{ draft_pretty }}</pre>
+
+    <form method="post" action="/apply" style="display:flex;gap:10px;margin-top:18px">
+      <input type="hidden" name="target" value="{{ target.name }}">
+      <input type="hidden" name="admin" value="{{ admin }}">
+      <input type="hidden" name="instruction" value="{{ instruction }}">
+      <input type="hidden" name="draft_json" value="{{ draft_json }}">
+      <button type="submit" class="btn btn--ok">✓ Confirm and write</button>
+      <a href="/"><button type="button" class="btn btn--ghost">Cancel</button></a>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
