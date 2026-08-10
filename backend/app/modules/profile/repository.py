@@ -52,3 +52,31 @@ def upsert(user_id: str, fields: dict) -> dict:
         )
     conn.commit()
     return get(user_id)
+
+
+def patch(user_id: str, fields: dict) -> dict | None:
+    """Updates only the provided profile columns. Returns None if the
+    profile row does not exist, so callers can surface a clear 404 instead
+    of silently creating an incomplete profile."""
+    updates = {k: v for k, v in fields.items() if k in PROFILE_FIELDS}
+    if not updates:
+        return get(user_id)
+
+    assignments = ", ".join(f"{col} = %s" for col in updates)
+    values = list(updates.values())
+
+    conn = _conn.get()
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            update student.user_profiles
+               set {assignments}, updated_at = now()
+             where user_id = %s
+            """,
+            values + [user_id],
+        )
+        updated = cur.rowcount
+    conn.commit()
+    if updated == 0:
+        return None
+    return get(user_id)

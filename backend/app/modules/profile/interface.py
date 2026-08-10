@@ -13,7 +13,23 @@ from __future__ import annotations
 from app.modules.profile import repository
 from app.modules.profile.constants import TEST_USER_ID
 
-__all__ = ["TEST_USER_ID", "get_profile_summary_text", "get_lifecycle_stage"]
+__all__ = [
+    "TEST_USER_ID",
+    "get_profile",
+    "get_profile_summary_text",
+    "get_lifecycle_stage",
+    "patch_profile",
+]
+
+
+def get_profile(user_id: str) -> dict | None:
+    """Public read interface for other modules."""
+    return repository.get(user_id)
+
+
+def patch_profile(user_id: str, fields: dict) -> dict | None:
+    """Public write interface for user-confirmed profile updates."""
+    return repository.patch(user_id, fields)
 
 
 def get_lifecycle_stage(user_id: str) -> str | None:

@@ -2,11 +2,45 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.modules.profile import service
 from app.modules.profile.constants import TEST_USER_ID
-from app.modules.profile.schemas import ProfileOut
+from app.modules.profile.schemas import ProfileOut, ProfilePatch
 
 router = APIRouter(prefix="/profile")
 
 _SUPPORTED_SUFFIXES = (".pdf", ".docx")
+
+
+@router.get("", response_model=ProfileOut)
+async def get_profile():
+    """Return the current placeholder user's stored profile."""
+    try:
+        profile = service.get_profile()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No profile found. Upload a resume first.",
+        )
+    return ProfileOut(user_id=TEST_USER_ID, **profile)
+
+
+@router.patch("", response_model=ProfileOut)
+async def patch_profile(patch: ProfilePatch):
+    """Apply user-confirmed corrections without clearing omitted fields."""
+    fields = patch.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No profile fields provided.")
+
+    try:
+        profile = service.patch_profile(fields)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No profile found. Upload a resume first.",
+        )
+    return ProfileOut(user_id=TEST_USER_ID, **profile)
 
 
 @router.post("/resume", response_model=ProfileOut)
