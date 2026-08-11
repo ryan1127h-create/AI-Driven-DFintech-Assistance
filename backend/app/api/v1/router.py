@@ -17,10 +17,12 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import health
 from app.modules.chatbot import api as chatbot_api
+from app.modules.checklist import api as checklist_api
 from app.modules.profile import api as profile_api
 
 router = APIRouter(prefix="/api/v1")
 
 router.include_router(health.router, tags=["health"])         # GET /health
 router.include_router(chatbot_api.router, tags=["chatbot"])   # POST /chat, DELETE /chat/{session_id}
-router.include_router(profile_api.router, tags=["profile"])   # POST /profile/resume
+router.include_router(profile_api.router, tags=["profile"])   # GET/PATCH /profile, POST /profile/resume
+router.include_router(checklist_api.router, tags=["checklist"])  # GET /checklist, PATCH /checklist/items/{item_id}

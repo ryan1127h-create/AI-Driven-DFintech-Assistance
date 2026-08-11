@@ -69,6 +69,9 @@ def get_profile_summary_text(user_id: str) -> str:
         lines.append(f"- Application term: {profile['application_term']}")
     if profile.get("intake_year"):
         lines.append(f"- Intake year: {profile['intake_year']}")
+    if profile.get("completed_courses"):
+        courses = ", ".join(profile["completed_courses"])
+        lines.append(f"- Relevant prior/completed courses: {courses}")
 
     if not lines:
         return ""

@@ -27,3 +27,4 @@ class UserProfile:
     target_industry_std: Optional[str] = None
     application_term: Optional[str] = None
     intake_year: Optional[int] = None
+    completed_courses: Optional[list[str]] = None

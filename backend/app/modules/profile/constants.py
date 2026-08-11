@@ -23,6 +23,7 @@ PROFILE_FIELDS = [
     "target_role_raw", "target_role_std",
     "target_industry_raw", "target_industry_std",
     "application_term", "intake_year",
+    "completed_courses",
 ]
 
 # Grounded in the live student.user_profiles CHECK constraints (sandbox DB) —

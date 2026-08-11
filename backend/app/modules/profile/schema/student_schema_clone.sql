@@ -396,6 +396,7 @@ create table student.user_profiles (
   target_industry_std varchar(100),
   application_term varchar(50),
   intake_year integer,
+  completed_courses text[] default '{}'::text[],
   asked_topics text[] default '{}'::text[],
   personalization_opt_out boolean default false,
   updated_at timestamp with time zone default now(),

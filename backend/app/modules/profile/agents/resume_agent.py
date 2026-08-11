@@ -39,6 +39,7 @@ Fields (all optional, omit what the resume doesn't support):
 - target_industry_std: a short lowercase category for target_industry_raw, else omit
 - application_term: free text if the resume mentions an intended application term (e.g. "2026 Fall"), else omit
 - intake_year: integer, only if the resume explicitly states an intended NUS intake year, else omit
+- completed_courses: array of relevant prior course codes or course titles explicitly mentioned in the resume, especially computing, finance, math, statistics, data, AI, fintech, or programming courses; omit if none are clearly listed
 
 Respond with ONLY the JSON object, no markdown, no explanation. If a field \
 is not supported by the resume text, omit it entirely rather than guessing."""

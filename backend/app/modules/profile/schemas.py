@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 LifecycleStage = Literal["prospect", "applicant", "admitted", "enrolled", "alumni"]
 TechLevel = Literal["none", "basic", "strong"]
@@ -38,6 +38,7 @@ class ProfileOut(BaseModel):
     target_industry_std: Optional[str] = None
     application_term: Optional[str] = None
     intake_year: Optional[int] = None
+    completed_courses: Optional[list[str]] = None
 
 
 class ProfilePatch(BaseModel):
@@ -62,3 +63,23 @@ class ProfilePatch(BaseModel):
     target_industry_std: Optional[str] = Field(default=None, max_length=100)
     application_term: Optional[str] = Field(default=None, max_length=50)
     intake_year: Optional[int] = Field(default=None, ge=2000, le=2100)
+    completed_courses: Optional[list[str]] = Field(default=None, max_length=50)
+
+    @field_validator("completed_courses")
+    @classmethod
+    def clean_completed_courses(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        if value is None:
+            return None
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            course = item.strip()
+            if not course:
+                continue
+            if len(course) > 120:
+                raise ValueError("Each completed course must be 120 characters or fewer.")
+            key = course.casefold()
+            if key not in seen:
+                seen.add(key)
+                cleaned.append(course)
+        return cleaned
