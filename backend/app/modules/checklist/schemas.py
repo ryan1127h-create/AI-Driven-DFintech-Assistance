@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,6 +36,12 @@ class ChecklistItem(BaseModel):
     description: Optional[str] = None
     evidence_source: Optional[str] = Field(default=None, max_length=160)
     blocking_fields: list[str] = Field(default_factory=list)
+    note: Optional[str] = None
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    file_size: Optional[int] = None
+    uploaded_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class ChecklistResponse(BaseModel):
@@ -47,11 +54,10 @@ class ChecklistResponse(BaseModel):
 
 
 class ChecklistItemPatch(BaseModel):
-    """Future persistence contract for user- or portal-confirmed checklist state."""
+    """Persisted update for one checklist item."""
 
     model_config = ConfigDict(extra="forbid")
 
     status: Optional[ChecklistStatus] = None
     evidence_source: Optional[str] = Field(default=None, max_length=160)
     note: Optional[str] = Field(default=None, max_length=500)
-

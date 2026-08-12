@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.modules.checklist import service
 from app.modules.checklist.schemas import ChecklistItemPatch, ChecklistResponse
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/checklist")
 
 @router.get("", response_model=ChecklistResponse)
 async def get_checklist():
-    """Return the current checklist API contract payload."""
+    """Return the current placeholder user's checklist state."""
     try:
         return service.get_checklist()
     except Exception as exc:
@@ -17,10 +17,26 @@ async def get_checklist():
 
 @router.patch("/items/{item_id}", response_model=ChecklistResponse)
 async def patch_checklist_item(item_id: str, patch: ChecklistItemPatch):
-    """Future endpoint for persisted checklist item updates."""
-    _ = (item_id, patch)
-    raise HTTPException(
-        status_code=501,
-        detail="Checklist item persistence is not implemented yet.",
-    )
+    """Persist one checklist item update and return the full checklist."""
+    fields = patch.model_dump(exclude_unset=True)
+    try:
+        return service.patch_checklist_item(item_id, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
+
+@router.post("/items/{item_id}/file", response_model=ChecklistResponse)
+async def upload_checklist_item_file(item_id: str, file: UploadFile = File(...)):
+    """Upload one file for one checklist item and mark it completed."""
+    try:
+        return await service.upload_checklist_file(item_id, file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
