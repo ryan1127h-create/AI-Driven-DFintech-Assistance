@@ -1,23 +1,84 @@
 // User roles, profiles, and lifecycle stages
 
+// export const ROLES = {
+//   PROSPECTIVE: "prospective",
+//   APPLICANT: "applicant",
+//   ADMITTED: "admitted",
+//   ENROLLED: "enrolled",
+//   GRADUATING: "graduating",
+//   ALUMNI: "alumni",
+//   STAFF: "staff",
+// };
+
+// export const ROLE_META = {
+//   prospective: { label: "Prospective Student", stage: "Discover", color: "brand", icon: "Compass" },
+//   applicant: { label: "Applicant", stage: "Apply", color: "royal", icon: "FileText" },
+//   admitted: { label: "Admitted Student", stage: "Enroll", color: "cyan2", icon: "CheckCircle" },
+//   enrolled: { label: "Enrolled Student", stage: "Study", color: "emerald2", icon: "BookOpen" },
+//   graduating: { label: "Graduating Student", stage: "Graduate", color: "brand", icon: "GraduationCap" },
+//   alumni: { label: "Alumni", stage: "Alumni", color: "royal", icon: "Users" },
+//   staff: { label: "Staff / Admin", stage: "Admin", color: "ink", icon: "ShieldCheck" },
+// };
+
 export const ROLES = {
-  PROSPECTIVE: "prospective",
-  APPLICANT: "applicant",
-  ADMITTED: "admitted",
-  ENROLLED: "enrolled",
-  GRADUATING: "graduating",
-  ALUMNI: "alumni",
+  PROSPECTIVE: "Prospective Student",
+  APPLICANT: "Applicant",
+  ADMITTED: "Admitted Student",
+  ENROLLED: "Enrolled Student",
+  GRADUATING: "Graduating Student",
+  ALUMNI: "Alumni",
   STAFF: "staff",
 };
 
 export const ROLE_META = {
-  prospective: { label: "Prospective Student", stage: "Discover", color: "brand", icon: "Compass" },
-  applicant: { label: "Applicant", stage: "Apply", color: "royal", icon: "FileText" },
-  admitted: { label: "Admitted Student", stage: "Enroll", color: "cyan2", icon: "CheckCircle" },
-  enrolled: { label: "Enrolled Student", stage: "Study", color: "emerald2", icon: "BookOpen" },
-  graduating: { label: "Graduating Student", stage: "Graduate", color: "brand", icon: "GraduationCap" },
-  alumni: { label: "Alumni", stage: "Alumni", color: "royal", icon: "Users" },
-  staff: { label: "Staff / Admin", stage: "Admin", color: "ink", icon: "ShieldCheck" },
+  [ROLES.PROSPECTIVE]: {
+    label: "Prospective Student",
+    stage: "Discover",
+    color: "brand",
+    icon: "Compass"
+  },
+
+  [ROLES.APPLICANT]: {
+    label: "Applicant",
+    stage: "Apply",
+    color: "royal",
+    icon: "FileText"
+  },
+
+  [ROLES.ADMITTED]: {
+    label: "Admitted Student",
+    stage: "Enroll",
+    color: "cyan2",
+    icon: "CheckCircle"
+  },
+
+  [ROLES.ENROLLED]: {
+    label: "Enrolled Student",
+    stage: "Study",
+    color: "emerald2",
+    icon: "BookOpen"
+  },
+
+  [ROLES.GRADUATING]: {
+    label: "Graduating Student",
+    stage: "Graduate",
+    color: "brand",
+    icon: "GraduationCap"
+  },
+
+  [ROLES.ALUMNI]: {
+    label: "Alumni",
+    stage: "Alumni",
+    color: "royal",
+    icon: "Users"
+  },
+
+  [ROLES.STAFF]: {
+    label: "Staff / Admin",
+    stage: "Admin",
+    color: "ink",
+    icon: "ShieldCheck"
+  }
 };
 
 export const LIFECYCLE_STAGES = ["Discover", "Apply", "Enroll", "Study", "Graduate", "Alumni"];

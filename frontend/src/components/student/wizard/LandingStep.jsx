@@ -1,21 +1,19 @@
 import { useState } from "react";
-import { Upload, FileText, ArrowRight, User, GraduationCap, MessageSquare } from "lucide-react";
+import { Upload, FileText, ArrowRight, Pencil, MessageSquare } from "lucide-react";
 
 const STEPS = [
   { n: 1, label: "Select profile and provide information" },
   { n: 2, label: "Confirm profile" },
-  { n: 3, label: "Get recommendations" },
 ];
 
 export default function LandingStep({ onAdvance, onOpenSettings, onSkip, loading, error }) {
-  const [stage, setStage] = useState("applicant");
-  const [text, setText] = useState("");
+  const [mode, setMode] = useState(null);
   const [cvFile, setCvFile] = useState(null);
   const [cvName, setCvName] = useState("");
 
   const submit = (e) => {
     e.preventDefault();
-    onAdvance({ lifecycle_stage: stage, text, cvFile });
+    onAdvance({ cvFile: mode === "upload" ? cvFile : null });
   };
 
   return (
@@ -47,101 +45,65 @@ export default function LandingStep({ onAdvance, onOpenSettings, onSkip, loading
         )}
         <div className="card p-5">
           <h2 className="font-display text-base font-semibold text-app-primary mb-3">
-            1. Choose user type
+            1. Choose how to provide your profile
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <RoleCard
-              active={stage === "applicant"}
-              onClick={() => setStage("applicant")}
-              icon={User}
-              title="Applicant"
-              desc="Upload application materials, identify missing items, track application status, compare programmes, and get course/career guidance."
+            <ModeCard
+              active={mode === "upload"}
+              onClick={() => setMode("upload")}
+              icon={Upload}
+              title="Upload CV"
+              desc="Let the AI extract your profile information from a PDF or Word CV."
             />
-            <RoleCard
-              active={stage === "current"}
-              onClick={() => setStage("current")}
-              icon={GraduationCap}
-              title="Current Student"
-              desc="Skip application materials and generate course recommendations, skill strengthening, and career direction only."
+            <ModeCard
+              active={mode === "manual"}
+              onClick={() => setMode("manual")}
+              icon={Pencil}
+              title="Fill in manually"
+              desc="Enter and confirm your profile information yourself."
             />
           </div>
         </div>
 
-        <div className="card p-5">
-          <h2 className="font-display text-base font-semibold text-app-primary mb-1">
-            2. Enter your information or upload a CV
-          </h2>
-          <p className="text-xs text-app-muted mb-3">
-            You can proceed with only the selected profile type and fill in details manually on the
-            next page. If you paste a profile summary, the system will pre-fill some fields.
-          </p>
-          <label className="text-sm font-medium text-app-secondary">Profile summary</label>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="Example: I majored in Computer Science, worked in banking for 2 years, come from India, want to become a fintech product manager, and plan to apply full-time."
-            className="input mt-1.5 resize-none"
-          />
-        </div>
-
-        <div className="card p-5">
-          <h2 className="font-display text-base font-semibold text-app-primary mb-1">
-            3. Upload CV (optional)
-          </h2>
-          <p className="text-xs text-app-muted mb-3">
-            Supports .docx and .pdf files up to 5MB. Uploaded files are used to extract background
-            information.
-          </p>
-          <label className="text-sm font-medium text-app-secondary">Choose CV file</label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <label className="btn-outline cursor-pointer">
-              <Upload size={14} />
-              Choose file
-              <input
-                type="file"
-                accept=".docx,.pdf"
-                className="hidden"
-                onChange={(e) => {
+        {mode === "upload" && (
+          <div className="card p-5">
+            <h2 className="font-display text-base font-semibold text-app-primary mb-1">2. Upload your CV</h2>
+            <p className="text-xs text-app-muted mb-3">Supports PDF and Word files. Your CV will be used to extract profile information.</p>
+            <label className="text-sm font-medium text-app-secondary">Choose CV file</label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <label className="btn-outline cursor-pointer">
+                <Upload size={14} /> Choose file
+                <input type="file" accept=".docx,.pdf" className="hidden" onChange={(e) => {
                   const file = e.target.files?.[0] || null;
                   setCvFile(file);
                   setCvName(file?.name || "");
-                }}
-              />
-            </label>
-            {cvName && (
-              <span className="flex items-center gap-1.5 text-xs text-app-muted">
-                <FileText size={12} /> {cvName}
-              </span>
-            )}
+                }} />
+              </label>
+              {cvName && <span className="flex items-center gap-1.5 text-xs text-app-muted"><FileText size={12} /> {cvName}</span>}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center justify-between">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Extracting..." : "Next: confirm profile"}
-            <ArrowRight size={16} />
-          </button>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={onOpenSettings} className="btn-ghost text-xs">
-              Credential settings
+          {mode && (
+            <button type="submit" className="btn-primary" disabled={loading || (mode === "upload" && !cvFile)}>
+              {loading ? "Processing..." : mode === "upload" ? "Extract CV and confirm" : "Next: confirm profile"}
+              <ArrowRight size={16} />
             </button>
+          )}
+          <div className="flex items-center gap-3">
             <button type="button" onClick={onSkip} className="btn-outline text-xs">
               <MessageSquare size={14} />
               Skip to chat
             </button>
           </div>
         </div>
-        <p className="text-[11px] text-app-faint text-center">
-          If DeepSeek is configured, fields will be extracted automatically. If not, you can still
-          fill in the next page manually.
-        </p>
       </form>
     </div>
   );
 }
 
-function RoleCard({ active, onClick, icon: Icon, title, desc }) {
+function ModeCard({ active, onClick, icon: Icon, title, desc }) {
   return (
     <button
       type="button"

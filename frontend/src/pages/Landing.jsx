@@ -10,10 +10,11 @@ import {
   BookOpen,
   Users,
   UserPlus,
+  LogIn,
 } from "lucide-react";
 import { ROLES, ROLE_META } from "../data/roles";
-import { useRole } from "../context/RoleContext";
 import ThemeToggle from "../components/ThemeToggle";
+import nusLogo from "../assets/nus_logo.png";
 
 const studentRoles = [
   ROLES.PROSPECTIVE,
@@ -43,38 +44,31 @@ const colorClasses = {
 };
 
 export default function Landing() {
-  const { loginAs } = useRole();
   const navigate = useNavigate();
-
-  const handleSelect = (role) => {
-    loginAs(role);
-    navigate(role === ROLES.STAFF ? "/admin" : "/app");
-  };
 
   return (
     <div className="aurora-bg min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 lg:px-12 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-royal-600 text-app-primary shadow-glow">
-            <GraduationCap size={22} />
+          <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+            <img
+                src={nusLogo}
+                alt="NUS Logo"
+                className="h-full w-full object-cover"
+            />
           </div>
           <div>
             <p className="font-display font-bold text-app-primary leading-tight">NUS DFT</p>
             <p className="text-xs text-app-muted">AI Student Lifecycle Assistant</p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-3">
+        
+        <div className="sm:hidden flex items-center gap-2">
           <button onClick={() => navigate("/register")} className="btn-outline text-xs">
-            <UserPlus size={14} /> Register Profile
+            <UserPlus size={14} />
           </button>
-          <div className="flex items-center gap-2 text-xs text-app-muted">
-            <Sparkles size={14} className="text-brand-300" />
-            AI-first · Conversation-first
-          </div>
-        </div>
-        <div className="sm:hidden">
-          <button onClick={() => navigate("/register")} className="btn-outline text-xs">
-            <UserPlus size={14} /> Register
+          <button onClick={() => navigate("/login")} className="btn-primary text-xs">
+            <LogIn size={14} />
           </button>
         </div>
         <ThemeToggle />
@@ -98,59 +92,54 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="w-full max-w-4xl">
-          <p className="text-center text-sm font-medium text-app-muted mb-4 uppercase tracking-wider">
-            Continue as
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {studentRoles.map((r) => {
-              const meta = ROLE_META[r];
-              const Icon = iconMap[meta.icon] || Compass;
-              return (
-                <button
-                  key={r}
-                  onClick={() => handleSelect(r)}
-                  className="group card p-4 text-left hover:border-brand-400/40 hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colorClasses[meta.color] || colorClasses.brand}`}>
-                      <Icon size={18} />
-                    </div>
-                    <ArrowRight
-                      size={16}
-                      className="text-app-faint group-hover:text-brand-300 group-hover:translate-x-0.5 transition-all"
-                    />
-                  </div>
-                  <p className="font-medium text-app-primary text-sm">{meta.label}</p>
-                  <p className="text-xs text-app-muted mt-0.5">{meta.stage} stage</p>
-                </button>
-              );
-            })}
-            <button
-              onClick={() => handleSelect(ROLES.STAFF)}
-              className="group card p-4 text-left hover:border-royal-400/40 hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5 col-span-2 md:col-span-1"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-royal-500/15 text-royal-300">
-                  <ShieldCheck size={18} />
-                </div>
-                <ArrowRight
-                  size={16}
-                  className="text-app-faint group-hover:text-royal-300 group-hover:translate-x-0.5 transition-all"
-                />
-              </div>
-              <p className="font-medium text-app-primary text-sm">Staff / Admin</p>
-              <p className="text-xs text-app-muted mt-0.5">Management portal</p>
-            </button>
-          </div>
+        <div className="mt-10 flex flex-col md:flex-row justify-center gap-4">
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-app-muted mb-3">New to MSc DFT? Register your profile for AI-powered assessment.</p>
-            <button onClick={() => navigate("/register")} className="btn-primary">
-              <UserPlus size={16} /> Register Your Profile
-            </button>
-          </div>
+          {/* Login Card */}
+          <button
+            onClick={() => navigate("/login")}
+            className="group w-full md:w-80 rounded-3xl border border-app-subtle bg-app-glass p-6 text-left transition-all duration-300 hover:scale-[1.02] hover:border-brand-500"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-white">
+              <LogIn size={20} />
+            </div>
+
+            <h3 className="text-xl font-semibold text-app-primary">
+              Log In
+            </h3>
+
+            <p className="mt-2 text-sm text-app-secondary">
+              Access your personalized dashboard, AI assistant and academic journey.
+            </p>
+
+            <div className="mt-4 text-sm font-medium text-brand-500">
+              Welcome back →
+            </div>
+          </button>
+
+          {/* Register Card */}
+          <button
+            onClick={() => navigate("/register")}
+            className="group w-full md:w-80 rounded-3xl border border-app-subtle bg-app-glass p-6 text-left transition-all duration-300 hover:scale-[1.02] hover:border-[#EF7C00]"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EF7C00] text-white">
+              <UserPlus size={20} />
+            </div>
+
+            <h3 className="text-xl font-semibold text-app-primary">
+              Register Profile
+            </h3>
+
+            <p className="mt-2 text-sm text-app-secondary">
+              Create your account and begin your NUS MSc Digital Financial Technology journey.
+            </p>
+
+            <div className="mt-4 text-sm font-medium text-[#EF7C00]">
+              Get started →
+            </div>
+          </button>
+
         </div>
+        
       </main>
 
       <footer className="px-6 lg:px-12 py-5 text-center text-xs text-app-faint">

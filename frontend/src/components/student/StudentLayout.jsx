@@ -15,11 +15,11 @@ export default function StudentLayout() {
         <main className="flex-1 min-w-0 flex flex-col">
           <Outlet />
         </main>
-        {contextOpen && (
+        {/* {contextOpen && (
           <aside className="hidden xl:flex w-80 flex-shrink-0 border-l border-app-subtle">
             <ContextPanel />
           </aside>
-        )}
+        )} */}
       </div>
     </div>
   );

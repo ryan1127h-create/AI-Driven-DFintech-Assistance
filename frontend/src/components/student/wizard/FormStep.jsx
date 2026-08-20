@@ -1,360 +1,230 @@
-import { useState, useEffect } from "react";
-import { ArrowRight, ArrowLeft, Lock, Upload, FileText, X } from "lucide-react";
-import {
-  applicationTypes,
-  degreeLevels,
-  fields,
-  proficiencies,
-  roles,
-  materials,
-} from "../../../data/wizard";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Briefcase, GraduationCap, User } from "lucide-react";
 import { StepIndicator } from "./LandingStep";
+import {
+  FormField,
+  PageHeader,
+  Select,
+  SubmitButton,
+  TextInput,
+} from "../apiWidgets";
 
-export default function FormStep({ initial, onBack, onGenerate, loading, error }) {
-  const isApplicant = initial?.lifecycle_stage === "applicant";
-  const [form, setForm] = useState(() => ({
-    lifecycle_stage: initial?.lifecycle_stage || "applicant",
+const lifecycleOptions = [
+  { value: "prospact", label: "Prospective student" },
+  { value: "applicant", label: "Applicant" },
+];
+const degreeOptions = [
+  { value: "", label: "Select degree" },
+  { value: "bachelors", label: "Bachelor's" },
+  { value: "masters", label: "Master's" },
+  { value: "doctorate", label: "Doctorate" },
+  { value: "other", label: "Other" },
+];
+const academicOptions = [
+  { value: "", label: "Select field of study" },
+  { value: "finance", label: "Finance" },
+  { value: "cs_computing", label: "Computer Science & Computing" },
+  { value: "engineering", label: "Engineering" },
+  { value: "business", label: "Business" },
+  { value: "other", label: "Other" },
+];
+const schoolTierOptions = [
+  { value: "", label: "Select school tier" },
+  { value: "tier_1", label: "Tier 1" },
+  { value: "tier_2", label: "Tier 2" },
+  { value: "tier_3", label: "Tier 3" },
+  { value: "other", label: "Other" },
+];
+const levelOptions = [
+  { value: "", label: "Select level" },
+  { value: "none", label: "None" },
+  { value: "basic", label: "Basic" },
+  { value: "strong", label: "Strong" },
+];
+const roleOptions = [
+  { value: "quant_risk", label: "Quantitative Risk" },
+  { value: "data_analytics", label: "Data Analytics" },
+  { value: "fintech_pm", label: "FinTech Product Management" },
+  { value: "payments", label: "Payments" },
+  { value: "digital_banking", label: "Digital Banking" },
+  { value: "compliance_regtech", label: "Compliance & RegTech" },
+];
+
+function normaliseInitial(initial) {
+  return {
+    lifecycle_stage: initial?.lifecycle_stage === "applicant" ? "applicant" : "prospect",
     application_type: initial?.application_type || "",
     degree_level: initial?.degree_level || "",
-    field_of_study: initial?.field_of_study || "",
-    work_years: initial?.work_years || "",
-    country: initial?.country || "",
-    technical_proficiency: initial?.technical_proficiency || "",
+    academic_background_std: initial?.academic_background_std || initial?.field_of_study || "",
+    academic_background_raw: initial?.academic_background_raw || "",
+    school_tier: initial?.school_tier || "",
+    work_years: initial?.work_years ?? "",
+    gmat: initial?.gmat ?? "",
+    gre: initial?.gre ?? "",
+    toefl: initial?.toefl ?? "",
+    ielts: initial?.ielts ?? "",
+    tech_level_std: initial?.tech_level_std || initial?.technical_proficiency || "",
+    tech_level_raw: initial?.tech_level_raw || "",
+    target_roles: Array.isArray(initial?.target_roles)
+      ? initial.target_roles
+      : initial?.target_role_raw
+        ? initial.target_role_raw.split("/").map((role) => role.trim()).filter(Boolean)
+        : initial?.target_role_std
+          ? [initial.target_role_std]
+          : [],
+    target_role_std: initial?.target_role_std || "",
+    target_role_raw: initial?.target_role_raw || "",
+    target_industry_std: initial?.target_industry_std || "",
+    completed_courses: Array.isArray(initial?.completed_courses)
+      ? initial.completed_courses.join(", ")
+      : initial?.completed_modules || "",
     finance_knowledge: initial?.finance_knowledge || "",
-    target_roles: Array.isArray(initial?.target_roles) ? initial.target_roles : [],
-    priority: initial?.priority || "role_fit",
-    completed_modules: initial?.completed_modules || "",
-    uploads: {},
-  }));
+    cv_uploaded: Boolean(initial?.cvFile),
+  };
+}
+
+export default function FormStep({ initial, onBack, onSave, loading, error }) {
+  const [form, setForm] = useState(() => normaliseInitial(initial));
 
   useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      lifecycle_stage: initial?.lifecycle_stage || "applicant",
-      application_type: initial?.application_type || "",
-      degree_level: initial?.degree_level || "",
-      field_of_study: initial?.field_of_study || "",
-      work_years: initial?.work_years || "",
-      country: initial?.country || "",
-      technical_proficiency: initial?.technical_proficiency || "",
-      finance_knowledge: initial?.finance_knowledge || "",
-      target_roles: Array.isArray(initial?.target_roles) ? initial.target_roles : [],
-      priority: initial?.priority || "role_fit",
-      completed_modules: initial?.completed_modules || "",
-    }));
+    setForm(normaliseInitial(initial));
   }, [initial]);
 
-  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const setField = (key, value) => setForm((previous) => ({ ...previous, [key]: value }));
+  const isApplicant = form.lifecycle_stage === "applicant";
 
-  const toggleRole = (role) => {
-    setForm((f) => ({
-      ...f,
-      target_roles: f.target_roles.includes(role)
-        ? f.target_roles.filter((r) => r !== role)
-        : [...f.target_roles, role],
-    }));
-  };
+  const submit = (event) => {
+    event.preventDefault();
+    if (loading) return;
 
-  const handleUpload = (key, file) => {
-    setForm((f) => ({ ...f, uploads: { ...f.uploads, [key]: file } }));
-  };
-
-  const removeUpload = (key) => {
-    setForm((f) => {
-      const next = { ...f.uploads };
-      delete next[key];
-      return { ...f, uploads: next };
+    const targetRoles = form.target_roles.filter(Boolean);
+    onSave({
+      ...form,
+      target_role_std: targetRoles[0] || null,
+      target_role_raw: targetRoles.join(" / "),
+      completed_courses: form.completed_courses
+        .split(",")
+        .map((course) => course.trim())
+        .filter(Boolean),
     });
   };
 
-  const submit = (e) => {
-    e.preventDefault();
-    if (!loading) {
-      onGenerate(form);
-    }
-  };
-
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6 animate-fadeIn">
+    <div className="max-w-3xl mx-auto px-4 lg:px-0 py-8 animate-fadeIn">
+      <PageHeader
+        icon={User}
+        title="Review Extracted Information"
+        subtitle="Confirm your CV information or complete the profile manually before continuing."
+      />
       <StepIndicator current={2} />
 
-      <div className="text-center">
-        <h1 className="font-display text-2xl font-bold text-app-primary">
-          {isApplicant ? "Applicant profile confirmation" : "Current student profile confirmation"}
-        </h1>
-        <p className="text-app-muted mt-2 text-sm">
-          {isApplicant
-            ? "Please confirm your background, application goals, and upload actual application materials. The system checks missing items from uploaded files instead of assuming submission through checkboxes."
-            : "You selected the current-student flow. Application fields and material uploads are locked; only undergraduate background, completed modules, and career goals are needed."}
-        </p>
-      </div>
+      <form onSubmit={submit} className="space-y-4 mt-6">
+        {error && <div className="rounded-lg p-3 bg-red-500/10 border border-red-400/20 text-sm text-red-400">{error}</div>}
 
-      <form onSubmit={submit} className="space-y-6">
-        {loading && (
-          <div className="rounded-lg border border-app-subtle bg-app-hover p-3 text-sm text-app-primary flex items-center gap-2">
-            <span className="h-4 w-4 rounded-full border-2 border-brand-300 border-t-transparent animate-spin" />
-            Generating analysis...
-          </div>
-        )}
-        <div className="card p-5">
-          <h2 className="font-display text-base font-semibold text-app-primary mb-2">Identity</h2>
-          <div className="flex items-center gap-2 text-xs text-app-muted">
-            Current flow:
-            <span className="font-medium text-app-primary">
-              {isApplicant ? "Applicant" : "Current Student"}
-            </span>
-            <button type="button" onClick={onBack} className="text-brand-300 hover:underline ml-2">
-              Change selection
-            </button>
-          </div>
-        </div>
-
-        <div className="card p-5 space-y-4">
-          <h2 className="font-display text-base font-semibold text-app-primary">Basic background</h2>
+        <section className="card p-5 space-y-4">
+          <SectionHeading icon={User} title="Identity" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Application type" locked={!isApplicant} hint="Not required for current students.">
-              <select
-                className="input"
-                value={form.application_type}
-                disabled={!isApplicant}
-                onChange={(e) => setField("application_type", e.target.value)}
-              >
-                <option value="">(Undecided)</option>
-                {applicationTypes.map((a) => (
-                  <option key={a.value} value={a.value}>{a.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Highest degree">
-              <select
-                className="input"
-                value={form.degree_level}
-                onChange={(e) => setField("degree_level", e.target.value)}
-              >
-                <option value="">(Select)</option>
-                {degreeLevels.map((d) => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Undergraduate major / prior academic background">
-              <select
-                className="input"
-                value={form.field_of_study}
-                onChange={(e) => setField("field_of_study", e.target.value)}
-              >
-                <option value="">(Select)</option>
-                {fields.map((f) => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Years of work experience" locked={!isApplicant} hint="Not required for current students.">
-              <input
-                type="number"
-                min="0"
-                className="input"
-                placeholder="e.g. 2"
-                value={form.work_years}
-                disabled={!isApplicant}
-                onChange={(e) => setField("work_years", e.target.value)}
-              />
-            </Field>
-            <Field label="Country/region (two-letter code, e.g. SG / IN)" locked={!isApplicant} hint="Not required for current students.">
-              <input
-                type="text"
-                maxLength={2}
-                className="input"
-                placeholder="SG"
-                value={form.country}
-                disabled={!isApplicant}
-                onChange={(e) => setField("country", e.target.value)}
-              />
-            </Field>
+            <FormField label="Lifecycle stage" required>
+              <Select options={lifecycleOptions} value={form.lifecycle_stage} onChange={(event) => setField("lifecycle_stage", event.target.value)} />
+            </FormField>
           </div>
-        </div>
+        </section>
 
-        <div className="card p-5 space-y-4">
-          <h2 className="font-display text-base font-semibold text-app-primary">Skills and goals</h2>
+        <section className="card p-5 space-y-4">
+          <SectionHeading icon={GraduationCap} title="Academic Background" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Technical proficiency">
-              <select
-                className="input"
-                value={form.technical_proficiency}
-                onChange={(e) => setField("technical_proficiency", e.target.value)}
-              >
-                <option value="">(Select)</option>
-                {proficiencies.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Finance knowledge">
-              <select
-                className="input"
-                value={form.finance_knowledge}
-                onChange={(e) => setField("finance_knowledge", e.target.value)}
-              >
-                <option value="">(Select)</option>
-                {proficiencies.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </Field>
+            <FormField label="Highest degree">
+              <Select options={degreeOptions} value={form.degree_level} onChange={(event) => setField("degree_level", event.target.value)} />
+            </FormField>
+            <FormField label="Academic background">
+              <Select options={academicOptions} value={form.academic_background_std} onChange={(event) => setField("academic_background_std", event.target.value)} />
+            </FormField>
+            <FormField label="Academic background details" hint="Use this when your field is not in the list.">
+              <TextInput value={form.academic_background_raw} onChange={(event) => setField("academic_background_raw", event.target.value)} placeholder="e.g. BSc Computer Science" />
+            </FormField>
+            <FormField label="School tier">
+              <Select options={schoolTierOptions} value={form.school_tier} onChange={(event) => setField("school_tier", event.target.value)} />
+            </FormField>
+            <FormField label="Completed courses" hint="Comma-separated course codes.">
+              <TextInput value={form.completed_courses} onChange={(event) => setField("completed_courses", event.target.value)} placeholder="FT5005, IT5001" />
+            </FormField>
           </div>
+        </section>
 
-          <div>
-            <label className="text-sm font-medium text-app-secondary">Target roles (multiple selection allowed)</label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {roles.map((r) => (
-                <button
-                  key={r.value}
-                  type="button"
-                  onClick={() => toggleRole(r.value)}
-                  className={`chip border transition ${
-                    form.target_roles.includes(r.value)
-                      ? "bg-brand-500/20 text-brand-300 border-brand-400/30"
-                      : "bg-app-hover text-app-muted border-app-input hover:border-brand-400/20"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Field label="Main priority for programme comparison" locked={!isApplicant} hint="Not needed for current students.">
-            <select
-              className="input"
-              value={form.priority}
-              disabled={!isApplicant}
-              onChange={(e) => setField("priority", e.target.value)}
-            >
-              <option value="role_fit">Role fit</option>
-              <option value="cost">Tuition cost (lower is better)</option>
-              <option value="duration">Duration (shorter is better)</option>
-            </select>
-          </Field>
-        </div>
-
-        <div className={`card p-5 space-y-4 ${!isApplicant ? "opacity-50" : ""}`}>
-          <h2 className="font-display text-base font-semibold text-app-primary flex items-center gap-2">
-            Application material upload
-            {!isApplicant && <Lock size={14} className="text-app-faint" />}
-            <span className="text-xs font-normal text-app-muted">
-              {isApplicant ? "required for applicants" : "not needed for current students"}
-            </span>
-          </h2>
-          {isApplicant ? (
-            <>
-              <p className="text-xs text-app-muted">
-                Supports PDF / Word / image files. The real NUS Graduate Admission System requires
-                online material uploads in PDF, in English or with certified English translations.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {materials.map((m) => (
-                  <UploadCard
-                    key={m.key}
-                    material={m}
-                    file={form.uploads[m.key]}
-                    onUpload={(file) => handleUpload(m.key, file)}
-                    onRemove={() => removeUpload(m.key)}
-                  />
-                ))}
+        <section className="card p-5 space-y-4">
+          <SectionHeading icon={Briefcase} title="Experience & Goals" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Years of work experience" >
+              <TextInput type="number" min="0" value={form.work_years} onChange={(event) => setField("work_years", event.target.value)} placeholder="e.g. 2" />
+            </FormField>
+            <FormField label="Technical proficiency">
+              <Select options={levelOptions} value={form.tech_level_std} onChange={(event) => setField("tech_level_std", event.target.value)} />
+            </FormField>
+            <FormField label="Technical skills details">
+              <TextInput value={form.tech_level_raw} onChange={(event) => setField("tech_level_raw", event.target.value)} placeholder="e.g. Python, SQL, machine learning" />
+            </FormField>
+            <FormField label="GMAT" hint="Optional, 200-800.">
+              <TextInput type="number" min="200" max="800" value={form.gmat} onChange={(event) => setField("gmat", event.target.value)} placeholder="Optional" />
+            </FormField>
+            <FormField label="GRE" hint="Optional, 260-340.">
+              <TextInput type="number" min="260" max="340" value={form.gre} onChange={(event) => setField("gre", event.target.value)} placeholder="Optional" />
+            </FormField>
+            <FormField label="TOEFL" hint="Optional, 0-120.">
+              <TextInput type="number" min="0" max="120" value={form.toefl} onChange={(event) => setField("toefl", event.target.value)} placeholder="Optional" />
+            </FormField>
+            <FormField label="IELTS" hint="Optional, 0-9.">
+              <TextInput type="number" min="0" max="9" step="0.5" value={form.ielts} onChange={(event) => setField("ielts", event.target.value)} placeholder="Optional" />
+            </FormField>
+            <FormField label="Target roles" hint="Select one or more roles.">
+              <div className="flex flex-wrap gap-2">
+                {roleOptions.map((role) => {
+                  const selected = form.target_roles.includes(role.value);
+                  return (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => setField("target_roles", selected
+                        ? form.target_roles.filter((value) => value !== role.value)
+                        : [...form.target_roles, role.value])}
+                      className={`rounded-lg border px-3 py-2 text-sm transition ${selected
+                        ? "bg-brand-500/20 border-brand-500 text-brand-300"
+                        : "bg-app-hover border-app-input text-app-secondary"}`}
+                    >
+                      {role.label}
+                    </button>
+                  );
+                })}
               </div>
-            </>
-            ) : (
-              <p className="text-xs text-app-muted">
-                This section is locked. You are already enrolled, so no application files are needed.
-              </p>
-            )}
-        </div>
+            </FormField>
+            <FormField label="Finance knowledge">
+              <Select options={levelOptions} value={form.finance_knowledge} onChange={(event) => setField("finance_knowledge", event.target.value)} />
+            </FormField>
+            <FormField label="Target industry">
+              <TextInput maxLength={100} value={form.target_industry_std} onChange={(event) => setField("target_industry_std", event.target.value)} placeholder="e.g. digital banking" />
+            </FormField>
+          </div>
+        </section>
 
-        <div className="card p-5 space-y-3">
-          <h2 className="font-display text-base font-semibold text-app-primary flex items-center gap-2">
-            Completed modules
-            <span className="text-xs font-normal text-app-muted">
-              {isApplicant ? "optional for applicants" : "important for current students"}
-            </span>
-          </h2>
-          <p className="text-xs text-app-muted">
-            Enter completed module codes to generate course planning and graduation progress.
-            Example: BMD5301, IT5001, FT5005.
-          </p>
-          <input
-            type="text"
-            className="input"
-            placeholder="BMD5301, IT5001, FT5005"
-            value={form.completed_modules}
-            onChange={(e) => setField("completed_modules", e.target.value)}
-          />
-        </div>
+        <section className="card p-5 space-y-3">
+          <SectionHeading icon={User} title="Profile source" />
+          {form.cv_uploaded && <p className="text-xs text-emerald2-400">CV uploaded and used for extraction. You can correct any field above.</p>}
+          {!form.cv_uploaded && <p className="text-xs text-app-muted">Profile details were entered manually.</p>}
+        </section>
 
-        <div className="flex items-center gap-3">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Generating..." : "Generate analysis"}
-            <ArrowRight size={16} />
-          </button>
-          <button type="button" onClick={onBack} className="btn-ghost text-sm" disabled={loading}>
-            <ArrowLeft size={14} />
-            Change profile type
-          </button>
+        <div className="flex items-center justify-between pt-2">
+          <button type="button" onClick={onBack} className="btn-ghost text-sm" disabled={loading}><ArrowLeft size={14} /> Back</button>
+          <SubmitButton loading={loading}><ArrowRight size={16} /> Finish and open chat</SubmitButton>
         </div>
       </form>
     </div>
   );
 }
 
-function Field({ label, children, locked, hint }) {
+function SectionHeading({ icon: Icon, title }) {
   return (
-    <div className={locked ? "opacity-50" : ""}>
-      <label className="text-sm font-medium text-app-secondary flex items-center gap-1">
-        {locked && <Lock size={11} className="text-app-faint" />}
-        {label}
-      </label>
-      <div className="mt-1.5" title={locked ? hint : ""}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function UploadCard({ material, file, onUpload, onRemove }) {
-  const pillClass = (req) =>
-    req === "required"
-      ? "bg-red-500/15 text-red-300 border-red-400/20"
-      : req === "conditional"
-        ? "bg-amber-500/15 text-amber-300 border-amber-400/20"
-        : "bg-app-hover text-app-muted border-app-input";
-
-  return (
-    <div className="rounded-xl border border-app-input bg-app-hover p-3">
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <span className="text-sm font-medium text-app-primary">{material.label}</span>
-        <span className={`chip border ${pillClass(material.required)}`}>
-          {material.required === "required" ? "Required" : material.required === "conditional" ? "Conditional" : "Optional"}
-        </span>
-      </div>
-      <p className="text-[11px] text-app-muted mb-2">{material.hint}</p>
-      {file ? (
-        <div className="flex items-center gap-2 text-xs text-app-secondary">
-          <FileText size={12} className="text-brand-300" />
-          <span className="truncate flex-1">{file.name}</span>
-          <button type="button" onClick={onRemove} className="text-app-faint hover:text-red-400">
-            <X size={12} />
-          </button>
-        </div>
-      ) : (
-        <label className="btn-outline cursor-pointer text-xs w-full">
-          <Upload size={12} />
-          Upload
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
-          />
-        </label>
-      )}
+    <div className="flex items-center gap-2 mb-1">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/15 text-brand-300"><Icon size={16} /></div>
+      <h2 className="text-sm font-semibold text-app-primary">{title}</h2>
     </div>
   );
 }

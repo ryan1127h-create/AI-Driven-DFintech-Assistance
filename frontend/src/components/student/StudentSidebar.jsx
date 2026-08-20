@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -23,6 +23,7 @@ import {
   CalendarPlus,
   Home,
   Users,
+  User,
   Calendar,
   DollarSign,
   Briefcase,
@@ -40,6 +41,8 @@ import { useRole } from "../../context/RoleContext";
 import { ROLE_META, ROLES } from "../../data/roles";
 import { recentConversations as initialConversations, savedPlans, notifications } from "../../data/conversations";
 import { cn } from "../../utils/cn";
+import nusLogo from "../../assets/nus_logo.png";
+import { getChatSessions, logout as apiLogout } from "../../../api";
 
 const workspaceNav = {
   [ROLES.PROSPECTIVE]: [
@@ -114,16 +117,63 @@ export default function StudentSidebar() {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [showActions, setShowActions] = useState(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const meta = ROLE_META[user?.role];
   const wsNav = workspaceNav[user?.role] || [];
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
+  useEffect(() => {
+    let active = true;
+
+    const loadSessions = async () => {
+      setSessionsLoading(true);
+      try {
+        const response = await getChatSessions();
+        console.log("chat session:", response);
+        if (!active) return;
+
+        setConversations(
+          (response.conversations || []).map((conversation) => ({
+            id: conversation.session_id,
+            title: conversation.preview || "Conversation",
+            lastAccessedLabel: conversation.updated_at
+              ? new Date(conversation.updated_at).toLocaleString()
+              : "Recently",
+            role: user?.role,
+            stage: `${conversation.turn_count} ${conversation.turn_count === 1 ? "turn" : "turns"}`,
+            status: "active",
+            pinned: false,
+            saved: false,
+          })),
+        );
+      } catch (error) {
+        console.error("Unable to load conversations:", error);
+      } finally {
+        if (active) setSessionsLoading(false);
+      }
+    };
+
+    loadSessions();
+    return () => {
+      active = false;
+    };
+  }, [user?.role]);
+
+  const handleLogout = async () => {
+    try {
+      await apiLogout(); // call backend logout API
+    } catch (err) {
+      console.error(err);
+    }
+
+    logout(navigate); // clear context/local state and redirect
+  };
+
+  const handleProfile = () => {
+    navigate("/workspace/profile");
   };
 
   const openConversation = (c) => {
-    navigate("/app");
+    navigate(`/app?session=${encodeURIComponent(c.id)}`);
     setShowActions(null);
   };
 
@@ -167,7 +217,7 @@ export default function StudentSidebar() {
           <ChevronLeft size={18} className="rotate-180" />
         </button>
         <button
-          onClick={() => navigate("/app")}
+          onClick={() => navigate("/app", { replace: true })}
           className="mt-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-app-primary hover:bg-brand-400 transition shadow-glow"
           title="New Chat"
         >
@@ -186,9 +236,13 @@ export default function StudentSidebar() {
     <div className="w-72 flex-shrink-0 flex flex-col border-r border-app-subtle glass">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4">
-        <button onClick={() => navigate("/app")} className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-royal-600 text-app-primary">
-            <GraduationCap size={18} />
+        <button onClick={() => navigate("/app", { replace: true })} className="flex items-center gap-2.5">
+          <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+            <img
+                src={nusLogo}
+                alt="NUS Logo"
+                className="h-full w-full object-cover"
+            />
           </div>
           <div className="text-left">
             <p className="font-display text-sm font-bold text-app-primary leading-tight">NUS DFT</p>
@@ -202,7 +256,7 @@ export default function StudentSidebar() {
 
       {/* New Chat */}
       <div className="px-3 pb-2">
-        <button onClick={() => navigate("/app")} className="btn-primary w-full justify-center">
+        <button onClick={() => navigate("/app", { replace: true })} className="btn-primary w-full justify-center">
           <Plus size={16} />
           New Chat
         </button>
@@ -214,8 +268,8 @@ export default function StudentSidebar() {
         <div className="flex gap-1 mb-2 px-1">
           {[
             { id: "recent", label: "Recent", icon: MessageSquare },
-            { id: "saved", label: "Saved", icon: Bookmark },
-            { id: "plans", label: "Plans", icon: Map },
+            // { id: "saved", label: "Saved", icon: Bookmark },
+            // { id: "plans", label: "Plans", icon: Map },
           ].map((t) => {
             const TIcon = t.icon;
             return (
@@ -236,7 +290,9 @@ export default function StudentSidebar() {
 
         {tab === "recent" && (
           <div className="space-y-0.5">
-            {visibleConversations.map((c) => (
+            {sessionsLoading ? (
+              <p className="text-xs text-app-faint px-3 py-4 text-center">Loading conversations...</p>
+            ) : visibleConversations.map((c) => (
               <div key={c.id} className="relative group">
                 {editingId === c.id ? (
                   <div className="flex items-center gap-2 px-3 py-2">
@@ -338,7 +394,7 @@ export default function StudentSidebar() {
         )}
 
         {/* Workspace section */}
-        <div className="mt-6 pt-4 border-t border-app-subtle">
+        {/* <div className="mt-6 pt-4 border-t border-app-subtle">
           <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-app-faint">
             {meta?.label} Workspace
           </p>
@@ -357,10 +413,10 @@ export default function StudentSidebar() {
               );
             })}
           </div>
-        </div>
+        </div> */}
 
         {/* Notifications */}
-        <div className="mt-6 pt-4 border-t border-app-subtle">
+        {/* <div className="mt-6 pt-4 border-t border-app-subtle">
           <div className="flex items-center gap-2 px-2 mb-2">
             <Bell size={13} className="text-app-faint" />
             <p className="text-[10px] font-semibold uppercase tracking-wider text-app-faint">Notifications</p>
@@ -377,11 +433,11 @@ export default function StudentSidebar() {
               </div>
             ))}
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* User footer */}
-      <div className="px-3 py-3 border-t border-app-subtle">
+      {/* <div className="px-3 py-3 border-t border-app-subtle">
         <div className="flex items-center gap-2.5 rounded-lg p-2 hover:bg-app-hover transition cursor-pointer" onClick={handleLogout}>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/20 text-brand-300 text-xs font-medium flex-shrink-0">
             {user?.avatar}
@@ -391,6 +447,40 @@ export default function StudentSidebar() {
             <p className="text-[10px] text-app-muted truncate">{meta?.label}</p>
           </div>
           <LogOut size={14} className="text-app-faint hover:text-red-400 transition" />
+        </div>
+      </div> */}
+      <div className="px-3 py-3 border-t border-app-subtle">
+        <div className="flex items-center gap-2.5 rounded-lg p-2 hover:bg-app-hover transition">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/20 text-brand-300 text-xs font-medium flex-shrink-0">
+            {user?.avatar}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-app-primary truncate">
+              {user?.name}
+            </p>
+            <p className="text-[10px] text-app-muted truncate">
+              {meta?.label}
+            </p>
+          </div>
+
+          {/* Profile */}
+          <button
+            onClick={handleProfile}
+            className="p-1 text-app-faint hover:text-brand-400 transition"
+            title="Profile"
+          >
+            <User size={14} />
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="p-1 text-app-faint hover:text-red-400 transition"
+            title="Logout"
+          >
+            <LogOut size={14} />
+          </button>
         </div>
       </div>
     </div>

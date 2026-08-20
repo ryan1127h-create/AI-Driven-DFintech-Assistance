@@ -11,18 +11,16 @@ export const degreeLevels = [
   { value: "phd", label: "PhD" },
 ];
 export const fields = [
-  { value: "computer_science", label: "Computer Science" },
+  { value: "cs_computing", label: "Computer Science" },
   { value: "finance", label: "Finance" },
   { value: "engineering", label: "Engineering" },
-  { value: "mathematics", label: "Mathematics" },
-  { value: "business", label: "Business Analytics" },
+  { value: "business", label: "Business" },
   { value: "other", label: "Other" },
 ];
 export const proficiencies = [
   { value: "none", label: "None" },
   { value: "basic", label: "Basic" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "advanced", label: "Advanced" },
+  { value: "strong", label: "Strong" },
 ];
 export const roles = [
   { value: "fintech_pm", label: "FinTech Product Manager" },

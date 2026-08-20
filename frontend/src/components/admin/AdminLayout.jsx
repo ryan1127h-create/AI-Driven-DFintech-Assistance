@@ -3,28 +3,42 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, FileText, Users,
   BookOpen, BarChart3, ScrollText, Settings, GraduationCap, LogOut,
-  ChevronLeft, Search,
+  ChevronLeft, Search, UserPlus,
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { cn } from "../../utils/cn";
 import ThemeToggle from "../ThemeToggle";
+import nusLogo from "../../assets/nus_logo.png";
 
-const navItems = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/inquiries", label: "Inquiries", icon: MessageSquare },
-  { to: "/admin/escalations", label: "Escalations", icon: AlertTriangle },
-  { to: "/admin/applications", label: "Applications", icon: FileText },
-  { to: "/admin/students", label: "Students", icon: Users },
-  { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
-  { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/admin/logs", label: "Activity Logs", icon: ScrollText },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
-];
+
 
 export default function AdminLayout() {
-  const { user, logout } = useRole();
+  const { user, role, logout } = useRole();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const isSystemAdmin = role === "System Admin";
+  console.log(isSystemAdmin)
+
+  const navItems = [
+    { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
+    { to: "/admin/inquiries", label: "Inquiries", icon: MessageSquare },
+    { to: "/admin/escalations", label: "Escalations", icon: AlertTriangle },
+    { to: "/admin/applications", label: "Applications", icon: FileText },
+    { to: "/admin/students", label: "Students", icon: Users },
+    { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
+    { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+    { to: "/admin/logs", label: "Activity Logs", icon: ScrollText },
+    ...(isSystemAdmin
+      ? [
+          {
+            to: "/admin/register",
+            label: "Staff Registration",
+            icon: UserPlus,
+          },
+        ]
+      : []),
+    { to: "/admin/settings", label: "Settings", icon: Settings },
+  ];
 
   const handleLogout = () => {
     logout();
@@ -37,8 +51,12 @@ export default function AdminLayout() {
         <div className="flex items-center justify-between px-4 py-4">
           {!collapsed && (
             <button onClick={() => navigate("/admin")} className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-royal-500 to-brand-600 text-app-primary">
-                <GraduationCap size={18} />
+              <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+                <img
+                    src={nusLogo}
+                    alt="NUS Logo"
+                    className="h-full w-full object-cover"
+                />
               </div>
               <div className="text-left">
                 <p className="font-display text-sm font-bold text-app-primary leading-tight">DFT Admin</p>

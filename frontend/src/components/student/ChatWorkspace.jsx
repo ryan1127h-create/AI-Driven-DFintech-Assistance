@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Send,
   Sparkles,
@@ -15,20 +16,29 @@ import {
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
 import { ROLE_META } from "../../data/roles";
-import { suggestedPrompts, aiResponses, agents } from "../../data/conversations";
-import { extractProfile, generateAdvice, sendMessage as apiSendMessage } from "../../../api";
+import { suggestedPrompts, agents } from "../../data/conversations";
+import {
+  getProfile,
+  updateProfile,
+  createProfile,
+  extractProfile,
+  getChatHistory,
+  recommendCourses,
+  comparePrograms,
+  createCareerPlan,
+  sendMessage as apiSendMessage,
+} from "../../../api";
 import { cn } from "../../utils/cn";
 import ThemeToggle from "../ThemeToggle";
 import LandingStep from "./wizard/LandingStep";
 import FormStep from "./wizard/FormStep";
-import ResultsStep from "./wizard/ResultsStep";
 import SettingsModal from "./wizard/SettingsModal";
+import { LoadingSpinner } from "./apiWidgets";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const WIZARD_LANDING = "landing";
 const WIZARD_FORM = "form";
-const WIZARD_RESULTS = "results";
 const CHAT = "chat";
 
 const SETTINGS_STATUS = {
@@ -43,22 +53,59 @@ export default function ChatWorkspace() {
   const [view, setView] = useState(WIZARD_LANDING);
   const [landingData, setLandingData] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [results, setResults] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkProfile = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const existingProfile = await getProfile();
+        if (!active) return;
+
+        if (existingProfile !== null) {
+          setProfile(existingProfile);
+          setView(CHAT);
+        }
+      } catch (err) {
+        if (active) setError(err.message || "Unable to check your profile.");
+      } finally {
+        if (active) {
+          setLoading(false);
+          setProfileChecked(true);
+        }
+      }
+    };
+
+    checkProfile();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!profileChecked) {
+    return <LoadingSpinner label="Checking your profile..." />;
+  }
 
   const handleLandingAdvance = async (data) => {
     setLoading(true);
     setError(null);
     try {
-      const formData = new FormData();
-      formData.append("lifecycle_stage", data.lifecycle_stage);
-      formData.append("text", data.text || "");
-      if (data.cvFile) {
-        formData.append("cv", data.cvFile);
-      }
-      const response = await extractProfile(formData);
+      const response = data.cvFile
+        ? await extractProfile(data)
+        : {
+            prefill: {
+              lifecycle_stage: data.lifecycle_stage,
+              profile_summary: data.text || "",
+            },
+          };
+      console.log("extract profile:", response);
       setLandingData({ ...response.prefill, cvFile: data.cvFile });
       setView(WIZARD_FORM);
     } catch (err) {
@@ -71,30 +118,30 @@ export default function ChatWorkspace() {
   const handleGenerate = async (formProfile) => {
     setLoading(true);
     setError(null);
+    console.log("input profile:", formProfile);
     try {
-      const formData = new FormData();
-      formData.append("lifecycle_stage", formProfile.lifecycle_stage || "applicant");
-      formData.append("application_type", formProfile.application_type || "");
-      formData.append("degree_level", formProfile.degree_level || "");
-      formData.append("field_of_study", formProfile.field_of_study || "");
-      formData.append("work_years", formProfile.work_years || "");
-      formData.append("country", formProfile.country || "");
-      formData.append("technical_proficiency", formProfile.technical_proficiency || "");
-      formData.append("finance_knowledge", formProfile.finance_knowledge || "");
-      formData.append("priority", formProfile.priority || "role_fit");
-      formData.append("completed_modules", formProfile.completed_modules || "");
-      formProfile.target_roles?.forEach((role) => formData.append("target_roles", role));
-      const uploads = formProfile.uploads || {};
-      Object.keys(uploads).forEach((key) => {
-        const file = uploads[key];
-        if (file) {
-          formData.append(`material_${key}`, file);
-        }
-      });
-      const response = await generateAdvice(formData);
-      setProfile(response.data.profile);
-      setResults(response.data);
-      setView(WIZARD_RESULTS);
+      const profilePayload = {
+        lifecycle_stage: formProfile.lifecycle_stage === "applicant" ? "applicant" : "prospect" ,
+        academic_background_raw: formProfile.academic_background_raw || null,
+        academic_background_std: formProfile.academic_background_std || null,
+        school_tier: formProfile.school_tier || null,
+        tech_level_raw: formProfile.tech_level_raw || null,
+        tech_level_std: formProfile.tech_level_std || null,
+        work_years: formProfile.work_years === "" ? null : Number(formProfile.work_years),
+        gmat: formProfile.gmat === "" ? null : Number(formProfile.gmat),
+        gre: formProfile.gre === "" ? null : Number(formProfile.gre),
+        toefl: formProfile.toefl === "" ? null : Number(formProfile.toefl),
+        ielts: formProfile.ielts === "" ? null : Number(formProfile.ielts),
+        target_role_raw: formProfile.target_role_raw || null,
+        target_role_std: formProfile.target_role_std || null,
+        target_industry_std: formProfile.target_industry_std || null,
+        completed_courses: formProfile.completed_courses || [],
+      };
+      const savedProfile = profile
+        ? await updateProfile(profilePayload)
+        : await createProfile(profilePayload);
+      setProfile(savedProfile);
+      setView(CHAT);
     } catch (err) {
       setError(err.message || "Unable to generate analysis.");
     } finally {
@@ -134,15 +181,15 @@ export default function ChatWorkspace() {
   };
 
   const handleStartWizard = () => {
+    if (profile) {
+      setView(CHAT);
+      return;
+    }
+
     setView(WIZARD_LANDING);
     setLandingData(null);
     setProfile(null);
-    setResults(null);
     setError(null);
-  };
-
-  const handleRegenerate = () => {
-    setView(WIZARD_FORM);
   };
 
   if (view === WIZARD_LANDING) {
@@ -166,18 +213,10 @@ export default function ChatWorkspace() {
         <FormStep
           initial={landingData || { lifecycle_stage: "applicant" }}
           onBack={() => setView(WIZARD_LANDING)}
-          onGenerate={handleGenerate}
+          onSave={handleGenerate}
           loading={loading}
           error={error}
         />
-      </div>
-    );
-  }
-
-  if (view === WIZARD_RESULTS) {
-    return (
-      <div className="flex-1 flex flex-col h-full overflow-y-auto">
-        <ResultsStep results={results} onBack={handleRegenerate} onStartChat={handleStartChat} />
       </div>
     );
   }
@@ -187,17 +226,143 @@ export default function ChatWorkspace() {
 
 function ChatView({ user, onStartWizard }) {
   const { messages, addMessage, isStreaming, setIsStreaming, clearMessages } = useChat();
+  const location = useLocation();
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState(null);
+  const [profile, setProfile] = useState(null);
   const scrollRef = useRef(null);
   const meta = ROLE_META[user?.role];
   const prompts = suggestedPrompts[user?.role] || [];
 
   useEffect(() => {
+    getProfile().then(setProfile).catch(() => setProfile(null));
+  }, []);
+
+  useEffect(() => {
+    const selectedSessionId = new URLSearchParams(location.search).get("session");
+    let active = true;
+
+    setSessionId(selectedSessionId);
+    clearMessages();
+
+    if (!selectedSessionId) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const loadHistory = async () => {
+      try {
+        const response = await getChatHistory(selectedSessionId);
+        console.log("history:", response);
+        if (!active) return;
+
+        response.turns.forEach((turn) => {
+          addMessage({
+            role: turn.role === "human" ? "user" : "assistant",
+            content: turn.content,
+            time: "",
+            intent: turn.role === "ai" ? "AI chat" : undefined,
+            stage: meta?.stage || "prospect",
+            confidence: turn.role === "ai" ? 0.9 : undefined,
+            source: turn.role === "ai" ? "AI Assistant" : undefined,
+            agent: turn.role === "ai" ? agents[0] : undefined,
+          });
+        });
+      } catch (error) {
+        if (active) {
+          addMessage({
+            role: "assistant",
+            content: error.message || "Unable to load this conversation.",
+            intent: "Error",
+            stage: meta?.stage || "prospect",
+            confidence: 0,
+            source: "System",
+            agent: agents[0],
+            time: "",
+          });
+        }
+      }
+    };
+
+    loadHistory();
+    return () => {
+      active = false;
+    };
+  }, [location.search]);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
 
-  const sendMessage = async (text) => {
+  const addSpecialistResult = (response, intent) => {
+    const content = intent === "Course Recommendation"
+      ? [
+          "Recommended courses:",
+          ...(response.recommended_courses || []).map((course) => `- ${course.course_code}: ${course.course_title} (${course.priority})`),
+          response.skill_gaps?.length ? `\nSkill gaps: ${response.skill_gaps.join(", ")}` : "",
+          ...(response.notes || []),
+        ].filter(Boolean).join("\n")
+      : intent === "Programme Comparison"
+        ? [
+            response.best_fit_summary,
+            ...(response.comparison_table || []).map((row) => `\n**${row.dimension}**\n${Object.entries(row.values || {}).map(([name, value]) => `- ${name}: ${value}`).join("\n")}`),
+            ...(response.notes || []),
+          ].filter(Boolean).join("\n")
+        : [
+            response.current_fit,
+            response.skill_gaps?.length ? `Skill gaps: ${response.skill_gaps.join(", ")}` : "",
+            response.short_term_actions?.length ? `Short-term actions:\n${response.short_term_actions.map((item) => `- ${item}`).join("\n")}` : "",
+            response.medium_term_actions?.length ? `Medium-term actions:\n${response.medium_term_actions.map((item) => `- ${item}`).join("\n")}` : "",
+            ...(response.notes || []),
+          ].filter(Boolean).join("\n\n");
+
+    addMessage({
+      role: "assistant",
+      content,
+      intent,
+      stage: meta?.stage || "prospect",
+      confidence: 0.9,
+      source: intent,
+      agent: agents.find((agent) => agent.id === (intent === "Programme Comparison" ? "knowledge" : intent === "Career Guidance" ? "career" : "academic")) || agents[0],
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+  };
+
+  const runSuggestedPrompt = async (prompt) => {
+    const targetRole = profile?.target_role_std || profile?.target_role_raw || null;
+    const completedCourses = Array.isArray(profile?.completed_courses) ? profile.completed_courses : [];
+
+    if (prompt.intent === "Course Recommendation") {
+      return recommendCourses({ target_role: targetRole, completed_courses: completedCourses });
+    }
+    if (prompt.intent === "Programme Comparison") {
+      return comparePrograms({ target_role: targetRole, focus: ["curriculum", "fees", "admission", "career"] });
+    }
+    if (prompt.intent === "Career Guidance" || prompt.intent === "Career Prep") {
+      return createCareerPlan({ target_role: targetRole, region: profile?.target_industry_std || null });
+    }
+    return null;
+  };
+
+  const sendMessage = async (text, prompt) => {
+    if (prompt) {
+      if (isStreaming) return;
+      addMessage({ role: "user", content: prompt.text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
+      setIsStreaming(true);
+      try {
+        const response = await runSuggestedPrompt(prompt);
+        if (response) {
+          addSpecialistResult(response, prompt.intent);
+          return;
+        }
+      } catch (err) {
+        addMessage({ role: "assistant", content: err.message || "Unable to load this recommendation.", intent: "Error", stage: meta?.stage || "prospect", confidence: 0, source: "System", agent: agents[0], time: "" });
+      } finally {
+        setIsStreaming(false);
+      }
+    }
+
     const content = text || input.trim();
     if (!content || isStreaming) return;
 
@@ -207,8 +372,7 @@ function ChatView({ user, onStartWizard }) {
 
     try {
       const response = await apiSendMessage(content, {
-        stage: meta?.stage || "prospect",
-        name: user?.name,
+        session_id: sessionId,
       });
       setSessionId(response.session_id);
 
@@ -266,7 +430,7 @@ function ChatView({ user, onStartWizard }) {
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 lg:px-8 py-6">
         {messages.length === 0 ? (
-          <WelcomeView user={user} meta={meta} prompts={prompts} onPrompt={sendMessage} onStartWizard={onStartWizard} />
+          <WelcomeView user={user} meta={meta} prompts={prompts} onPrompt={(prompt) => sendMessage(prompt.text, prompt)} onStartWizard={onStartWizard} />
         ) : (
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((msg, i) =>
