@@ -1,6 +1,4 @@
 .env
-data/.deepseek.json
-data/.smtp.json
 __pycache__/
 *.pyc
 *.pyo
@@ -9,7 +7,3 @@ chroma_db/
 *.egg-info/
 dist/
 .pytest_cache/
-
-# 整合:子目录的 .env 也要挡
-rag_backend/.env
-**/.env
