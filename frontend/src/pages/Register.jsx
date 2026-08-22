@@ -236,7 +236,7 @@ export default function Register() {
                 <input
                   type="password"
                   className="input"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Minimum 8 characters"
                   value={form.password}
                   onChange={(e) =>
                     setForm({
