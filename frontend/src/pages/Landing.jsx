@@ -83,7 +83,7 @@ export default function Landing() {
           <h1 className="font-display text-4xl lg:text-5xl font-bold text-app-primary leading-tight">
             Your entire student journey,
             <br />
-            <span className="gradient-text">guided by AI.</span>
+            <span>guided by AI.</span>
           </h1>
           <p className="mt-4 text-app-secondary text-lg max-w-xl mx-auto">
             From discovering the programme to becoming alumni — an intelligent
