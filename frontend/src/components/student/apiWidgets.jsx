@@ -10,16 +10,35 @@ export function useApiCall() {
   const call = useCallback(async (fn) => {
     setLoading(true);
     setError(null);
+
     try {
       const result = await fn();
-      if (!result) {
-        const msg = result.body?.detail || result.body?.error || `Request failed (${result.status})`;
+
+      // null is allowed
+      if (result === null) {
+        return null;
+      }
+
+      if (result?.ok === false) {
+        const msg =
+          result.body?.detail ||
+          result.body?.error ||
+          `Request failed (${result.status})`;
+
         setError(msg);
       }
+
       return result;
     } catch (err) {
       setError(err.message || "Network error");
-      return { ok: false, status: 0, body: { error: err.message } };
+
+      return {
+        ok: false,
+        status: 0,
+        body: {
+          error: err.message,
+        },
+      };
     } finally {
       setLoading(false);
     }
@@ -39,8 +58,6 @@ export function LoadingSpinner({ label = "Loading..." }) {
 
 export function ErrorBanner({ error, onRetry }) {
   if (!error) return null;
-  console.log("error:", error);
-console.log("type:", typeof error);
   return (
     <div className="flex items-center gap-2 rounded-lg p-3 bg-red-500/10 border border-red-400/20 text-sm text-red-400 mb-4">
       <AlertCircle size={16} className="flex-shrink-0" />

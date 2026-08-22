@@ -23,9 +23,6 @@ import {
   createProfile,
   extractProfile,
   getChatHistory,
-  recommendCourses,
-  comparePrograms,
-  createCareerPlan,
   sendMessage as apiSendMessage,
 } from "../../../api";
 import { cn } from "../../utils/cn";
@@ -105,7 +102,6 @@ export default function ChatWorkspace() {
               profile_summary: data.text || "",
             },
           };
-      console.log("extract profile:", response);
       setLandingData({ ...response.prefill, cvFile: data.cvFile });
       setView(WIZARD_FORM);
     } catch (err) {
@@ -118,7 +114,6 @@ export default function ChatWorkspace() {
   const handleGenerate = async (formProfile) => {
     setLoading(true);
     setError(null);
-    console.log("input profile:", formProfile);
     try {
       const profilePayload = {
         lifecycle_stage: formProfile.lifecycle_stage === "applicant" ? "applicant" : "prospect" ,
@@ -147,32 +142,6 @@ export default function ChatWorkspace() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleStartChat = () => {
-    clearMessages();
-    const isApplicant = profile.lifecycle_stage === "applicant";
-    const summary = isApplicant
-      ? `I've completed the profile wizard. My background: ${profile.degree_level || "N/A"} in ${profile.field_of_study || "N/A"}, ${profile.work_years || 0} years work experience, targeting ${profile.target_roles.join(", ") || "general FinTech roles"}. Please help me with my next steps.`
-      : `I'm a current student. Completed modules: ${profile.completed_modules || "none"}. Target roles: ${profile.target_roles.join(", ") || "exploring"}. Please help me plan my next steps.`;
-    addMessage({ role: "user", content: summary, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
-    setIsStreaming(true);
-    setTimeout(() => {
-      addMessage({
-        role: "assistant",
-        content: isApplicant
-          ? "Thanks for sharing your profile! Based on your background and goals, I can help you with eligibility checks, application preparation, programme comparison, and course planning. What would you like to explore first?"
-          : "Great! Based on your completed modules and career goals, I can help with course planning, skill-gap analysis, and career direction. What would you like to dive into?",
-        intent: "Profile Wizard Summary",
-        stage: isApplicant ? "Discover" : "Study",
-        confidence: 0.95,
-        source: "AI Recommendation",
-        agent: agents[0],
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
-      setIsStreaming(false);
-    }, 900);
-    setView(CHAT);
   };
 
   const handleSkip = () => {
@@ -254,7 +223,6 @@ function ChatView({ user, onStartWizard }) {
     const loadHistory = async () => {
       try {
         const response = await getChatHistory(selectedSessionId);
-        console.log("history:", response);
         if (!active) return;
 
         response.turns.forEach((turn) => {
@@ -295,75 +263,10 @@ function ChatView({ user, onStartWizard }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
 
-  const addSpecialistResult = (response, intent) => {
-    const content = intent === "Course Recommendation"
-      ? [
-          "Recommended courses:",
-          ...(response.recommended_courses || []).map((course) => `- ${course.course_code}: ${course.course_title} (${course.priority})`),
-          response.skill_gaps?.length ? `\nSkill gaps: ${response.skill_gaps.join(", ")}` : "",
-          ...(response.notes || []),
-        ].filter(Boolean).join("\n")
-      : intent === "Programme Comparison"
-        ? [
-            response.best_fit_summary,
-            ...(response.comparison_table || []).map((row) => `\n**${row.dimension}**\n${Object.entries(row.values || {}).map(([name, value]) => `- ${name}: ${value}`).join("\n")}`),
-            ...(response.notes || []),
-          ].filter(Boolean).join("\n")
-        : [
-            response.current_fit,
-            response.skill_gaps?.length ? `Skill gaps: ${response.skill_gaps.join(", ")}` : "",
-            response.short_term_actions?.length ? `Short-term actions:\n${response.short_term_actions.map((item) => `- ${item}`).join("\n")}` : "",
-            response.medium_term_actions?.length ? `Medium-term actions:\n${response.medium_term_actions.map((item) => `- ${item}`).join("\n")}` : "",
-            ...(response.notes || []),
-          ].filter(Boolean).join("\n\n");
-
-    addMessage({
-      role: "assistant",
-      content,
-      intent,
-      stage: meta?.stage || "prospect",
-      confidence: 0.9,
-      source: intent,
-      agent: agents.find((agent) => agent.id === (intent === "Programme Comparison" ? "knowledge" : intent === "Career Guidance" ? "career" : "academic")) || agents[0],
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    });
-  };
-
-  const runSuggestedPrompt = async (prompt) => {
-    const targetRole = profile?.target_role_std || profile?.target_role_raw || null;
-    const completedCourses = Array.isArray(profile?.completed_courses) ? profile.completed_courses : [];
-
-    if (prompt.intent === "Course Recommendation") {
-      return recommendCourses({ target_role: targetRole, completed_courses: completedCourses });
-    }
-    if (prompt.intent === "Programme Comparison") {
-      return comparePrograms({ target_role: targetRole, focus: ["curriculum", "fees", "admission", "career"] });
-    }
-    if (prompt.intent === "Career Guidance" || prompt.intent === "Career Prep") {
-      return createCareerPlan({ target_role: targetRole, region: profile?.target_industry_std || null });
-    }
-    return null;
-  };
-
   const sendMessage = async (text, prompt) => {
-    if (prompt) {
-      if (isStreaming) return;
-      addMessage({ role: "user", content: prompt.text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
-      setIsStreaming(true);
-      try {
-        const response = await runSuggestedPrompt(prompt);
-        if (response) {
-          addSpecialistResult(response, prompt.intent);
-          return;
-        }
-      } catch (err) {
-        addMessage({ role: "assistant", content: err.message || "Unable to load this recommendation.", intent: "Error", stage: meta?.stage || "prospect", confidence: 0, source: "System", agent: agents[0], time: "" });
-      } finally {
-        setIsStreaming(false);
-      }
-    }
+    const promptObj = typeof prompt === "string" ? { text: prompt } : prompt;
+    const content = (text || promptObj?.text || input).trim();
 
-    const content = text || input.trim();
     if (!content || isStreaming) return;
 
     addMessage({ role: "user", content, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
@@ -495,7 +398,7 @@ function WelcomeView({ user, meta, prompts, onPrompt, onStartWizard }) {
         </p>
         <button onClick={onStartWizard} className="btn-outline mt-4">
           <Sparkles size={14} />
-          Start profile wizard
+          Create profile
         </button>
       </div>
 
@@ -521,7 +424,7 @@ function WelcomeView({ user, meta, prompts, onPrompt, onStartWizard }) {
           {prompts.map((p, i) => (
             <button
               key={i}
-              onClick={() => onPrompt(p.text)}
+              onClick={() => onPrompt(p)}
               className="group flex items-center gap-3 rounded-xl p-3.5 glass-light hover:border-brand-400/30 hover:bg-brand-500/5 transition-all text-left"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-300 flex-shrink-0">
@@ -543,7 +446,7 @@ function UserMessage({ msg }) {
   return (
     <div className="flex gap-3 justify-end animate-fadeIn">
       <div className="max-w-[80%]">
-        <div className="rounded-2xl rounded-tr-sm bg-brand-500 text-app-primary px-4 py-2.5 text-sm">
+        <div className="rounded-2xl rounded-tr-sm bg-brand-500 text-white px-4 py-2.5 text-sm">
           {msg.content}
         </div>
         <p className="text-[10px] text-app-faint mt-1 text-right">{msg.time}</p>
@@ -567,7 +470,7 @@ function AssistantMessage({ msg }) {
 
   return (
     <div className="flex gap-3 animate-fadeIn">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-royal-600 text-app-primary flex-shrink-0">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10 text-brand-300 flex-shrink-0">
         <Bot size={16} />
       </div>
       <div className="flex-1 min-w-0">

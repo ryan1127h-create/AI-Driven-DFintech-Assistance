@@ -1,5 +1,6 @@
 import { getProfile, updateProfile } from "../../api";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User, GraduationCap, Briefcase, Award, Globe, Calendar, BookOpen,
   RefreshCw, Save, X, Pencil,
@@ -43,6 +44,7 @@ const roleLabelMap = Object.fromEntries(
 );
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const { loading, error, call, setError } = useApiCall();
   const [profile, setProfile] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -52,8 +54,10 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     const result = await call(() => getProfile());
 
-    if (result != null) {
-      setProfile(result);
+    setProfile(result); // result can be object or null
+
+    if (result === null) {
+      setError(null);
     }
   };
 
@@ -122,8 +126,8 @@ export default function ProfilePage() {
     return (
       <div className="max-w-3xl mx-auto animate-fadeIn">
         <PageHeader icon={User} title="My Profile" subtitle="Your structured applicant profile." />
-        <ErrorBanner error={error} />
-        <div className="card p-8 text-center">
+        {/* <ErrorBanner error={error} /> */}
+        {/* <div className="card p-8 text-center">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-app-hover text-app-muted mb-4">
             <User size={28} />
           </div>
@@ -135,6 +139,37 @@ export default function ProfilePage() {
             <RefreshCw size={14} /> Retry
           </button>
         </div>
+         */}
+         <div className="card p-8 text-center">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-app-hover text-app-muted mb-4">
+              <User size={28} />
+            </div>
+
+            <p className="text-sm font-medium text-app-primary mb-1">
+              No profile yet
+            </p>
+
+            <p className="text-xs text-app-muted mb-4">
+              Upload your CV and create your MSc DFT profile to unlock personalised recommendations.
+            </p>
+
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={() => navigate("/app")}
+                className="btn-primary"
+              >
+                Create Profile
+              </button>
+
+              <button
+                onClick={fetchProfile}
+                className="btn-outline"
+              >
+                <RefreshCw size={14} />
+                Retry
+              </button>
+            </div>
+          </div>
       </div>
     );
   }

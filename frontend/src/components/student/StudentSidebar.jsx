@@ -38,11 +38,13 @@ import {
   X,
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
+import { useChat } from "../../context/ChatContext";
 import { ROLE_META, ROLES } from "../../data/roles";
 import { recentConversations as initialConversations, savedPlans, notifications } from "../../data/conversations";
 import { cn } from "../../utils/cn";
 import nusLogo from "../../assets/nus_logo.png";
 import { getChatSessions, logout as apiLogout } from "../../../api";
+
 
 const workspaceNav = {
   [ROLES.PROSPECTIVE]: [
@@ -110,6 +112,7 @@ const notifDot = {
 
 export default function StudentSidebar() {
   const { user, logout } = useRole();
+  const { clearMessages } = useChat();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState("recent");
@@ -128,7 +131,6 @@ export default function StudentSidebar() {
       setSessionsLoading(true);
       try {
         const response = await getChatSessions();
-        console.log("chat session:", response);
         if (!active) return;
 
         setConversations(
@@ -170,6 +172,10 @@ export default function StudentSidebar() {
 
   const handleProfile = () => {
     navigate("/workspace/profile");
+  };
+
+  const handleChecklist = () => {
+    navigate("/workspace/checklist");
   };
 
   const openConversation = (c) => {
@@ -256,14 +262,42 @@ export default function StudentSidebar() {
 
       {/* New Chat */}
       <div className="px-3 pb-2">
-        <button onClick={() => navigate("/app", { replace: true })} className="btn-primary w-full justify-center">
+        <button onClick={() => {clearMessages(); navigate("/app", { replace: true })}} className="btn-primary w-full justify-center">
           <Plus size={16} />
           New Chat
         </button>
       </div>
 
+      {/* Quick Access */}
+      <div className="px-3 py-2">
+        <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-app-faint">
+          Quick Access
+        </p>
+
+        <div className="space-y-0.5">
+          <button
+            onClick={handleProfile}
+            className="sidebar-item w-full text-left"
+          >
+            <User size={13} />
+            <span className="text-sm">Profile</span>
+          </button>
+
+          <button
+            onClick={handleChecklist}
+            className="sidebar-item w-full text-left"
+          >
+            <ListChecks size={13} />
+            <span className="text-sm">Checklist</span>
+          </button>
+        </div>
+      </div>
+
       {/* Scrollable area */}
       <div className="flex-1 overflow-y-auto px-3 py-2">
+        <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-app-faint">
+          Chats
+        </p>
         {/* Conversation tabs */}
         <div className="flex gap-1 mb-2 px-1">
           {[
@@ -463,15 +497,6 @@ export default function StudentSidebar() {
               {meta?.label}
             </p>
           </div>
-
-          {/* Profile */}
-          <button
-            onClick={handleProfile}
-            className="p-1 text-app-faint hover:text-brand-400 transition"
-            title="Profile"
-          >
-            <User size={14} />
-          </button>
 
           {/* Logout */}
           <button

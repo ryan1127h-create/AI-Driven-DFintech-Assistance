@@ -54,7 +54,7 @@ function normaliseInitial(initial) {
   return {
     lifecycle_stage: initial?.lifecycle_stage === "applicant" ? "applicant" : "prospect",
     application_type: initial?.application_type || "",
-    degree_level: initial?.degree_level || "",
+    // degree_level: initial?.degree_level || "",
     academic_background_std: initial?.academic_background_std || initial?.field_of_study || "",
     academic_background_raw: initial?.academic_background_raw || "",
     school_tier: initial?.school_tier || "",
@@ -133,9 +133,9 @@ export default function FormStep({ initial, onBack, onSave, loading, error }) {
         <section className="card p-5 space-y-4">
           <SectionHeading icon={GraduationCap} title="Academic Background" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Highest degree">
+            {/* <FormField label="Highest degree">
               <Select options={degreeOptions} value={form.degree_level} onChange={(event) => setField("degree_level", event.target.value)} />
-            </FormField>
+            </FormField> */}
             <FormField label="Academic background">
               <Select options={academicOptions} value={form.academic_background_std} onChange={(event) => setField("academic_background_std", event.target.value)} />
             </FormField>

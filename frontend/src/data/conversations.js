@@ -4,12 +4,12 @@ import { ROLES } from "./roles";
 
 export const suggestedPrompts = {
   [ROLES.PROSPECTIVE]: [
-    { icon: "CheckCircle", text: "Am I eligible for MSc DFT?", intent: "Eligibility Check" },
-    { icon: "GitCompare", text: "Compare MSc DFT with similar programmes", intent: "Programme Comparison" },
-    { icon: "TrendingUp", text: "View career outcomes for graduates", intent: "Career Outcomes" },
-    { icon: "BookOpen", text: "Explore modules and specialisation tracks", intent: "Curriculum Browse" },
-    { icon: "DollarSign", text: "What scholarships are available?", intent: "Scholarship Info" },
-    { icon: "Calendar", text: "What are the application deadlines?", intent: "Deadline Info" },
+    { icon: "CheckCircle", text: "Am I eligible for MSc DFT?", intent: "Assessment" },
+    { icon: "GitCompare", text: "Compare programmes", intent: "Programme Comparison" },
+    { icon: "TrendingUp", text: "Career Planning", intent: "Career" },
+    { icon: "BookOpen", text: "Course Recommendations", intent: "Academic" },
+    { icon: "DollarSign", text: "What scholarships are available?", intent: "Financial" },
+    { icon: "Calendar", text: "Application deadlines", intent: "Admission" },
   ],
   [ROLES.APPLICANT]: [
     { icon: "Activity", text: "Check my application status", intent: "Status Check" },

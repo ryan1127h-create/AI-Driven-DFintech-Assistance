@@ -33,7 +33,7 @@ export default function ResultsStep({ results, onBack, onStartChat }) {
     career_pathways: "Career Pathways",
   };
   const isApplicant = profile.lifecycle_stage === "applicant";
-  console.log("ResultsStep: results", results, "profile", profile, "material_analysis", material_analysis, "material_summary", material_summary, "r", r, "recommendation", recommendation, "tracker", tracker, "checklist", checklist, "comparison", comparison, "escalation", escalation);
+  // console.log("ResultsStep: results", results, "profile", profile, "material_analysis", material_analysis, "material_summary", material_summary, "r", r, "recommendation", recommendation, "tracker", tracker, "checklist", checklist, "comparison", comparison, "escalation", escalation);
   
   const sections = [];
   if (material_analysis.length > 0) sections.push({ id: "materials", icon: "📎", label: "Material analysis" });

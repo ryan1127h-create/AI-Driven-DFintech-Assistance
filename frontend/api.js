@@ -186,7 +186,7 @@ export async function extractProfile(formData) {
   return {
     prefill: {
       lifecycle_stage:
-        profile.lifecycle_stage === "enrolled" || profile.lifecycle_stage === "alumni" ? "current" : "applicant",
+        profile.lifecycle_stage === "applicant" ? "applicant" : "prospect",
       degree_level: "",
       field_of_study: profile.academic_background_std || "",
       academic_background_std: profile.academic_background_std || "",
@@ -198,30 +198,11 @@ export async function extractProfile(formData) {
       target_role_raw: profile.target_role_raw || "",
       completed_modules: Array.isArray(profile.completed_courses) ? profile.completed_courses.join(", ") : "",
       completed_courses: Array.isArray(profile.completed_courses) ? profile.completed_courses : [],
-      country: "",
       application_type: "",
       finance_knowledge: "",
-      priority: "role_fit",
       parsed_lifecycle_stage: lifecycle,
-      profile_summary: formData?.text || "",
     },
   };
-}
-
-export async function generateAdvice(payload) {
-  const response = await fetch(
-    buildUrl("/career-plans"),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-
-  return handleResponse(response);
 }
 
 export async function getProfile() {
@@ -279,6 +260,19 @@ export async function getChecklist() {
   const response = await fetch(buildUrl("/checklist"), {
     headers: getAuthHeaders(),
   });
+  return handleResponse(response);
+}
+
+export async function uploadChecklistItemFile(itemId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(buildUrl(`/checklist/items/${encodeURIComponent(itemId)}/file`), {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+
   return handleResponse(response);
 }
 
