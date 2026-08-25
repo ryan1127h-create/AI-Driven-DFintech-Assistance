@@ -1,0 +1,9 @@
+export { AdminDashboard } from "./AdminDashboard.jsx";
+export { InquiriesPage } from "./InquiriesPage.jsx";
+export { EscalationsPage } from "./EscalationsPage.jsx";
+export { ApplicationsPage } from "./ApplicationsPage.jsx";
+export { StudentsPage } from "./StudentsPage.jsx";
+export { KnowledgeBasePage } from "./KnowledgeBasePage.jsx";
+export { AnalyticsPage } from "./AnalyticsPage.jsx";
+export { ActivityLogsPage } from "./ActivityLogsPage.jsx";
+export { SettingsPage } from "./SettingsPage.jsx";
