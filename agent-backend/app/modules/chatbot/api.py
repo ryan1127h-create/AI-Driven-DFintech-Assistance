@@ -169,13 +169,32 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
 
+        # `lock_released` tracks whether the block below has already done it,
+        # so the `finally` doesn't call it a second time on the normal path.
+        #
         # try/finally so the processing lock is always released even if the
         # client disconnects mid-stream (Starlette raises GeneratorExit into
         # this generator at the current yield in that case).
+        lock_released = False
         try:
             while (item := q.get()) is not None:
                 yield _sse(item["type"], item)
             thread.join()
+
+            # Release the processing lock now, right after run_turn()
+            # finishes — same point POST /chat releases it (see that
+            # endpoint above) — and BEFORE the freeze-scheduling block
+            # below. That block's store.try_lock(..., "summarizing", ...)
+            # is a CAS that only succeeds when this session's status is
+            # 'normal' (or stale); releasing late (the previous behavior:
+            # only in `finally`, after the "done" event) meant this
+            # request's own still-held "processing" status made that CAS
+            # fail every single time, so should_freeze()-triggered blocks
+            # were never actually scheduled via this endpoint — the raw
+            # tail grew unboundedly instead of ever being archived.
+            if is_existing_session:
+                store.release_lock(session_id)
+                lock_released = True
 
             if "error" in outcome:
                 exc = outcome["error"]
@@ -200,7 +219,7 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
                 "agent_used": result.agent_used,
             })
         finally:
-            if is_existing_session:
+            if is_existing_session and not lock_released:
                 store.release_lock(session_id)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream", background=background_tasks)
