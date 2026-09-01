@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { GraduationCap, LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
-import { login as authLogin } from '../services/authService';
 import { login as apiLogin } from "../../api";
 import { useRole } from "../../src/context/RoleContext";
 import ThemeToggle from "../components/ThemeToggle";

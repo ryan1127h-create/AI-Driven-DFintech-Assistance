@@ -6,7 +6,6 @@ import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import ProfilePage from "./pages/ProfilePage";
-import AdminRegister from "./pages/AdminRegister";
 import StudentLayout from "./components/student/StudentLayout";
 import ChatWorkspace from "./components/student/ChatWorkspace";
 import WorkspaceLayout from "./components/student/WorkspaceLayout";
@@ -46,7 +45,6 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/admin/register" element={<AdminRegister />} />
 
             {/* Student Portal */}
             <Route path="/app" element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>

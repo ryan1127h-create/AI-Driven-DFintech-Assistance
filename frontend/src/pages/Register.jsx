@@ -6,7 +6,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-// import { register } from "../services/authService";
 import { register } from "../../api";
 import ThemeToggle from "../components/ThemeToggle";
 import nusLogo from "../assets/nus_logo.png";

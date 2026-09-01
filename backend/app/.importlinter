@@ -1,0 +1,30 @@
+[importlinter]
+root_package = app
+
+[importlinter:contract:layers]
+name = app layered architecture
+type = layers
+layers =
+    app.api
+    app.orchestrator
+    app.tools
+    app.domains
+    app.adapters
+    app.ports
+    app.core
+
+; auth (identity) and checklist (the résumé file profile reads) are the two
+; domains everything else may legitimately depend on; profile sits above
+; checklist, course_recommendation above profile, career_planning/
+; program_comparison above course_recommendation. Domains listed on the
+; same line, separated by "|", are siblings: neither may import the other.
+[importlinter:contract:domain-layers]
+name = domains form their own internal dependency order
+type = layers
+layers =
+    app.domains.escalation | app.domains.application_tracker | app.domains.alumni_match
+    app.domains.career_planning | app.domains.program_comparison
+    app.domains.course_recommendation
+    app.domains.profile
+    app.domains.checklist | app.domains.knowledge_retrieval
+    app.domains.auth | app.domains.course_catalog

@@ -1,31 +1,31 @@
-# Render Blueprint — defines both always-on backend services in one place.
+# Render Blueprint — defines the backend service.
 # https://render.com/docs/blueprint-spec
 #
 # Deploy: push this repo to GitHub, then in the Render dashboard use
 # "New +" -> "Blueprint" and point it at the repo. Render reads this file
-# and creates both services below. Any envVar marked `sync: false` is a
+# and creates the service below. Any envVar marked `sync: false` is a
 # secret that is NOT stored in this file — Render will prompt you to fill
-# it in from the dashboard (copy the value from the local .env / backend/.env
-# files, which are not committed to the repo).
+# it in from the dashboard (copy the value from the local .env file, which
+# is not committed to the repo).
 #
-# `agent-backend` is a long-lived process on purpose (not a serverless
-# function): POST /chat/stream holds a background thread + blocking queue
-# open for the lifetime of the SSE connection (see
-# agent-backend/app/modules/chatbot/api.py) — this only works on a platform
-# that keeps the process running, which is exactly what a Render "web
-# service" (as opposed to a serverless/edge function) provides.
+# This is a long-lived process on purpose (not a serverless function):
+# POST /chat/stream holds a background thread + blocking queue open for the
+# lifetime of the SSE connection (see backend/app/orchestrator/api.py) —
+# this only works on a platform that keeps the process running, which is
+# exactly what a Render "web service" (as opposed to a serverless/edge
+# function) provides.
 
 services:
   - type: web
-    name: agent-backend
+    name: backend
     runtime: python
-    rootDir: agent-backend
+    rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/v1/health
     envVars:
-      # LLM provider (see app/clients/deepseek_client.py)
+      # LLM provider (see app/adapters/deepseek_adapter.py)
       - key: DEEPSEEK_API_KEY
         sync: false
       - key: DEEPSEEK_BASE_URL
@@ -34,7 +34,7 @@ services:
         value: deepseek-chat
 
       # Session storage — durable Postgres with a Redis cache-aside layer
-      # (see app/modules/chatbot/repository.py)
+      # (see app/orchestrator/conversation_repository.py)
       - key: SESSION_STORE_BACKEND
         value: supabase_cached
       - key: REDIS_URL
@@ -42,15 +42,17 @@ services:
       - key: CONVERSATION_DATABASE_URL
         sync: false
 
-      # Read-only knowledge base for RAG (see app/repositories/knowledge_repository.py)
+      # Read-only knowledge base for RAG and the raw course catalog (see
+      # app/adapters/knowledge_db_adapter.py)
       - key: KNOWLEDGE_DATABASE_URL
         sync: false
       # Used only to embed RAG queries (text-embedding-3-small) — unrelated
-      # to DEEPSEEK_API_KEY above, see app/clients/openai_client.py
+      # to DEEPSEEK_API_KEY above, see app/adapters/openai_embedding_adapter.py
       - key: OPENAI_API_KEY
         sync: false
 
-      # Supabase Storage for checklist file uploads (see app/clients/storage_client.py)
+      # Supabase Storage for checklist file uploads (see
+      # app/adapters/supabase_storage_adapter.py)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
@@ -58,26 +60,13 @@ services:
       - key: CHECKLIST_STORAGE_BUCKET
         value: checklist-documents
 
-      # Self-issued JWT auth (see app/modules/auth/security.py) — must be a
+      # Self-issued JWT auth (see app/domains/auth/security.py) — must be a
       # long random string; app refuses to start if this is missing/short.
       - key: JWT_SECRET_KEY
         sync: false
 
-      # Comma-separated list of allowed frontend origins (see app/main.py) —
-      # fill this in with the deployed Vercel URL once it exists, e.g.
+      # Comma-separated list of allowed frontend origins (see app/main.py)
+      # — fill this in with the deployed Vercel URL once it exists, e.g.
       # https://your-app.vercel.app
       - key: CORS_ALLOW_ORIGINS
-        sync: false
-
-  - type: web
-    name: backend
-    runtime: node
-    rootDir: backend
-    plan: free
-    buildCommand: npm install
-    startCommand: node server.js
-    envVars:
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SECRET_KEY
         sync: false

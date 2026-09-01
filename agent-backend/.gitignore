@@ -1,9 +1,0 @@
-.env
-__pycache__/
-*.pyc
-*.pyo
-.claude/
-chroma_db/
-*.egg-info/
-dist/
-.pytest_cache/

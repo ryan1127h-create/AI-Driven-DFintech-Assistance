@@ -4,7 +4,7 @@ import { curriculum, tracks } from "../../../data/programme";
 import { PageHeader, LoadingState } from "../PageParts";
 import { Card, Badge } from "../../ui";
 import { cn } from "../../../utils/cn";
-import { getCourses } from "../../../services/courseServices";
+import { getCourses } from "../../../../api";
 import CourseModal from "../CourseModal";
 
 const sectionAccent = {

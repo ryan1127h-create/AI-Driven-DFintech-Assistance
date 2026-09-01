@@ -332,6 +332,11 @@ export async function getChecklist() {
   return handleResponse(response);
 }
 
+export async function getCourses() {
+  const response = await fetch(buildUrl("/courses"));
+  return handleResponse(response);
+}
+
 export async function uploadChecklistItemFile(itemId, file) {
   const formData = new FormData();
   formData.append("file", file);

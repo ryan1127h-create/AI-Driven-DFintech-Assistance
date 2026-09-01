@@ -3,45 +3,32 @@ This is a repository for AI-Driven Assistance in DFintech
 
 # Project Setup Guide
 
-This project consists of three main components:
+This project consists of two main components:
 
-- **backend** – Handles data retrieval and storage with Supabase.
-- **agent-backend** – Hosts the AI agents and FastAPI services.
+- **backend** – FastAPI service hosting the AI agents, orchestrator, and all business/data endpoints (Postgres via Supabase, Redis, DeepSeek, OpenAI embeddings).
 - **frontend** – React frontend application.
 
 ---
 
 ## Backend
 
-Used to retrieve and manage data from Supabase.
-
-### Setup & Run
-
-```bash
-cd backend
-npm install
-node server.js
-```
-
----
-
-## Agent Backend
-
 Used to manage AI agents, workflows, and API services.
 
 ### Setup
 
 ```bash
-cd agent-backend
-
+cd backend
+python -m venv .venv
+.venv\Scripts\activate      # Windows
 pip install -r requirements.txt
-pip install werkzeug flask langchain-openai
 ```
+
+Configuration is read from a `.env` file in the repo root (see `render.yaml` for the full list of required variables).
 
 ### Run
 
 ```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 The API will be available at:
@@ -49,6 +36,8 @@ The API will be available at:
 ```text
 http://localhost:8000
 ```
+
+API docs: `http://localhost:8000/docs`
 
 ---
 
@@ -81,6 +70,8 @@ The frontend will be available at:
 http://localhost:5173
 ```
 
+`frontend/.env`'s `VITE_API_BASE` should point at the backend above (e.g. `http://localhost:8000/api/v1`).
+
 ---
 
 ## Startup Order
@@ -88,19 +79,14 @@ http://localhost:5173
 For local development, start the services in the following order:
 
 1. Backend
-2. Agent Backend
-3. Frontend
+2. Frontend
 
 ```bash
 # Terminal 1
 cd backend
-node server.js
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2
-cd agent-backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# Terminal 3
 cd frontend
 npm run dev
 ```

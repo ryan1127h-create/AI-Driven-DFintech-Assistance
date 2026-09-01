@@ -52,7 +52,7 @@ const SETTINGS_STATUS = {
 // this point") button. This is a UI display cap, not a safety boundary — the
 // real boundary is each message's `archived` flag (an archived turn, and
 // everything before it, can never be rolled back — see
-// agent-backend/app/modules/chatbot/service.py::rollback_conversation) plus
+// backend/app/orchestrator/turn_service.py::rollback_conversation) plus
 // the backend's own validation on every request regardless of what the UI
 // sends.
 const MAX_ROLLBACK_TURNS = 5;
@@ -279,8 +279,8 @@ function ChatView({ user, onStartWizard }) {
             source: isAi ? (turn.agent_used || "AI Assistant") : undefined,
             agent: isAi ? (agents.find((a) => a.id === turn.agent_used) || agents[0]) : undefined,
             // Frozen/archived turns can never be rolled back (see
-            // agent-backend service.py::rollback_conversation) — drives
-            // whether this message is eligible for the rollback button.
+            // backend/app/orchestrator/turn_service.py::rollback_conversation)
+            // — drives whether this message is eligible for the rollback button.
             archived: turn.archived,
           });
         });

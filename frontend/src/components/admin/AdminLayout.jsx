@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageSquare, AlertTriangle, FileText, Users,
   BookOpen, BarChart3, ScrollText, Settings, GraduationCap, LogOut,
-  ChevronLeft, Search, UserPlus,
+  ChevronLeft, Search,
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { cn } from "../../utils/cn";
@@ -13,12 +13,9 @@ import nusLogo from "../../assets/nus_logo.png";
 
 
 export default function AdminLayout() {
-  const { user, role, logout } = useRole();
+  const { user, logout } = useRole();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-  const isSystemAdmin = role === "System Admin";
-  console.log(isSystemAdmin)
-
   const navItems = [
     { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/admin/inquiries", label: "Inquiries", icon: MessageSquare },
@@ -28,15 +25,6 @@ export default function AdminLayout() {
     { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
     { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     { to: "/admin/logs", label: "Activity Logs", icon: ScrollText },
-    ...(isSystemAdmin
-      ? [
-          {
-            to: "/admin/register",
-            label: "Staff Registration",
-            icon: UserPlus,
-          },
-        ]
-      : []),
     { to: "/admin/settings", label: "Settings", icon: Settings },
   ];
 
