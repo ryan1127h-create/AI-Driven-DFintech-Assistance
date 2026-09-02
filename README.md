@@ -70,7 +70,7 @@ The frontend will be available at:
 http://localhost:5173
 ```
 
-`frontend/.env`'s `VITE_API_BASE` should point at the backend above (e.g. `http://localhost:8000/api/v1`).
+The repo-root `.env`'s `VITE_API_BASE` should point at the backend above (e.g. `http://localhost:8000/api/v1`).
 
 ---
 
@@ -90,5 +90,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend
 npm run dev
 ```
+
+---
+
+## Contributing
+
+Code standards and commit/PR rules: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
