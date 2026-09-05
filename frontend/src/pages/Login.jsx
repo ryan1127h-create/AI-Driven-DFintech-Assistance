@@ -1,23 +1,21 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { GraduationCap, LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
+import { LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
 import { login as apiLogin } from "../../api";
 import { useRole } from "../../src/context/RoleContext";
 import ThemeToggle from "../components/ThemeToggle";
 import { cn } from "../utils/cn";
 import nusLogo from "../assets/nus_logo.png";
 
+// ids match the backend's real role values exactly (see
+// backend/app/domains/auth/schemas.py::Role) — the tab the user picks is
+// sent as part of the login request and checked against the account's
+// actual stored role (see service.py::login), so picking the wrong tab is
+// rejected with a clear message rather than silently logging in anyway.
 const tabs = [
   { id: "applicant", label: "Applicant", icon: User, hint: "Prospective & applying students" },
-  { id: "student", label: "Current Student", icon: BookOpen, hint: "Enrolled, graduating & alumni" },
+  { id: "enrolled_student", label: "Enrolled Student", icon: BookOpen, hint: "Requires an @u.nus.edu email address" },
   { id: "admin", label: "Staff / Admin", icon: ShieldCheck, hint: "Management portal" },
-];
-const adminRoles = [
-  "System Admin",
-  "Admissions Staff",
-  "Career Advisor",
-  "Program Office",
-  "Faculty Support",
 ];
 
 export default function Login() {
@@ -29,74 +27,23 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login: setAuth } = useRole();
 
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
-
-  //   setError(null);
-  //   setLoading(true);
-
-  //   try {
-  //     const response =
-  //       await login({
-  //         email,
-  //         password
-  //       });
-
-  //     const { session, user, roles } = response.data;
-
-  //     const role = roles?.[0]?.roles?.role_name || null;
- 
-  //     setAuth({
-  //       session,
-  //       user,
-  //       role,
-  //     });
-
-  //     const roleNames =
-  //       roles.map(
-  //         role => role.roles.role_name
-  //       );
-
-  //     if (adminRoles.some(role => roleNames.includes(role))) {
-  //       navigate("/admin");
-  //     } else {
-  //       navigate("/app");
-  //     }
-
-  //   } catch (err) {
-
-  //     setError(
-  //       err.message ||
-  //       "Failed to sign in."
-  //     );
-
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-   const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError(null);
+
+    if (tab === "enrolled_student" && !email.trim().toLowerCase().endsWith("@u.nus.edu")) {
+      setError("Enrolled student accounts use an @u.nus.edu email address.");
+      return;
+    }
+
     setLoading(true);
-
     try {
-      const response =
-        await apiLogin({
-          email,
-          password
-        });
-      const { access_token, token_type, expires_in } = response;
+      const response = await apiLogin({ email, password, role: tab });
+      const { access_token, user } = response;
 
-      setAuth({
-        access_token,
-        user: {
-          email,
-        },
-        role: "Prospective Student",
-      });
+      setAuth({ access_token, user, role: user.role });
 
-      navigate("/app");
+      navigate(user.role === "admin" ? "/admin" : "/app");
 
     } catch (err) {
       console.error("LOGIN ERROR:", err);
@@ -137,12 +84,13 @@ export default function Login() {
           </div>
 
           {/* Role tabs */}
-          {/* <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {tabs.map((t) => {
               const TIcon = t.icon;
               return (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => setTab(t.id)}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-xl p-3 border transition-all",
@@ -156,9 +104,9 @@ export default function Login() {
                 </button>
               );
             })}
-          </div> */}
+          </div>
 
-          {/* <p className="text-center text-xs text-app-muted mb-6">{tabs.find((t) => t.id === tab).hint}</p> */}
+          <p className="text-center text-xs text-app-muted mb-6">{tabs.find((t) => t.id === tab).hint}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -174,7 +122,7 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={tab === "enrolled_student" ? "you@u.nus.edu" : "you@example.com"}
                 className="input"
               />
             </div>
@@ -195,7 +143,7 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center text-sm text-app-muted">
-            {tab === "applicant" && (
+            {tab !== "admin" && (
               <p>New to MSc DFT? <Link to="/register" className="text-brand-300 hover:underline">Register your profile</Link></p>
             )}
           </div>

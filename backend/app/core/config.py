@@ -81,6 +81,22 @@ class Settings:
     # before the processing lock would be considered stale.
     dispatch_branch_timeout_seconds: int = int(os.getenv("DISPATCH_BRANCH_TIMEOUT_SECONDS", "45"))
 
+    # Whether the orchestrator runs its post-answer evaluation step (see
+    # orchestrator/evaluation.py) — one extra cheap LLM call per turn (skipped
+    # entirely for "general" chat and whenever a tool already signalled
+    # needs_clarification) that checks a draft answer actually covers what
+    # was asked before it's returned. A kill switch, not a normal per-request
+    # knob — useful for isolating cost/latency during load testing.
+    enable_answer_evaluation: bool = os.getenv("ENABLE_ANSWER_EVALUATION", "true").lower() == "true"
+
+    # Whether the orchestrator's final-step reply-language conversion runs
+    # (see orchestrator/localization.py) — every generation prompt answers
+    # in English regardless; this is the one step that, when the user's
+    # question wasn't in English, rewrites the finished answer into that
+    # language before it's returned. A kill switch, same rationale as
+    # enable_answer_evaluation above.
+    enable_localization: bool = os.getenv("ENABLE_LOCALIZATION", "true").lower() == "true"
+
     # Object storage — checklist file uploads. Same Supabase project as
     # conversation_database_url, but a separate API-style credential (a
     # project URL + service_role key, not a Postgres DSN), since Storage is
@@ -88,6 +104,19 @@ class Settings:
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     checklist_storage_bucket: str = os.getenv("CHECKLIST_STORAGE_BUCKET", "checklist-documents")
+
+    # Email verification codes (see app/domains/auth/service.py +
+    # app/adapters/resend_email_adapter.py). Unset RESEND_API_KEY makes the
+    # adapter print the code to the server log instead of emailing it — a
+    # deliberate dev-mode fallback, not an error, so registration is
+    # testable without a Resend account.
+    resend_api_key: str = os.getenv("RESEND_API_KEY", "")
+    email_from_address: str = os.getenv("EMAIL_FROM_ADDRESS", "onboarding@resend.dev")
+    email_verification_ttl_seconds: int = int(os.getenv("EMAIL_VERIFICATION_TTL_SECONDS", "600"))
+    email_verification_resend_cooldown_seconds: int = int(
+        os.getenv("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS", "60")
+    )
+    email_verification_max_attempts: int = int(os.getenv("EMAIL_VERIFICATION_MAX_ATTEMPTS", "5"))
 
     # CORS — comma-separated list of allowed frontend origins. Deliberately
     # not "*": that combined with allow_credentials=True isn't a valid CORS

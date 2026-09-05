@@ -11,6 +11,8 @@ uses it, so there's no existing convention to match.
 
 from __future__ import annotations
 
+import hashlib
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -34,7 +36,29 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_access_token(user_id: str, email: str) -> tuple[str, int, str]:
+def generate_verification_code() -> str:
+    """A 6-digit numeric code, zero-padded — secrets.randbelow(), not the
+    `random` module, since this needs to be unguessable, not just
+    unpredictable-looking."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_code(code: str) -> str:
+    """SHA-256, not bcrypt: a verification code's brute-force resistance
+    comes from its short TTL and capped attempt count (see
+    domains/auth/service.py), not from a deliberately slow hash — bcrypt's
+    cost factor would just add latency to every check for no benefit here.
+    Passwords (hash_password above) are the opposite case: no TTL/attempt
+    cap bounds a password's exposure, so the slow hash is what's doing the
+    work there."""
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+def verify_code(code: str, code_hash: str) -> bool:
+    return hashlib.sha256(code.encode("utf-8")).hexdigest() == code_hash
+
+
+def create_access_token(user_id: str, email: str, role: str) -> tuple[str, int, str]:
     """Returns (token, expires_in_seconds, jti) — callers that need the jti
     (e.g. to blacklist it on logout) get it back without decoding the token
     they just made."""
@@ -44,6 +68,7 @@ def create_access_token(user_id: str, email: str) -> tuple[str, int, str]:
     payload = {
         "sub": str(user_id),
         "email": email,
+        "role": role,
         "jti": jti,
         "iat": now,
         "exp": now + timedelta(seconds=expires_in),

@@ -129,25 +129,17 @@ try {
       role: profile?.role || null,
       loading,
 
-      isAdmin:
-        profile?.role === "System Admin",
+      // Three real roles now come back from the backend (see
+      // backend/app/domains/auth/schemas.py::SelfRegisterableRole +
+      // 'admin'): "applicant", "enrolled_student", "admin". isStaff is kept
+      // as its own flag (rather than every caller just checking isAdmin
+      // directly) so a future non-admin staff role doesn't require
+      // touching every call site that gates on "can see the admin area".
+      isAdmin: profile?.role === "admin",
 
-      isStaff: [
-        "System Admin",
-        "Admissions Staff",
-        "Career Advisor",
-        "Program Office",
-        "Faculty Support",
-      ].includes(profile?.role),
+      isStaff: profile?.role === "admin",
 
-      isStudent: [
-        "Applicant",
-        "Prospective Student",
-        "Admitted Student",
-        "Enrolled Student",
-        "Graduating Student",
-        "Alumni",
-      ].includes(profile?.role),
+      isStudent: ["applicant", "enrolled_student"].includes(profile?.role),
 
       logout,
       login,

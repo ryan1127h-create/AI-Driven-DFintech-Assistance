@@ -51,24 +51,34 @@ export async function logout(){
   return handleResponse(response);
 } 
 
-// Register
+// Register — two steps: register() starts it and emails a 6-digit code (no
+// account exists yet, no token), verifyEmail() completes it and logs the
+// new account in (see backend/app/domains/auth/service.py).
 export async function register(data) {
-  const response = await fetch(buildUrl("/auth/register"),{
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    }
-  );
+  const response = await fetch(buildUrl("/auth/register"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(response);
+}
 
-  const result = await response.json();
+export async function verifyEmail({ email, code }) {
+  const response = await fetch(buildUrl("/auth/verify-email"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  return handleResponse(response);
+}
 
-  if (!response.ok) {
-    throw new Error(JSON.stringify(result));
-  }
-
-  return result;
+export async function resendVerificationCode(email) {
+  const response = await fetch(buildUrl("/auth/resend-code"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return handleResponse(response);
 }
 
 export async function sendMessage(message, extra = {}) {

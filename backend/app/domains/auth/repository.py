@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from app.adapters.conversation_db_adapter import conversation_db
 
-_COLUMNS = ("user_id", "email", "full_name", "account_status", "password_hash")
+_COLUMNS = ("user_id", "email", "full_name", "account_status", "password_hash", "role")
 
 
 def _row_to_dict(row: tuple | None) -> dict | None:
@@ -33,14 +33,14 @@ def get_by_id(user_id: str) -> dict | None:
     return _row_to_dict(row)
 
 
-def create(email: str, password_hash: str, full_name: str) -> dict:
+def create(email: str, password_hash: str, full_name: str, role: str) -> dict:
     row = conversation_db.execute_returning(
         """
-        insert into student.users (email, password_hash, full_name, account_status)
-        values (%s, %s, %s, 'active')
-        returning user_id, email, full_name, account_status, password_hash
+        insert into student.users (email, password_hash, full_name, account_status, role)
+        values (%s, %s, %s, 'active', %s)
+        returning user_id, email, full_name, account_status, password_hash, role
         """,
-        (email, password_hash, full_name),
+        (email, password_hash, full_name, role),
     )
     return _row_to_dict(row)
 
