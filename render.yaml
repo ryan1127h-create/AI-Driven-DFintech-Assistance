@@ -65,6 +65,17 @@ services:
       - key: JWT_SECRET_KEY
         sync: false
 
+      # Email verification codes for registration (see
+      # app/domains/auth/service.py + app/adapters/resend_email_adapter.py).
+      # Without RESEND_API_KEY, the adapter silently falls back to printing
+      # the code to the server log instead of emailing it — fine for local
+      # dev, but means real users on this deployment would never receive
+      # their verification code, so this must be set here.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+
       # Comma-separated list of allowed frontend origins (see app/main.py)
       # — fill this in with the deployed Vercel URL once it exists, e.g.
       # https://your-app.vercel.app
