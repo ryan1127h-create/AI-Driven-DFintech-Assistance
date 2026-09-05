@@ -7,6 +7,8 @@ import ThemeToggle from "../components/ThemeToggle";
 import { cn } from "../utils/cn";
 import nusLogo from "../assets/nus_logo.png";
 
+const NUS_EMAIL_DOMAIN = "@u.nus.edu";
+
 // ids match the backend's real role values exactly (see
 // backend/app/domains/auth/schemas.py::Role) — the tab the user picks is
 // sent as part of the login request and checked against the account's
@@ -14,7 +16,7 @@ import nusLogo from "../assets/nus_logo.png";
 // rejected with a clear message rather than silently logging in anyway.
 const tabs = [
   { id: "applicant", label: "Applicant", icon: User, hint: "Prospective & applying students" },
-  { id: "enrolled_student", label: "Enrolled Student", icon: BookOpen, hint: "Requires an @u.nus.edu email address" },
+  { id: "enrolled_student", label: "Enrolled Student", icon: BookOpen, hint: "Email always ends in @u.nus.edu" },
   { id: "admin", label: "Staff / Admin", icon: ShieldCheck, hint: "Management portal" },
 ];
 
@@ -22,23 +24,29 @@ export default function Login() {
   const navigate = useNavigate();
   const [tab, setTab] = useState("applicant");
   const [email, setEmail] = useState("");
+  // Local part only (before "@u.nus.edu") for the enrolled_student tab —
+  // kept separate from `email` so the fixed domain suffix can never be
+  // edited, replacing the old "does email end with @u.nus.edu" check.
+  const [nusLocalPart, setNusLocalPart] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const { login: setAuth } = useRole();
 
+  const emailValue = tab === "enrolled_student" ? `${nusLocalPart.trim()}${NUS_EMAIL_DOMAIN}` : email.trim();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
-    if (tab === "enrolled_student" && !email.trim().toLowerCase().endsWith("@u.nus.edu")) {
-      setError("Enrolled student accounts use an @u.nus.edu email address.");
+    if (tab === "enrolled_student" && !nusLocalPart.trim()) {
+      setError("Your NUS email (before @u.nus.edu) is required.");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await apiLogin({ email, password, role: tab });
+      const response = await apiLogin({ email: emailValue, password, role: tab });
       const { access_token, user } = response;
 
       setAuth({ access_token, user, role: user.role });
@@ -117,14 +125,31 @@ export default function Login() {
             )}
             <div>
               <label className="text-sm font-medium text-app-secondary mb-1.5 block">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={tab === "enrolled_student" ? "you@u.nus.edu" : "you@example.com"}
-                className="input"
-              />
+              {tab === "enrolled_student" ? (
+                <div
+                  className="w-full flex items-center gap-1 rounded-lg px-3.5 py-2.5 text-sm transition focus-within:ring-1 focus-within:ring-brand-500/40"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border-input)" }}
+                >
+                  <input
+                    type="text"
+                    required
+                    className="min-w-0 flex-1 bg-transparent border-0 p-0 outline-none text-app-primary placeholder:text-[var(--text-faint)]"
+                    placeholder="e0123456"
+                    value={nusLocalPart}
+                    onChange={(e) => setNusLocalPart(e.target.value.replace(/[^a-zA-Z0-9._+-]/g, ""))}
+                  />
+                  <span className="text-app-muted whitespace-nowrap select-none">{NUS_EMAIL_DOMAIN}</span>
+                </div>
+              ) : (
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="input"
+                />
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-app-secondary mb-1.5 block">Password</label>

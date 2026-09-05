@@ -14,9 +14,10 @@ import nusLogo from "../assets/nus_logo.png";
 
 const ROLE_OPTIONS = [
   { value: "applicant", label: "Applicant", hint: "Prospective or currently applying — any email works" },
-  { value: "enrolled_student", label: "Enrolled Student", hint: "Requires an @u.nus.edu email address" },
+  { value: "enrolled_student", label: "Enrolled Student", hint: "Email always ends in @u.nus.edu" },
 ];
 
+const NUS_EMAIL_DOMAIN = "@u.nus.edu";
 const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function Register() {
@@ -38,7 +39,16 @@ export default function Register() {
     full_name: "",
     role: "applicant",
   });
+  // Local part only (before "@u.nus.edu") for the enrolled_student role —
+  // kept separate from form.email so the fixed domain suffix can never be
+  // edited, replacing the old "does form.email end with @u.nus.edu" check.
+  const [nusLocalPart, setNusLocalPart] = useState("");
   const [code, setCode] = useState("");
+
+  const emailValue =
+    form.role === "enrolled_student"
+      ? (nusLocalPart.trim() ? `${nusLocalPart.trim()}${NUS_EMAIL_DOMAIN}` : "")
+      : form.email.trim();
 
   const startResendCooldown = () => {
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -61,12 +71,8 @@ export default function Register() {
       setError("Full name is required");
       return;
     }
-    if (!form.email.trim()) {
-      setError("Email is required");
-      return;
-    }
-    if (form.role === "enrolled_student" && !form.email.trim().toLowerCase().endsWith("@u.nus.edu")) {
-      setError("Enrolled student accounts require an @u.nus.edu email address");
+    if (!emailValue) {
+      setError(form.role === "enrolled_student" ? "Your NUS email (before @u.nus.edu) is required" : "Email is required");
       return;
     }
     if (form.password.length < 8) {
@@ -81,11 +87,12 @@ export default function Register() {
     setSaving(true);
     try {
       await register({
-        email: form.email,
+        email: emailValue,
         password: form.password,
         full_name: form.full_name,
         role: form.role,
       });
+      setForm((f) => ({ ...f, email: emailValue }));
       setStep("code");
       startResendCooldown();
     } catch (err) {
@@ -188,14 +195,31 @@ export default function Register() {
 
                   <div>
                     <label className="text-sm font-medium text-app-secondary mb-1.5 block">Email</label>
-                    <input
-                      type="email"
-                      className="input"
-                      placeholder={form.role === "enrolled_student" ? "you@u.nus.edu" : "you@example.com"}
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      required
-                    />
+                    {form.role === "enrolled_student" ? (
+                      <div
+                        className="w-full flex items-center gap-1 rounded-lg px-3.5 py-2.5 text-sm transition focus-within:ring-1 focus-within:ring-brand-500/40"
+                        style={{ background: "var(--bg-input)", border: "1px solid var(--border-input)" }}
+                      >
+                        <input
+                          type="text"
+                          className="min-w-0 flex-1 bg-transparent border-0 p-0 outline-none text-app-primary placeholder:text-[var(--text-faint)]"
+                          placeholder="e0123456"
+                          value={nusLocalPart}
+                          onChange={(e) => setNusLocalPart(e.target.value.replace(/[^a-zA-Z0-9._+-]/g, ""))}
+                          required
+                        />
+                        <span className="text-app-muted whitespace-nowrap select-none">{NUS_EMAIL_DOMAIN}</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="email"
+                        className="input"
+                        placeholder="you@example.com"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        required
+                      />
+                    )}
                   </div>
 
                   <div>
