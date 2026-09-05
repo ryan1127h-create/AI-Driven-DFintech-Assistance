@@ -139,7 +139,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
             "Please share your academic background, work experience, and career "
             "goals so I can assess your application readiness."
         )
-        return ToolAnswer(text=fallback, agent_used="assessment_agent")
+        return ToolAnswer(text=fallback, agent_used="assessment_agent", needs_clarification=True)
 
     # Broad retrieval (top_k=5) so both admissions requirements and
     # programme overview are available — no topic filter.

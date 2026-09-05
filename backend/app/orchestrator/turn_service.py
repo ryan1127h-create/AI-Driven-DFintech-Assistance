@@ -86,10 +86,11 @@ def run_turn(
 
     llm_messages = system_blocks + state.raw_tail + [new_message]
 
-    intents, target_role_hint, program_hints = routing.classify_intent(llm_messages, on_event)
+    intents, target_role_hint, program_hints, reply_language = routing.classify_intent(llm_messages, on_event)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
         target_role_hint=target_role_hint, program_hints=program_hints,
+        reply_language=reply_language,
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
 

@@ -24,13 +24,35 @@ from __future__ import annotations
 
 from app.domains.career_planning.interface import create_career_plan
 from app.domains.knowledge_retrieval.interface import cited_sources
+from app.domains.profile.interface import get_profile
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.rag_retrieve import CAREER_STYLE_PROMPT, LEGACY_CAREER_SPEC, run_rag
 from app.tools.structured_reply import render_structured_reply
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
+_NEEDS_ROLE_REPLY = (
+    "To plan courses and next steps around a specific career, I need to know "
+    "which role you're aiming for — e.g. quant researcher, compliance officer, "
+    "fintech product manager, risk analyst. What role are you targeting?"
+)
+
+
+def _has_known_target_role(state: TurnState) -> bool:
+    """A career plan needs a target role from somewhere — either named in
+    this turn (target_role_hint, from the intent classifier) or already on
+    file in the applicant's profile. Checked deterministically, in code,
+    rather than letting create_career_plan() silently guess: a plan built
+    with no role signal at all degrades to generic, low-value output."""
+    if state.target_role_hint:
+        return True
+    profile = get_profile(state.user_id) if state.user_id else None
+    return bool((profile or {}).get("target_role_raw") or (profile or {}).get("target_role_std"))
+
 
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
+    if not _has_known_target_role(state):
+        return ToolAnswer(text=_NEEDS_ROLE_REPLY, agent_used="career_agent", needs_clarification=True)
+
     result = create_career_plan(user_id=state.user_id, target_role=state.target_role_hint)
     user_message = last_human_message(state.messages)
     answer, sources = render_structured_reply(result, user_message, CAREER_STYLE_PROMPT, on_event=on_event)

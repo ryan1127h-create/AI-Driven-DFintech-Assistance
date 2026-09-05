@@ -699,6 +699,8 @@ const STEP_LABELS = {
   branch_done: (e) => `${e.agent} ${e.timeout ? "timed out" : e.ok ? "finished" : "failed"}`,
   synthesizing: () => "Combining the answers into one reply",
   answering: (e) => `Generating the answer${e.agent ? ` (${e.agent})` : ""}`,
+  evaluating: () => "Checking the answer actually covers your question",
+  revising: () => "Answer needed more — refining it",
 };
 
 // `active` = this is the step currently being worked on (the last one, while

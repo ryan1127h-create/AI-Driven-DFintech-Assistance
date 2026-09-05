@@ -46,6 +46,14 @@ class ToolAnswer:
     # but may differ when a tool degraded to a fallback path internally
     # (e.g. "career_agent_fallback" when the primary integration raised).
     agent_used: str = ""
+    # Set by a handler that already knows, deterministically, that it's
+    # short of what it needs from the user (not from a database it already
+    # has) rather than guessing an answer — e.g. a career-plan request with
+    # no target role and no profile on file. The orchestrator's post-answer
+    # evaluation step (orchestrator/evaluation.py) treats this as a signal
+    # to skip its own LLM judgement entirely: the tool already knows more
+    # cheaply and more reliably than a second LLM call re-guessing it would.
+    needs_clarification: bool = False
 
 
 @dataclass(frozen=True)
