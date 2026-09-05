@@ -46,43 +46,39 @@ import nusLogo from "../../assets/nus_logo.png";
 import { getChatSessions, clearChat, logout as apiLogout } from "../../../api";
 
 
+// Grouped by real role: "applicant" covers everything before matriculation
+// (discovery → applying → admitted-but-not-yet-enrolled), "enrolled_student"
+// covers everything after (study → graduate → alumni) — matching the real
+// role switch, which only flips to enrolled_student once matriculated.
 const workspaceNav = {
-  [ROLES.PROSPECTIVE]: [
+  [ROLES.APPLICANT]: [
     { to: "/workspace/discover", label: "Programme Overview", icon: "Compass" },
     { to: "/workspace/curriculum", label: "Courses", icon: "BookOpen" },
     { to: "/workspace/careers", label: "Career Outcomes", icon: "TrendingUp" },
     { to: "/workspace/compare", label: "Compare Programmes", icon: "GitCompare" },
     { to: "/workspace/faqs", label: "FAQs", icon: "HelpCircle" },
-  ],
-  [ROLES.APPLICANT]: [
     { to: "/workspace/application", label: "Application Status", icon: "Activity" },
     { to: "/workspace/documents", label: "Documents", icon: "FileText" },
     { to: "/workspace/checklist", label: "Checklist", icon: "ListChecks" },
     { to: "/workspace/deadlines", label: "Deadlines", icon: "CalendarClock" },
     { to: "/workspace/guidance", label: "Application Guidance", icon: "Lightbulb" },
-  ],
-  [ROLES.ADMITTED]: [
     { to: "/workspace/offer", label: "Offer Acceptance", icon: "CheckCircle" },
     { to: "/workspace/registration", label: "Registration", icon: "CalendarPlus" },
     { to: "/workspace/housing", label: "Housing", icon: "Home" },
     { to: "/workspace/orientation", label: "Orientation", icon: "Users" },
     { to: "/workspace/dates", label: "Important Dates", icon: "Calendar" },
   ],
-  [ROLES.ENROLLED]: [
+  [ROLES.ENROLLED_STUDENT]: [
     { to: "/workspace/planner", label: "Degree Planner", icon: "Map" },
     { to: "/workspace/progress", label: "Academic Progress", icon: "TrendingUp" },
     { to: "/workspace/financial-aid", label: "Financial Aid", icon: "DollarSign" },
     { to: "/workspace/resources", label: "Learning Resources", icon: "BookOpen" },
     { to: "/workspace/career-guidance", label: "Career Guidance", icon: "Briefcase" },
-  ],
-  [ROLES.GRADUATING]: [
     { to: "/workspace/audit", label: "Graduation Audit", icon: "CheckSquare" },
     { to: "/workspace/tracker", label: "Requirement Tracker", icon: "ListChecks" },
     { to: "/workspace/transcript", label: "Transcript", icon: "FileText" },
     { to: "/workspace/career-prep", label: "Career Preparation", icon: "Briefcase" },
     { to: "/workspace/alumni-preview", label: "Alumni Preview", icon: "Users" },
-  ],
-  [ROLES.ALUMNI]: [
     { to: "/workspace/networking", label: "Networking", icon: "Network" },
     { to: "/workspace/mentoring", label: "Mentoring", icon: "HandHeart" },
     { to: "/workspace/events", label: "Events", icon: "Calendar" },
@@ -475,7 +471,7 @@ export default function StudentSidebar() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-app-faint">Notifications</p>
           </div>
           <div className="space-y-1.5">
-            {(notifications[user?.role] || notifications.prospective).slice(0, 3).map((n) => (
+            {(notifications[user?.role] || notifications.applicant).slice(0, 3).map((n) => (
               <div key={n.id} className="rounded-lg p-2.5 bg-app-hover border border-app-soft">
                 <div className="flex items-center gap-2">
                   <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", notifDot[n.type])} />

@@ -1,43 +1,14 @@
-// User roles, profiles, and lifecycle stages
-
-// export const ROLES = {
-//   PROSPECTIVE: "prospective",
-//   APPLICANT: "applicant",
-//   ADMITTED: "admitted",
-//   ENROLLED: "enrolled",
-//   GRADUATING: "graduating",
-//   ALUMNI: "alumni",
-//   STAFF: "staff",
-// };
-
-// export const ROLE_META = {
-//   prospective: { label: "Prospective Student", stage: "Discover", color: "brand", icon: "Compass" },
-//   applicant: { label: "Applicant", stage: "Apply", color: "royal", icon: "FileText" },
-//   admitted: { label: "Admitted Student", stage: "Enroll", color: "cyan2", icon: "CheckCircle" },
-//   enrolled: { label: "Enrolled Student", stage: "Study", color: "emerald2", icon: "BookOpen" },
-//   graduating: { label: "Graduating Student", stage: "Graduate", color: "brand", icon: "GraduationCap" },
-//   alumni: { label: "Alumni", stage: "Alumni", color: "royal", icon: "Users" },
-//   staff: { label: "Staff / Admin", stage: "Admin", color: "ink", icon: "ShieldCheck" },
-// };
-
+// Real student roles for the chatbot UI. These must match the values the
+// backend actually returns (see backend/app/domains/auth/schemas.py::
+// SelfRegisterableRole) — "admin" is deliberately excluded, since admin is a
+// separate back-office role that never reaches ChatWorkspace/WorkspaceLayout/
+// StudentSidebar (it will get its own monitoring UI, unrelated to this file).
 export const ROLES = {
-  PROSPECTIVE: "Prospective Student",
-  APPLICANT: "Applicant",
-  ADMITTED: "Admitted Student",
-  ENROLLED: "Enrolled Student",
-  GRADUATING: "Graduating Student",
-  ALUMNI: "Alumni",
-  STAFF: "staff",
+  APPLICANT: "applicant",
+  ENROLLED_STUDENT: "enrolled_student",
 };
 
 export const ROLE_META = {
-  [ROLES.PROSPECTIVE]: {
-    label: "Prospective Student",
-    stage: "Discover",
-    color: "brand",
-    icon: "Compass"
-  },
-
   [ROLES.APPLICANT]: {
     label: "Applicant",
     stage: "Apply",
@@ -45,99 +16,10 @@ export const ROLE_META = {
     icon: "FileText"
   },
 
-  [ROLES.ADMITTED]: {
-    label: "Admitted Student",
-    stage: "Enroll",
-    color: "cyan2",
-    icon: "CheckCircle"
-  },
-
-  [ROLES.ENROLLED]: {
+  [ROLES.ENROLLED_STUDENT]: {
     label: "Enrolled Student",
     stage: "Study",
     color: "emerald2",
     icon: "BookOpen"
-  },
-
-  [ROLES.GRADUATING]: {
-    label: "Graduating Student",
-    stage: "Graduate",
-    color: "brand",
-    icon: "GraduationCap"
-  },
-
-  [ROLES.ALUMNI]: {
-    label: "Alumni",
-    stage: "Alumni",
-    color: "royal",
-    icon: "Users"
-  },
-
-  [ROLES.STAFF]: {
-    label: "Staff / Admin",
-    stage: "Admin",
-    color: "ink",
-    icon: "ShieldCheck"
-  }
-};
-
-export const LIFECYCLE_STAGES = ["Discover", "Apply", "Enroll", "Study", "Graduate", "Alumni"];
-
-export const demoUsers = {
-  prospective: {
-    name: "Wei Jie Tan",
-    email: "weijie.tan@example.com",
-    role: "prospective",
-    avatar: "WT",
-    headline: "Exploring MSc DFT",
-    progress: 5,
-  },
-  applicant: {
-    name: "Mei Ling Chen",
-    email: "meiling.chen@example.com",
-    role: "applicant",
-    avatar: "MC",
-    headline: "Application in review",
-    progress: 28,
-  },
-  admitted: {
-    name: "Arjun Kumar",
-    email: "arjun.kumar@example.com",
-    role: "admitted",
-    avatar: "AK",
-    headline: "Offer accepted — onboarding",
-    progress: 42,
-  },
-  enrolled: {
-    name: "Sofia Rahman",
-    email: "sofia.rahman@example.com",
-    role: "enrolled",
-    avatar: "SR",
-    headline: "Year 1, Semester 2",
-    progress: 72,
-  },
-  graduating: {
-    name: "Daniel Lim",
-    email: "daniel.lim@example.com",
-    role: "graduating",
-    avatar: "DL",
-    headline: "Final semester",
-    progress: 94,
-  },
-  alumni: {
-    name: "Priya Nair",
-    email: "priya.nair@example.com",
-    role: "alumni",
-    avatar: "PN",
-    headline: "Class of 2023 · FinTech PM",
-    progress: 100,
-  },
-  staff: {
-    name: "Dr. Lin Wei",
-    email: "lin.wei@nus.edu.sg",
-    role: "staff",
-    avatar: "LW",
-    headline: "Programme Administrator",
-    progress: 0,
   },
 };

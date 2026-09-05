@@ -1,46 +1,24 @@
-// Suggested prompts, conversations, and AI agent definitions per lifecycle stage
+// Suggested prompts, conversations, and AI agent definitions per role.
+// Only "applicant" and "enrolled_student" are covered here — admin never
+// reaches this chatbot UI (see data/roles.js).
 
 import { ROLES } from "./roles";
 
 export const suggestedPrompts = {
-  [ROLES.PROSPECTIVE]: [
+  [ROLES.APPLICANT]: [
     { icon: "CheckCircle", text: "Am I eligible for MSc DFT?", intent: "Assessment" },
     { icon: "GitCompare", text: "Compare programmes", intent: "Programme Comparison" },
-    { icon: "TrendingUp", text: "Career Planning", intent: "Career" },
-    { icon: "BookOpen", text: "Course Recommendations", intent: "Academic" },
-    { icon: "DollarSign", text: "What scholarships are available?", intent: "Financial" },
-    { icon: "Calendar", text: "Application deadlines", intent: "Admission" },
-  ],
-  [ROLES.APPLICANT]: [
     { icon: "Activity", text: "Check my application status", intent: "Status Check" },
     { icon: "FileWarning", text: "What documents are still missing?", intent: "Document Audit" },
-    { icon: "ListChecks", text: "Generate my application checklist", intent: "Checklist Build" },
-    { icon: "CalendarClock", text: "What is the next application deadline?", intent: "Deadline Reminder" },
     { icon: "PenLine", text: "Help me write my personal statement", intent: "Essay Guidance" },
-  ],
-  [ROLES.ADMITTED]: [
-    { icon: "CheckCircle", text: "How do I accept my offer?", intent: "Offer Acceptance" },
     { icon: "CalendarPlus", text: "Guide me through module registration", intent: "Registration Guide" },
-    { icon: "Home", text: "What housing options are available?", intent: "Housing Info" },
-    { icon: "Calendar", text: "When is orientation week?", intent: "Orientation Schedule" },
   ],
-  [ROLES.ENROLLED]: [
+  [ROLES.ENROLLED_STUDENT]: [
     { icon: "Map", text: "Plan my modules for next semester", intent: "Degree Planning" },
     { icon: "TrendingUp", text: "Check my graduation progress", intent: "Progress Audit" },
     { icon: "Briefcase", text: "Recommend courses for fintech roles", intent: "Course Recommendation" },
-    { icon: "Compass", text: "Give me career guidance", intent: "Career Guidance" },
-    { icon: "DollarSign", text: "Am I eligible for financial aid?", intent: "Financial Aid" },
-  ],
-  [ROLES.GRADUATING]: [
-    { icon: "CheckSquare", text: "Run my graduation audit", intent: "Graduation Audit" },
-    { icon: "FileText", text: "Request my transcript", intent: "Transcript Request" },
     { icon: "Briefcase", text: "Prepare me for job interviews", intent: "Career Prep" },
-    { icon: "Users", text: "Preview the alumni network", intent: "Alumni Preview" },
-  ],
-  [ROLES.ALUMNI]: [
     { icon: "Network", text: "Find networking opportunities", intent: "Networking" },
-    { icon: "HandHeart", text: "View mentoring requests", intent: "Mentoring" },
-    { icon: "Calendar", text: "Discover upcoming alumni events", intent: "Events" },
     { icon: "Briefcase", text: "Access career services", intent: "Career Services" },
   ],
 };
@@ -220,103 +198,45 @@ export const savedPlans = [
 ];
 
 export const notifications = {
-  prospective: [
-    { id: "p1", type: "info", title: "Open House Registration", body: "Join the MSc DFT virtual open house on 25 July 2026.", time: "3h ago" },
-    { id: "p2", type: "deadline", title: "Early application opens soon", body: "Applications open on 15 November 2025.", time: "1 day ago" },
-    { id: "p3", type: "info", title: "New scholarship announced", body: "FinTech Industry Scholarship now accepting applications.", time: "2 days ago" },
-  ],
   applicant: [
     { id: "a1", type: "warning", title: "Missing transcript", body: "Your application is missing an official transcript.", time: "1h ago" },
     { id: "a2", type: "deadline", title: "Deadline approaching", body: "Round 2 application closes in 5 days.", time: "2h ago" },
     { id: "a3", type: "info", title: "Reference pending", body: "Your referee has not submitted the reference letter yet.", time: "5h ago" },
   ],
-  admitted: [
-    { id: "ad1", type: "success", title: "Offer received", body: "Congratulations! Your MSc DFT offer is ready for acceptance.", time: "1h ago" },
-    { id: "ad2", type: "deadline", title: "Acceptance deadline", body: "Please accept your offer within 2 weeks.", time: "3h ago" },
-    { id: "ad3", type: "info", title: "Registration window open", body: "Module registration opens 1 August 2026.", time: "1 day ago" },
-  ],
-  enrolled: [
+  enrolled_student: [
     { id: "e1", type: "info", title: "New module available", body: "CS6204 Blockchain Technology opens for registration.", time: "4h ago" },
     { id: "e2", type: "deadline", title: "Add/drop deadline", body: "Module add/drop closes on 15 September 2026.", time: "1 day ago" },
     { id: "e3", type: "success", title: "Grades published", body: "Your Semester 1 grades are now available.", time: "3 days ago" },
-  ],
-  graduating: [
-    { id: "g1", type: "warning", title: "Capstone report due", body: "Your capstone final report is due in 2 weeks.", time: "2h ago" },
-    { id: "g2", type: "info", title: "Graduation audit", body: "1 requirement remaining — complete your capstone.", time: "1 day ago" },
-    { id: "g3", type: "info", title: "Career fair", body: "NUS FinTech Career Fair scheduled for 10 November 2026.", time: "3 days ago" },
-  ],
-  alumni: [
-    { id: "al1", type: "success", title: "Mentor accepted", body: "Dr. Tan accepted your introduction request.", time: "Yesterday" },
-    { id: "al2", type: "info", title: "Alumni mixer RSVP", body: "FinTech Alumni Mixer 2026 — RSVP now for early access.", time: "2 days ago" },
-    { id: "al3", type: "info", title: "New mentor request", body: "A student requested an introduction for blockchain careers.", time: "3 days ago" },
-  ],
-  staff: [
-    { id: "s1", type: "warning", title: "3 escalations pending", body: "3 escalated cases are unassigned and need attention.", time: "30 min ago" },
-    { id: "s2", type: "info", title: "KB article needs review", body: "Module Registration Guide v2.5 awaiting approval.", time: "2h ago" },
-    { id: "s3", type: "info", title: "Weekly report ready", body: "AI assistant performance report for Week 28 is available.", time: "5h ago" },
   ],
 };
 
 // Recommended actions per role — clickable, with optional pre-filled prompt or navigation target
 export const recommendedActions = {
-  [ROLES.PROSPECTIVE]: [
+  [ROLES.APPLICANT]: [
     { text: "Check Eligibility", icon: "CheckCircle2", color: "text-brand-300", prompt: "Am I eligible for MSc DFT?", route: null },
     { text: "Compare Programmes", icon: "GitCompare", color: "text-royal-300", prompt: null, route: "/workspace/compare" },
-    { text: "Explore Curriculum", icon: "BookOpen", color: "text-cyan2-400", prompt: null, route: "/workspace/curriculum" },
-    { text: "View Career Outcomes", icon: "TrendingUp", color: "text-emerald2-400", prompt: null, route: "/workspace/careers" },
-    { text: "Start Application", icon: "ArrowRight", color: "text-brand-300", prompt: "Help me prepare my application", route: null },
-  ],
-  [ROLES.APPLICANT]: [
-    { text: "Submit Missing Transcript", icon: "AlertCircle", color: "text-amber-300", urgent: true, prompt: "What documents are still missing?", route: null },
     { text: "Complete Checklist", icon: "CheckCircle2", color: "text-brand-300", prompt: null, route: "/workspace/checklist" },
     { text: "Review Deadlines", icon: "Clock", color: "text-royal-300", prompt: null, route: "/workspace/deadlines" },
     { text: "Application Guidance", icon: "Lightbulb", color: "text-cyan2-400", prompt: null, route: "/workspace/guidance" },
   ],
-  [ROLES.ADMITTED]: [
-    { text: "Accept Offer", icon: "CheckCircle2", color: "text-emerald2-400", prompt: "How do I accept my offer?", route: null },
-    { text: "Register Modules", icon: "CalendarPlus", color: "text-brand-300", prompt: null, route: "/workspace/registration" },
-    { text: "Find Housing", icon: "Home", color: "text-royal-300", prompt: null, route: "/workspace/housing" },
-  ],
-  [ROLES.ENROLLED]: [
+  [ROLES.ENROLLED_STUDENT]: [
     { text: "Plan Next Semester", icon: "Map", color: "text-brand-300", prompt: "Plan my modules for next semester", route: null },
     { text: "Check Graduation Progress", icon: "TrendingUp", color: "text-emerald2-400", prompt: null, route: "/workspace/progress" },
     { text: "Explore Career Paths", icon: "Lightbulb", color: "text-royal-300", prompt: null, route: "/workspace/career-guidance" },
-  ],
-  [ROLES.GRADUATING]: [
-    { text: "Complete Capstone Report", icon: "AlertCircle", color: "text-amber-300", urgent: true, prompt: "Run my graduation audit", route: null },
-    { text: "Request Transcript", icon: "FileText", color: "text-brand-300", prompt: null, route: "/workspace/transcript" },
-    { text: "Preview Alumni Network", icon: "Users", color: "text-royal-300", prompt: null, route: "/workspace/alumni-preview" },
-  ],
-  [ROLES.ALUMNI]: [
     { text: "Review Mentor Requests", icon: "HandHeart", color: "text-brand-300", prompt: null, route: "/workspace/mentoring" },
     { text: "RSVP Alumni Mixer", icon: "Calendar", color: "text-royal-300", prompt: null, route: "/workspace/events" },
-    { text: "Update Consent Settings", icon: "CheckCircle2", color: "text-cyan2-400", prompt: "How do I update my networking consent?", route: null },
   ],
 };
 
 // AI Insights per role — with insight type, confidence, and recommendation reason
 export const aiInsights = {
-  [ROLES.PROSPECTIVE]: [
+  [ROLES.APPLICANT]: [
     {
       type: "Eligibility Match",
       text: "Your finance background aligns with 80% of MSc DFT requirements.",
       confidence: 0.91,
       reason: "Based on your degree in Finance and quantitative coursework matching the programme's eligibility criteria.",
     },
-    {
-      type: "Preparation Gap",
-      text: "You may need additional programming preparation before enrolment.",
-      confidence: 0.84,
-      reason: "No programming courses detected in your transcript. Python or R experience is recommended.",
-    },
-    {
-      type: "Track Recommendation",
-      text: "FinTech Product Management appears suitable based on your interests.",
-      confidence: 0.79,
-      reason: "Your background in finance and interest in digital banking aligns with the Product Management career path.",
-    },
-  ],
-  [ROLES.APPLICANT]: [
     {
       type: "Deadline Risk",
       text: "Submitting your transcript now increases Round 2 admission odds by ~23%.",
@@ -330,15 +250,7 @@ export const aiInsights = {
       reason: "Only 1 reference letter is currently submitted. Adding a second academic reference is recommended.",
     },
   ],
-  [ROLES.ADMITTED]: [
-    {
-      type: "Onboarding",
-      text: "Registering for modules early improves your chances of getting preferred electives.",
-      confidence: 0.86,
-      reason: "Popular electives like CS5345 and CS6204 fill up within the first 48 hours of registration.",
-    },
-  ],
-  [ROLES.ENROLLED]: [
+  [ROLES.ENROLLED_STUDENT]: [
     {
       type: "Track Progress",
       text: "You're on track for the AI & ML track. 2 electives remain.",
@@ -346,97 +258,39 @@ export const aiInsights = {
       reason: "You've completed 3 of 5 AI track electives. CS6202 and IS5153 are recommended next.",
     },
     {
-      type: "Course Insight",
-      text: "Students taking CS6202 report 92% career satisfaction.",
-      confidence: 0.79,
-      reason: "Based on alumni survey data from 2021-2023 graduates who took Natural Language Processing.",
-    },
-  ],
-  [ROLES.GRADUATING]: [
-    {
       type: "Graduation Readiness",
       text: "Capstone report submission is the only remaining requirement.",
       confidence: 0.97,
       reason: "All other graduation requirements are met. CAP of 4.6 exceeds the 3.5 minimum.",
     },
     {
-      type: "Career Prep",
-      text: "FinTech Career Fair on 10 Nov has 12 companies matching your profile.",
-      confidence: 0.83,
-      reason: "Your AI & ML track and capstone in fraud detection align with hiring companies.",
-    },
-  ],
-  [ROLES.ALUMNI]: [
-    {
       type: "Mentoring Opportunity",
       text: "3 new mentor requests match your expertise profile.",
       confidence: 0.86,
       reason: "Students interested in Digital Banking, Strategy, and Payments match your listed expertise.",
     },
-    {
-      type: "Network Growth",
-      text: "Your alumni connections grew by 12% this quarter.",
-      confidence: 0.78,
-      reason: "Based on your active participation in alumni events and mentoring activities.",
-    },
   ],
 };
 
-// Lifecycle workflow steps per role — with current step, completed, and next action
+// Workflow steps per role — with current step, completed, and next action
 export const workflowSteps = {
-  [ROLES.PROSPECTIVE]: {
-    steps: [
-      { name: "Discover Programme", status: "completed" },
-      { name: "Eligibility Assessment", status: "completed" },
-      { name: "Career Exploration", status: "current" },
-      { name: "Application Preparation", status: "upcoming" },
-    ],
-    nextAction: "Explore career outcomes to refine your track preference",
-  },
   [ROLES.APPLICANT]: {
     steps: [
+      { name: "Discover Programme", status: "completed" },
       { name: "Application Submitted", status: "completed" },
-      { name: "Documents Pending", status: "current" },
-      { name: "Admission Review", status: "upcoming" },
-      { name: "Decision Release", status: "upcoming" },
+      { name: "Documents Review", status: "current" },
+      { name: "Offer Decision", status: "upcoming" },
     ],
-    nextAction: "Submit missing transcript before Round 2 deadline",
+    nextAction: "Submit your missing transcript before the next round deadline",
   },
-  [ROLES.ADMITTED]: {
-    steps: [
-      { name: "Offer Received", status: "completed" },
-      { name: "Offer Acceptance", status: "current" },
-      { name: "Module Registration", status: "upcoming" },
-      { name: "Orientation", status: "upcoming" },
-    ],
-    nextAction: "Accept your offer within 2 weeks",
-  },
-  [ROLES.ENROLLED]: {
+  [ROLES.ENROLLED_STUDENT]: {
     steps: [
       { name: "Core Modules", status: "completed" },
-      { name: "Elective Selection", status: "completed" },
       { name: "Track Specialisation", status: "current" },
       { name: "Capstone Project", status: "upcoming" },
+      { name: "Graduation & Alumni Transition", status: "upcoming" },
     ],
-    nextAction: "Complete 2 remaining AI track electives",
-  },
-  [ROLES.GRADUATING]: {
-    steps: [
-      { name: "All Modules Completed", status: "completed" },
-      { name: "Graduation Audit", status: "completed" },
-      { name: "Capstone Report", status: "current" },
-      { name: "Conferral & Alumni Transition", status: "upcoming" },
-    ],
-    nextAction: "Submit capstone final report within 2 weeks",
-  },
-  [ROLES.ALUMNI]: {
-    steps: [
-      { name: "Alumni Onboarding", status: "completed" },
-      { name: "Profile Setup", status: "completed" },
-      { name: "Networking & Mentoring", status: "current" },
-      { name: "Career Services", status: "upcoming" },
-    ],
-    nextAction: "Review 3 pending mentor requests",
+    nextAction: "Complete your remaining track electives",
   },
 };
 

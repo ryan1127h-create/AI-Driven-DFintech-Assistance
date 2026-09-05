@@ -90,7 +90,7 @@ function LifecycleProgress({ user }) {
 function RecommendedActions({ role }) {
   const navigate = useNavigate();
   const { addMessage, setIsStreaming } = useChat();
-  const list = recommendedActions[role] || recommendedActions[ROLES.PROSPECTIVE];
+  const list = recommendedActions[role] || recommendedActions[ROLES.APPLICANT];
 
   const handleAction = (action) => {
     if (action.prompt) {
@@ -129,7 +129,7 @@ function RecommendedActions({ role }) {
 }
 
 function AIInsights({ role }) {
-  const list = aiInsights[role] || aiInsights[ROLES.PROSPECTIVE];
+  const list = aiInsights[role] || aiInsights[ROLES.APPLICANT];
 
   const confidenceColor = (c) =>
     c >= 0.9 ? "text-emerald2-400" : c >= 0.8 ? "text-brand-300" : "text-amber-300";
@@ -162,7 +162,7 @@ function AIInsights({ role }) {
 }
 
 function WorkflowStatus({ role }) {
-  const wf = workflowSteps[role] || workflowSteps[ROLES.PROSPECTIVE];
+  const wf = workflowSteps[role] || workflowSteps[ROLES.APPLICANT];
 
   const statusIcon = (status) => {
     if (status === "completed") return <CheckCircle2 size={14} className="text-emerald2-400 flex-shrink-0" />;

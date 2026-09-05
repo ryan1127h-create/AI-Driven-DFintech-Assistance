@@ -1,47 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import {
-  GraduationCap,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  Compass,
-  FileText,
-  CheckCircle,
-  BookOpen,
-  Users,
-  UserPlus,
-  LogIn,
-} from "lucide-react";
-import { ROLES, ROLE_META } from "../data/roles";
+import { Sparkles, UserPlus, LogIn } from "lucide-react";
 import ThemeToggle from "../components/ThemeToggle";
 import nusLogo from "../assets/nus_logo.png";
-
-const studentRoles = [
-  ROLES.PROSPECTIVE,
-  ROLES.APPLICANT,
-  ROLES.ADMITTED,
-  ROLES.ENROLLED,
-  ROLES.GRADUATING,
-  ROLES.ALUMNI,
-];
-
-const iconMap = {
-  Compass,
-  FileText,
-  CheckCircle,
-  BookOpen,
-  GraduationCap,
-  Users,
-  ShieldCheck,
-};
-
-const colorClasses = {
-  brand: "bg-brand-500/15 text-brand-300",
-  royal: "bg-royal-500/15 text-royal-300",
-  cyan2: "bg-cyan2-500/15 text-cyan2-400",
-  emerald2: "bg-emerald2-500/15 text-emerald2-400",
-  ink: "bg-app-hover text-app-secondary",
-};
 
 export default function Landing() {
   const navigate = useNavigate();
