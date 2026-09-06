@@ -1,9 +1,7 @@
-"""
-Course recommendation — resolves a target role (from the request, the
-applicant's stored profile, or free text) into a set of skill gaps against
-the course catalogue, then selects a shortlist of courses to close them.
-Excludes completed courses and preclusion conflicts before any selection
-happens, so the candidate pool is always valid regardless of how the pick
-within it is made. Consumed by career_planning and program_comparison for
-their own course-aware output.
+"""Course recommendation from one complete upstream-agent report.
+
+The report supplies every user fact, resolved role profile, course record,
+curriculum rule, and source. This domain performs no profile or knowledge-base
+lookups. It applies hard eligibility rules before model or fallback selection,
+so every returned course comes from the supplied candidate catalogue.
 """

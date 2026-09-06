@@ -8,7 +8,6 @@ Straight-line flow:
     2. build the raw facts table            repository, pure code
     3. compute personal match scores        match_scorer.py, pure code
          profile via profile.interface
-         role skills via course_recommendation.interface (one shared impl)
     4. LLM rewrites cells + comments        comparison_agent.py
          on failure -> raw text cells, endpoint still answers
 """
@@ -17,7 +16,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.domains.course_recommendation.interface import resolve_role_skills
 from app.domains.profile.interface import get_profile
 from app.domains.program_comparison import repository
 from app.domains.program_comparison import comparison_agent, match_scorer
@@ -81,9 +79,13 @@ def compare_programs(
     # 3. Personal match scores (pure code; role text falls back to profile).
     profile = get_profile(user_id) if user_id else None
     role_text = target_role or (profile or {}).get("target_role_std")
-    role = resolve_role_skills(role_text)
-    notes.extend(role["notes"])
-    matches = match_scorer.score_programs(selected, role["skills"], profile)
+    role_skills: list[str] = []
+    if role_text:
+        notes.append(
+            "Target-role skills were not supplied to program comparison, so "
+            "the skill-focus component was excluded from personal match scores."
+        )
+    matches = match_scorer.score_programs(selected, role_skills, profile)
 
     # 4. LLM presentation with raw-text fallback.
     cells, comments, summary, agent_notes = comparison_agent.present(table, selected, matches)

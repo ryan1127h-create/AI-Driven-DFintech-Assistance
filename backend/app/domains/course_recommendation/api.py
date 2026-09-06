@@ -1,44 +1,79 @@
-from fastapi import APIRouter, Depends
+from collections.abc import Awaitable, Callable
 
-from app.domains.auth.interface import get_current_user_id
+from fastapi import APIRouter, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+from starlette.responses import Response
+
+from app.core.logging import get_logger
 from app.domains.course_recommendation import service
+from app.domains.course_recommendation.contracts import CourseRecommendationInput
+from app.domains.course_recommendation.errors import input_validation_error
 from app.domains.course_recommendation.schemas import (
-    CourseRecommendationRequest,
+    CourseRecommendationFailureResponse,
     CourseRecommendationResponse,
-    RecommendedCourse,
+    response_from_result,
 )
 
-router = APIRouter()
+logger = get_logger(__name__)
 
 
-# Deliberately a sync `def` (not `async def`): the service does blocking
-# psycopg + LLM calls, and FastAPI runs sync path operations in a threadpool
-# so the event loop stays free.
-@router.post("/course-recommendations", response_model=CourseRecommendationResponse)
+class _CourseRecommendationRoute(APIRoute):
+    """Convert FastAPI body validation into the domain's stage-report format."""
+
+    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
+        original_handler = super().get_route_handler()
+
+        async def stage_aware_handler(request: Request) -> Response:
+            try:
+                return await original_handler(request)
+            except RequestValidationError as exc:
+                body = exc.body
+                request_id = (
+                    body.get("request_id", "unknown")
+                    if isinstance(body, dict)
+                    else "unknown"
+                )
+                logger.warning(
+                    "course recommendation HTTP input validation failed "
+                    "request_id=%s error_count=%s",
+                    request_id,
+                    len(exc.errors()),
+                )
+                raise input_validation_error(
+                    request_id=request_id,
+                    errors=exc.errors(),
+                ) from exc
+
+        return stage_aware_handler
+
+
+router = APIRouter(route_class=_CourseRecommendationRoute)
+
+
+# Deliberately a sync ``def``: the optional LLM call is blocking, so FastAPI
+# runs this operation in a threadpool and keeps the event loop free.
+@router.post(
+    "/course-recommendations",
+    response_model=CourseRecommendationResponse,
+    responses={
+        422: {
+            "model": CourseRecommendationFailureResponse,
+            "description": "Input validation failed with stage details.",
+        },
+        500: {
+            "model": CourseRecommendationFailureResponse,
+            "description": "A required workflow stage failed.",
+        },
+        503: {
+            "model": CourseRecommendationFailureResponse,
+            "description": "A retryable workflow stage failed.",
+        },
+    },
+)
 def recommend_courses(
-    request: CourseRecommendationRequest,
-    user_id: str = Depends(get_current_user_id),
+    request: CourseRecommendationInput,
 ) -> CourseRecommendationResponse:
-    """
-    Structured course recommendation for the current authenticated user.
-    Course selection and ranking are fully deterministic (see
-    rule_engine.py); the LLM only phrases the per-course reasons and
-    degrades to rule-based reasons if unavailable (stated in `notes`).
-    """
-    result = service.recommend_courses(
-        user_id=user_id,
-        target_role=request.target_role,
-        completed_courses=request.completed_courses,
-        preferences=request.preferences,
-    )
-
-    return CourseRecommendationResponse(
-        target_role=result.target_role,
-        recommended_courses=[RecommendedCourse(**r) for r in result.recommendations],
-        skill_gaps=list(result.skill_gaps),
-        completed_recognized=list(result.completed_recognized),
-        completed_unrecognized=list(result.completed_unrecognized),
-        completed_units=result.completed_units,
-        notes=list(result.notes),
-        sources=list(result.sources),
-    )
+    """Recommend strictly from the complete report supplied by the upstream agent."""
+    result = service.recommend_courses(request)
+    return response_from_result(result)

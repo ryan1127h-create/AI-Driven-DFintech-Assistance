@@ -7,8 +7,9 @@ service internals) is private.
 Current consumers:
     - chatbot uses get_profile_summary_text() to inject the applicant's
       profile into the conversation.
-    - course_recommendation, program_comparison, and career_planning use
-      get_profile() for personalisation.
+    - program_comparison and career_planning use get_profile() for
+      personalisation. Course recommendation receives profile facts only
+      through its upstream-agent report and never imports this interface.
 
 Usage:
     from app.domains.profile.interface import get_profile_summary_text

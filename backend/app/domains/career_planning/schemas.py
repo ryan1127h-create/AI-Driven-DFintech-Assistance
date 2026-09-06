@@ -1,39 +1,41 @@
-"""Request/response schemas for the career_planning API — kept separate
-from the internal domain models."""
+"""HTTP request and response models for career planning."""
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-# Free text on purpose: standard role ids get curated skill data, any other
-# role is mapped to our skill tags by AI (stated in the response `notes`).
+
 TargetRoleText = Annotated[str, Field(max_length=100)]
 ShortText = Annotated[str, Field(max_length=100)]
 
 
 class CareerPlanRequest(BaseModel):
-    # All optional: no target_role -> the stored profile's role. timeline
-    # and region only steer the wording of the plan.
+    # The service falls back to the stored profile role when this is omitted.
     target_role: Optional[TargetRoleText] = None
     timeline: Optional[ShortText] = None
     region: Optional[ShortText] = None
 
 
-class PlannedCourse(BaseModel):
-    course_code: str
-    course_title: str
-    priority: str
-    reason: str
+class SkillAssessment(BaseModel):
+    skill: str
+    status: Literal["has", "partial", "missing", "unknown"]
+    evidence: str
+
+
+class CareerPhase(BaseModel):
+    name: str
+    timeframe: str
+    actions: list[str]
+    success_indicators: list[str]
 
 
 class CareerPlanResponse(BaseModel):
-    target_role: Optional[str]
+    target_role: str
     current_fit: str
-    skill_gaps: list[str]
-    recommended_courses: list[PlannedCourse]
-    short_term_actions: list[str]
-    medium_term_actions: list[str]
+    skill_assessment: list[SkillAssessment]
+    phases: list[CareerPhase]
+    success_indicators: list[str]
     notes: list[str]
     sources: list[str]

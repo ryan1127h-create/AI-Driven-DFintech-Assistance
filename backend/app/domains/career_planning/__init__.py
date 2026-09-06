@@ -1,8 +1,7 @@
-"""
-Career planning — turns an applicant's profile and recommended courses
-into a career-fit narrative and a prioritized set of short- and
-medium-term actions. Owns no data of its own: profile comes from the
-profile domain, course priorities from course_recommendation, and
-career-track context from shared retrieval — this domain's own job is
-purely to synthesize those into a plan.
+"""Independent career planning.
+
+Turns a target role, career evidence, and career-reference material into an
+evidence-aware readiness assessment and phased action plan. Academic course
+selection belongs to the separate course-recommendation domain and is not an
+input or output of this domain.
 """

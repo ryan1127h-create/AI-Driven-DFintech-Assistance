@@ -1,37 +1,135 @@
-"""
-Career-planning orchestration — the engine behind the /career-plans
-endpoint (see api.py), kept independent of FastAPI.
+"""Career-planning orchestration behind the career-plans endpoint.
 
-Straight-line flow, everything factual is computed elsewhere and reused:
+The domain deliberately owns a career-readiness flow rather than delegating
+to course recommendation:
 
-    1. profile           via profile.interface (read-only)
-    2. gaps + courses    via course_recommendation.interface — the ONE
-                         implementation of role->skills->courses; this
-                         domain never re-computes them
-    3. career context    via knowledge_retrieval (career chunks only)
-    4. narrative         planning_agent.py writes the plan;
-                         deterministic fallback if the LLM is unavailable
+    target role -> career evidence -> role context -> phased action plan
+
+Profile data is read through the profile domain. Career reference material
+comes from the shared knowledge-retrieval domain. Academic material is
+excluded before anything reaches the planning LLM.
 """
 
 from __future__ import annotations
 
+import re
+
+from app.core.errors import ValidationError
 from app.domains.career_planning import planning_agent
 from app.domains.career_planning.models import CareerPlanResult
-from app.domains.course_recommendation.interface import recommend_courses
 from app.domains.knowledge_retrieval.interface import cited_sources, retrieve
-from app.domains.profile.interface import get_profile, render_profile_summary
+from app.domains.profile.interface import get_profile
 
-# How many recommended courses the plan includes — explicitly sorted by
-# priority just below before slicing, since the LLM's course selection
-# (course_recommendation's recommendation_agent) doesn't guarantee its
-# output array is priority-ordered (only the deterministic fallback ranking
-# does, by construction). Without this, "top N" could silently drop a
-# high-priority course in favour of a low-priority one whenever the LLM
-# picked the courses.
-_MAX_PLAN_COURSES = 5
-_PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
-_CAREER_MAP_SOURCE = "Career pathway mapping — compiled by this project, not official NUS content"
+_ACADEMIC_LINE = re.compile(
+    r"\b(?:course|courses|module|modules|curriculum|elective|nusmods)\b"
+    r"|\b[A-Z]{2,4}\d{4}[A-Z]?\b"
+    r"|(?:课程|选修课|必修课|课程代码|模块)",
+    re.IGNORECASE,
+)
+
+
+def _resolve_target_role(requested_role: str | None, profile: dict | None) -> str:
+    """Request value wins; otherwise use the best role evidence on file."""
+    for value in (
+        requested_role,
+        (profile or {}).get("target_role_std"),
+        (profile or {}).get("target_role_raw"),
+    ):
+        if isinstance(value, str) and value.strip():
+            role = value.strip()
+            if _ACADEMIC_LINE.search(role):
+                raise ValidationError(
+                    "TARGET_ROLE_INVALID: provide a job role rather than an academic selection request."
+                )
+            return role
+    raise ValidationError(
+        "TARGET_ROLE_REQUIRED: provide a target role or add one to your profile before creating a career plan."
+    )
+
+
+def _career_profile_summary(profile: dict | None) -> str:
+    """Render only career-relevant evidence; intentionally excludes study history."""
+    if not profile:
+        return ""
+
+    lines: list[str] = []
+
+    def _raw_or_standard(raw_field: str, standard_field: str, label: str) -> None:
+        value = profile.get(standard_field) or profile.get(raw_field)
+        if value:
+            lines.append(f"- {label}: {value}")
+
+    _raw_or_standard("academic_background_raw", "academic_background_std", "Academic background")
+    _raw_or_standard("tech_level_raw", "tech_level_std", "Technical level")
+    if profile.get("work_years") is not None:
+        lines.append(f"- Work experience: {profile['work_years']} years")
+    _raw_or_standard("target_industry_raw", "target_industry_std", "Target industry")
+    if profile.get("lifecycle_stage"):
+        lines.append(f"- Career stage: {profile['lifecycle_stage']}")
+
+    if not lines:
+        return ""
+    return "Known career evidence from the user's profile:\n" + "\n".join(lines)
+
+
+def _clean_reference_text(value: object) -> str:
+    """Drop lines that can steer the plan back toward academic recommendations."""
+    if not isinstance(value, str):
+        return ""
+    return "\n".join(
+        line.strip()
+        for line in value.splitlines()
+        if line.strip() and not _ACADEMIC_LINE.search(line)
+    )
+
+
+def _clean_optional_hint(value: str | None) -> str | None:
+    """Keep timeline/region hints only when they cannot reintroduce academic text."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    cleaned = value.strip()
+    return None if _ACADEMIC_LINE.search(cleaned) else cleaned
+
+
+def _career_context(hits: list, requested_role: str) -> tuple[str, str]:
+    """Build course-free context, using structured role metadata where available."""
+    blocks: list[str] = []
+    resolved_title = requested_role
+
+    for hit in hits:
+        metadata = hit.metadata if isinstance(hit.metadata, dict) else {}
+        if hit.source_table == "career_roles":
+            role_id = str(metadata.get("role_id") or "").strip()
+            role_title = str(metadata.get("role_title") or "").strip()
+            raw_skills = metadata.get("required_skills") or []
+            if not isinstance(raw_skills, (list, tuple)):
+                raw_skills = []
+            skills = [
+                str(skill).replace("_", " ").strip()
+                for skill in raw_skills
+                if str(skill).strip()
+            ]
+
+            if requested_role.casefold() in {role_id.casefold(), role_title.casefold()} and role_title:
+                resolved_title = role_title
+
+            facts = []
+            if role_title:
+                facts.append(f"Role: {role_title}")
+            if skills:
+                facts.append("Typical capability areas: " + ", ".join(skills))
+            if facts:
+                blocks.append("\n".join(facts))
+            continue
+
+        context = _clean_reference_text(hit.context)
+        content = _clean_reference_text(hit.content)
+        block = "\n".join(part for part in (context, content) if part)
+        if block:
+            blocks.append(block)
+
+    return "\n\n".join(blocks), resolved_title
 
 
 def create_career_plan(
@@ -40,62 +138,53 @@ def create_career_plan(
     timeline: str | None = None,
     region: str | None = None,
 ) -> CareerPlanResult:
-    # 1-2. Profile + the recommendation this plan builds on (role resolution,
-    # skill gaps and course picks all happen inside course_recommendation).
-    # Fetched once here (render_profile_summary is pure, no I/O) and its
-    # completed_courses passed through explicitly, so course_recommendation
-    # doesn't redundantly re-fetch the same profile itself — it only needs
-    # to when target_role and/or completed_courses weren't already resolved
-    # by the caller.
     profile = get_profile(user_id) if user_id else None
-    profile_summary = render_profile_summary(profile)
-    completed_courses = (profile or {}).get("completed_courses")
-    rec = recommend_courses(user_id=user_id, target_role=target_role, completed_courses=completed_courses)
-    role_title = rec["target_role"]
-    skill_gaps = list(rec["skill_gaps"])
-    by_priority = sorted(rec["recommended_courses"], key=lambda c: _PRIORITY_ORDER.get(c["priority"], 99))
-    courses = [
-        {k: c[k] for k in ("course_code", "course_title", "priority", "reason")}
-        for c in by_priority[:_MAX_PLAN_COURSES]
-    ]
-    notes = list(rec["notes"])
+    requested_role = _resolve_target_role(target_role, profile)
+    profile_summary = _career_profile_summary(profile)
+    timeline = _clean_optional_hint(timeline)
+    region = _clean_optional_hint(region)
 
-    # 3. Career-track reference text (never raises; empty list on failure).
     hits = retrieve(
-        f"career pathway skills courses {role_title or target_role or ''}",
-        top_k=3, filter_topics={"career"},
+        f"career pathway responsibilities skills experience portfolio hiring {requested_role}",
+        top_k=3,
+        filter_topics={"career"},
     )
-    career_context = "\n\n".join(f"{h.context}\n{h.content}" for h in hits)
+    career_context, role_title = _career_context(hits, requested_role)
 
-    # 4. Narrative — LLM first, deterministic fallback second.
-    plan = planning_agent.write_plan(
-        profile_summary=profile_summary,
-        role_title=role_title,
-        skill_gaps=skill_gaps,
-        recommended_courses=courses,
-        career_context=career_context,
-        timeline=timeline,
-        region=region,
-    )
+    plan = None
+    if career_context:
+        plan = planning_agent.write_plan(
+            profile_summary=profile_summary,
+            role_title=role_title,
+            career_context=career_context,
+            timeline=timeline,
+            region=region,
+        )
     if plan is None:
         plan = planning_agent.fallback_plan(
             role_title=role_title,
-            skill_gaps=skill_gaps,
-            recommended_courses=courses,
             has_profile=bool(profile_summary),
+            timeline=timeline,
+            region=region,
         )
-    notes.extend(plan["notes"])
 
-    sources = [_CAREER_MAP_SOURCE]
-    sources += [s for s in cited_sources(hits) if s not in sources]
+    notes = list(plan["notes"])
+    if not profile_summary:
+        notes.insert(
+            0,
+            "No career evidence was available from the profile; unsupported capabilities are left unassessed.",
+        )
+    if not career_context:
+        notes.append(
+            "Career reference material was unavailable, so the plan uses a conservative readiness checklist."
+        )
 
     return CareerPlanResult(
         target_role=role_title,
         current_fit=plan["current_fit"],
-        skill_gaps=tuple(skill_gaps),
-        recommended_courses=tuple(courses),
-        short_term_actions=tuple(plan["short_term_actions"]),
-        medium_term_actions=tuple(plan["medium_term_actions"]),
+        skill_assessment=tuple(plan["skill_assessment"]),
+        phases=tuple(plan["phases"]),
+        success_indicators=tuple(plan["success_indicators"]),
         notes=tuple(notes),
-        sources=tuple(sources),
+        sources=tuple(cited_sources(hits)),
     )

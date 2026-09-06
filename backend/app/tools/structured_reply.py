@@ -1,11 +1,10 @@
 """
-Shared rendering layer: turns a structured result dict from career_planning
-or program_comparison (or any future domain with the same shape of
-problem) into one natural-language chat reply.
+Shared rendering layer: turns a structured result dict from
+program_comparison (or any future domain with the same shape of problem)
+into one natural-language chat reply.
 
-Both source domains already write most of their content in natural
-language (course-pick `reason`s, career_planning's `current_fit`/action
-bullets, program_comparison's `best_fit_summary`/`program_comments`) —
+The source domain already writes most of its content in natural language
+(`best_fit_summary`/`program_comments`) —
 they just return it as a structured dict shaped for a REST/frontend
 consumer, not a single chat-ready string. So this is a *reflow* step, not
 a "write from scratch" step: connect already-written material into one
@@ -104,7 +103,7 @@ def render_structured_reply(
     on_event: OnEvent | None = None,
 ) -> tuple[str, list[str]]:
     """
-    Renders a career_planning/program_comparison-shaped result dict into one
+    Renders a program-comparison-shaped result dict into one
     chat reply. Never raises — any failure falls back to
     _template_fallback(). Returns (reply_text, sources) where `sources` is
     result.get("sources", []) verbatim.

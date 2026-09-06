@@ -16,7 +16,12 @@ from __future__ import annotations
 
 import re
 
-from app.domains.course_recommendation.models import CandidatePool, Course, ScoredCourse
+from app.domains.course_recommendation.models import (
+    CandidatePool,
+    Course,
+    ExcludedCourse,
+    ScoredCourse,
+)
 
 # Fallback-ranking weights (only used when the LLM selector fails):
 # closing a skill gap counts most, then covering another role skill,
@@ -29,15 +34,13 @@ W_PREFERENCE = 1.5
 PRIORITY_HIGH_MIN = 4.0
 PRIORITY_MEDIUM_MIN = 2.0
 
-MAX_RECOMMENDATIONS = 8
-
 _COURSE_CODE = re.compile(r"^[A-Z]{2,4}\d{4}[A-Z]?$")
 
 
 def normalize_codes(raw_codes: list[str]) -> tuple[list[str], list[str]]:
     """Uppercase, strip, dedup (order kept). Returns (codes, non_codes):
-    entries that cannot be a course code (e.g. a course *title* from the
-    profile, like "Machine Learning") go into non_codes so they can be
+    entries that cannot be a course code (e.g. a reported course title like
+    "Machine Learning") go into non_codes so they can be
     reported as unrecognized instead of silently vanishing."""
     seen: set[str] = set()
     codes: list[str] = []
@@ -47,7 +50,7 @@ def normalize_codes(raw_codes: list[str]) -> tuple[list[str], list[str]]:
         if not entry:
             continue
         code = entry.upper()
-        if _COURSE_CODE.match(code):
+        if _COURSE_CODE.fullmatch(code):
             if code not in seen:
                 seen.add(code)
                 codes.append(code)
@@ -58,7 +61,11 @@ def normalize_codes(raw_codes: list[str]) -> tuple[list[str], list[str]]:
 
 def _codes_in(text: str, codes: list[str]) -> tuple[str, ...]:
     """Which of `codes` appear (as whole words) in `text`."""
-    return tuple(c for c in codes if re.search(rf"\b{re.escape(c)}\b", text))
+    return tuple(
+        code
+        for code in codes
+        if re.search(rf"\b{re.escape(code)}\b", text, flags=re.IGNORECASE)
+    )
 
 
 def build_candidate_pool(
@@ -78,8 +85,8 @@ def build_candidate_pool(
     by_code = {c.code: c for c in courses}
 
     completed_recognized = [c for c in completed if c in by_code]
-    # Unknown codes and free-text titles (e.g. prior-degree courses from the
-    # profile) both end up here — reported, never silently dropped.
+    # Unknown codes and free-text titles both end up here — reported, never
+    # silently dropped.
     completed_unrecognized = [c for c in completed if c not in by_code] + non_codes
     completed_units = sum(by_code[c].units for c in completed_recognized)
 
@@ -87,25 +94,45 @@ def build_candidate_pool(
     skill_gaps = tuple(s for s in role_skills if s not in covered_skills)
 
     eligible: list[Course] = []
-    excluded: list[tuple[str, str]] = []
+    excluded_courses: list[ExcludedCourse] = []
+    preclusion_exclusions: list[tuple[str, str]] = []
     for course in courses:
-        if not course.can_recommend or course.code in completed_recognized:
+        if course.code in completed_recognized:
+            excluded_courses.append(
+                {"course_code": course.code, "reason": "already_completed"}
+            )
+            continue
+        if not course.can_recommend:
+            excluded_courses.append(
+                {"course_code": course.code, "reason": "not_recommendable"}
+            )
             continue
         precluded_by = _codes_in(course.preclusion_text, completed_recognized)
         if precluded_by:
-            excluded.append((course.code, precluded_by[0]))
+            related_course_code = precluded_by[0]
+            preclusion_exclusions.append((course.code, related_course_code))
+            excluded_courses.append(
+                {
+                    "course_code": course.code,
+                    "reason": "precluded_by_completed_course",
+                    "related_course_code": related_course_code,
+                }
+            )
             continue
         eligible.append(course)
 
     notes: list[str] = []
     if completed_unrecognized:
         notes.append(
-            "Not found in the course catalogue and ignored: " + ", ".join(completed_unrecognized)
+            "Not found in the course catalogue and ignored: "
+            + ", ".join(completed_unrecognized)
         )
-    if excluded:
+    if preclusion_exclusions:
         notes.append(
             "Excluded due to preclusion against a completed course: "
-            + ", ".join(f"{cand} (precluded by {done})" for cand, done in excluded)
+            + ", ".join(
+                f"{cand} (precluded by {done})" for cand, done in preclusion_exclusions
+            )
         )
 
     return CandidatePool(
@@ -114,8 +141,8 @@ def build_candidate_pool(
         completed_recognized=tuple(completed_recognized),
         completed_unrecognized=tuple(completed_unrecognized),
         completed_units=completed_units,
-        excluded_by_preclusion=tuple(excluded),
         notes=tuple(notes),
+        excluded_courses=tuple(excluded_courses),
     )
 
 
@@ -136,13 +163,13 @@ def score_candidates(
     pool: CandidatePool,
     role_skills: list[str],
     preferences: list[str],
-    completed_recognized: tuple[str, ...],
+    limit: int,
 ) -> list[ScoredCourse]:
     """
     FALLBACK ranking, used only when the LLM selector fails: weighted count
     of gap skills / other role skills / preference keyword hits. With no
     signal at all, falls back to the not-yet-completed Core Courses.
-    Returns at most MAX_RECOMMENDATIONS, best first.
+    Returns at most ``limit`` courses, best first.
     """
     skill_gaps = set(pool.skill_gaps)
     has_signal = bool(role_skills or any(p.strip() for p in preferences))
@@ -151,11 +178,16 @@ def score_candidates(
     for course in pool.eligible:
         matched_gap = tuple(s for s in course.skills if s in skill_gaps)
         # Gap skills excluded here so each skill scores exactly once.
-        matched_role = tuple(s for s in course.skills if s in role_skills and s not in skill_gaps)
+        matched_role = tuple(
+            s for s in course.skills if s in role_skills and s not in skill_gaps
+        )
         matched_prefs = _preference_matches(course, preferences)
-        prereq_met = _codes_in(course.prerequisite_text, list(completed_recognized))
 
-        score = W_GAP_SKILL * len(matched_gap) + W_ROLE_SKILL * len(matched_role) + W_PREFERENCE * len(matched_prefs)
+        score = (
+            W_GAP_SKILL * len(matched_gap)
+            + W_ROLE_SKILL * len(matched_role)
+            + W_PREFERENCE * len(matched_prefs)
+        )
 
         if has_signal:
             if score <= 0:
@@ -163,17 +195,18 @@ def score_candidates(
         elif not course.is_core:
             continue  # no signal at all: recommend remaining Core Courses
 
-        scored.append(ScoredCourse(
-            course=course,
-            score=score,
-            matched_gap_skills=matched_gap,
-            matched_role_skills=matched_role,
-            matched_preferences=matched_prefs,
-            prerequisite_met_by=prereq_met,
-        ))
+        scored.append(
+            ScoredCourse(
+                course=course,
+                score=score,
+                matched_gap_skills=matched_gap,
+                matched_role_skills=matched_role,
+                matched_preferences=matched_prefs,
+            )
+        )
 
     scored.sort(key=lambda s: (-s.score, s.course.code))
-    return scored[:MAX_RECOMMENDATIONS]
+    return scored[:limit]
 
 
 def priority_of(score: float) -> str:

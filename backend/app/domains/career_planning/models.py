@@ -1,4 +1,4 @@
-"""Internal domain models for the career_planning domain."""
+"""Internal domain models for independent career planning."""
 
 from __future__ import annotations
 
@@ -7,12 +7,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CareerPlanResult:
-    """What service.create_career_plan() returns to api.py / interface.py."""
-    target_role: str | None
+    target_role: str
     current_fit: str
-    skill_gaps: tuple[str, ...]
-    recommended_courses: tuple[dict, ...]
-    short_term_actions: tuple[str, ...]
-    medium_term_actions: tuple[str, ...]
+    skill_assessment: tuple[dict, ...]
+    phases: tuple[dict, ...]
+    success_indicators: tuple[str, ...]
     notes: tuple[str, ...]
     sources: tuple[str, ...]

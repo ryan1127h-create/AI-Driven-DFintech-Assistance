@@ -88,17 +88,18 @@ required documents, or application status / outcome timelines.
 structure, programme tracks, course descriptions, prerequisites or preclusions, \
 the capstone project, course plans (full-time or part-time), graduation \
 requirements, unit counts, or semester availability. Use this for questions \
-anchored on a course or the curriculum itself.
+anchored on what to study or which programme modules to choose, even when the \
+user mentions a career goal.
 
 "financial" — The user is asking about: tuition fees, acceptance fees, \
 scholarships, fee rebates, bond obligations, financial assistance, disbursement \
 of funds, or scholarship application procedures.
 
-"career" — The user is asking about career paths, job roles, or which skills / \
-courses prepare them for a role — e.g. "what should I study to become a quant", \
-"what does a compliance career need", "which modules suit a data science role". \
-Use this (not "academic") when the question is anchored on a career/role goal \
-rather than a specific course.
+"career" — The user is asking about career paths, job roles, role readiness, \
+capability evidence, portfolios, networking, interviews, or job-search milestones \
+— e.g. "what does a compliance career need", "am I ready for a quant role", or \
+"how should I prepare for product-manager interviews". Do NOT use this category \
+for requests about courses, modules, curricula, or what to study; those are academic.
 
 "comparison" — The user is explicitly comparing this programme against another \
 university's programme, e.g. "how does this compare to NTU", "is this better \

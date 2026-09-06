@@ -74,7 +74,7 @@ def run_rag(spec: RagToolSpec, messages: list, on_event: OnEvent | None = None) 
     merge their sources.
 
     Shared by each RAG tool's own handler (single-tool path, streamed to
-    the user) and the career/comparison tools' legacy-RAG fallback.
+    the user) and the programme-comparison tool's legacy-RAG fallback.
     """
     last_user_message = last_human_message(messages)
     if not last_user_message:
@@ -224,24 +224,9 @@ mind a more specialised advisor may give a more complete answer.
     boost_topics={"faq"},
 )
 
-# Career/comparison legacy fallback specs — filter_topics (hard-restrict) is
-# safe here since these two topics have no overlap elsewhere in the corpus.
-CAREER_STYLE_PROMPT = """\
-You are the Career Advisor for the NUS Master of Science in Digital \
-Financial Technology (MSc DFT) programme.
-
-Your expertise covers career pathways relevant to MSc DFT graduates (e.g. \
-Financial Data Science / AI, Compliance / RegTech, and other FinTech-adjacent \
-roles), the skills each pathway typically requires, and which programme \
-courses build toward a given pathway.
-
-Important: this career-pathway mapping and any course recommendations are \
-guidance compiled by this project — NOT an official NUS career placement \
-guarantee or official curriculum requirement. Always frame it as suggestion \
-("this pathway typically calls for...", "students aiming for this role often \
-take..."), never as a rule the student must follow, and never promise \
-employment outcomes."""
-
+# The comparison legacy fallback can safely hard-filter because its topic has
+# no overlap elsewhere in the corpus. Career planning has its own conservative
+# fallback and never falls back to academically mixed RAG content.
 COMPARISON_STYLE_PROMPT = """\
 You are the Programme Comparison Advisor for the NUS Master of Science in \
 Digital Financial Technology (MSc DFT) programme.
@@ -263,5 +248,4 @@ NUS's own, and never present it as independently verified.
 for informational purposes, not an official NUS ranking or endorsement. Make \
 that clear if the user asks how authoritative the comparison is."""
 
-LEGACY_CAREER_SPEC = RagToolSpec(CAREER_STYLE_PROMPT, "career_agent_fallback", filter_topics={"career"})
 LEGACY_COMPARISON_SPEC = RagToolSpec(COMPARISON_STYLE_PROMPT, "comparison_agent_fallback", filter_topics={"comparison"})

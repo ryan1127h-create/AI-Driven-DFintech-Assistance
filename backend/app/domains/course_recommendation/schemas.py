@@ -3,29 +3,21 @@ separate from the internal domain models (models.py)."""
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-# Per-item bounds: course codes are short (e.g. "FT5005"), and preference
-# keywords are substring-matched against every course description, so
-# unbounded strings would be both meaningless and wastefully scanned.
-CourseCode = Annotated[str, Field(max_length=20)]
-PreferenceKeyword = Annotated[str, Field(max_length=100)]
+from app.core.logging import get_logger
+from app.domains.course_recommendation.errors import (
+    CourseRecommendationStageError,
+    ErrorCode,
+    StageName,
+    StageStatus,
+    WorkflowStageResult,
+)
+from app.domains.course_recommendation.models import Priority, RecommendationResult
 
-# Free text on purpose: the 6 standard role ids get curated skill data, any
-# other role is mapped to our skill tags by AI (stated in the response
-# `notes`). See service.py::_resolve_role_skills.
-TargetRoleText = Annotated[str, Field(max_length=100)]
-
-
-class CourseRecommendationRequest(BaseModel):
-    # All optional: with nothing supplied the target role falls back to the
-    # stored profile's target_role_std, and with no signal at all the
-    # response is the remaining Core Courses (stated as such in `notes`).
-    target_role: Optional[TargetRoleText] = None
-    completed_courses: list[CourseCode] = Field(default_factory=list, max_length=40)
-    preferences: list[PreferenceKeyword] = Field(default_factory=list, max_length=10)
+logger = get_logger(__name__)
 
 
 class RecommendedCourse(BaseModel):
@@ -33,13 +25,49 @@ class RecommendedCourse(BaseModel):
     course_title: str
     units: int
     section: str
-    priority: Literal["high", "medium", "low"]
+    offered_terms: list[str]
+    course_time: str | None
+    priority: Priority
     matched_skills: list[str]
     reason: str
 
 
+class WorkflowDiagnosticResponse(BaseModel):
+    stage: StageName
+    code: str
+    message: str
+    retryable: bool
+
+
+class WorkflowStageResultResponse(BaseModel):
+    sequence: int
+    stage: StageName
+    status: StageStatus
+    summary: str
+    output: dict[str, object]
+    diagnostic_codes: list[str]
+
+
+class CourseRecommendationErrorResponse(BaseModel):
+    domain: Literal["course_recommendation"]
+    request_id: str
+    stage: StageName
+    code: str
+    message: str
+    retryable: bool
+
+
+class CourseRecommendationFailureResponse(BaseModel):
+    detail: str
+    workflow_status: Literal["failed"]
+    stage_results: list[WorkflowStageResultResponse]
+    error: CourseRecommendationErrorResponse
+
+
 class CourseRecommendationResponse(BaseModel):
-    target_role: Optional[str]
+    request_id: str
+    workflow_status: Literal["ok", "degraded"]
+    target_role: str | None
     recommended_courses: list[RecommendedCourse]
     skill_gaps: list[str]
     completed_recognized: list[str]
@@ -47,3 +75,78 @@ class CourseRecommendationResponse(BaseModel):
     completed_units: int
     notes: list[str]
     sources: list[str]
+    diagnostics: list[WorkflowDiagnosticResponse]
+    stage_results: list[WorkflowStageResultResponse]
+
+
+def _stage_responses(
+    stages: tuple[WorkflowStageResult, ...],
+) -> list[WorkflowStageResultResponse]:
+    return [
+        WorkflowStageResultResponse.model_validate(
+            item.response_content(sequence),
+        )
+        for sequence, item in enumerate(stages, start=1)
+    ]
+
+
+def response_from_result(result: RecommendationResult) -> CourseRecommendationResponse:
+    """Map the domain result to the one shared HTTP/internal response shape."""
+    try:
+        stages = (
+            *result.stage_results,
+            WorkflowStageResult(
+                stage="response_serialization",
+                status="success",
+                summary="The public response was serialized successfully.",
+                output={"response_ready": True},
+            ),
+        )
+        return CourseRecommendationResponse(
+            request_id=result.request_id,
+            workflow_status=result.workflow_status,
+            target_role=result.target_role,
+            recommended_courses=[
+                RecommendedCourse.model_validate(item)
+                for item in result.recommendations
+            ],
+            skill_gaps=list(result.skill_gaps),
+            completed_recognized=list(result.completed_recognized),
+            completed_unrecognized=list(result.completed_unrecognized),
+            completed_units=result.completed_units,
+            notes=list(result.notes),
+            sources=list(result.sources),
+            diagnostics=[
+                WorkflowDiagnosticResponse(
+                    stage=item.stage,
+                    code=item.code,
+                    message=item.message,
+                    retryable=item.retryable,
+                )
+                for item in result.diagnostics
+            ],
+            stage_results=_stage_responses(stages),
+        )
+    except Exception as exc:
+        logger.exception(
+            "course recommendation response serialization failed "
+            "request_id=%s code=%s",
+            result.request_id,
+            ErrorCode.RESPONSE_SERIALIZATION_FAILED,
+        )
+        raise CourseRecommendationStageError(
+            request_id=result.request_id,
+            stage="response_serialization",
+            code=ErrorCode.RESPONSE_SERIALIZATION_FAILED,
+            message="The course recommendation response could not be serialized.",
+            retryable=False,
+            stage_results=(
+                *result.stage_results,
+                WorkflowStageResult(
+                    stage="response_serialization",
+                    status="failed",
+                    summary=("The public response could not be serialized."),
+                    diagnostic_codes=(ErrorCode.RESPONSE_SERIALIZATION_FAILED,),
+                ),
+            ),
+        ) from exc

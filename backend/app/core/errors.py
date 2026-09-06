@@ -22,6 +22,10 @@ class DomainError(Exception):
     an expected outcome of the request, not a bug. See the subclasses
     below for the specific situations each one covers."""
 
+    def response_content(self) -> dict[str, object]:
+        """Public response body; domains may add safe structured fields."""
+        return {"detail": str(self)}
+
 
 class NotFoundError(DomainError):
     """The requested resource doesn't exist, or doesn't belong to the
@@ -83,7 +87,8 @@ def register_error_handlers(app: FastAPI) -> None:
     for error_type, status_code in _STATUS_BY_ERROR.items():
 
         def _handler(request: Request, exc: DomainError, _status: int = status_code) -> JSONResponse:
-            return JSONResponse(status_code=_status, content={"detail": str(exc)})
+            actual_status = getattr(exc, "status_code", _status)
+            return JSONResponse(status_code=actual_status, content=exc.response_content())
 
         app.add_exception_handler(error_type, _handler)
 
