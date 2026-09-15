@@ -50,10 +50,25 @@ class ToolAnswer:
     # short of what it needs from the user (not from a database it already
     # has) rather than guessing an answer — e.g. a career-plan request with
     # no target role and no profile on file. The orchestrator's post-answer
-    # evaluation step (orchestrator/evaluation.py) treats this as a signal
-    # to skip its own LLM judgement entirely: the tool already knows more
-    # cheaply and more reliably than a second LLM call re-guessing it would.
+    # evaluation step (orchestrator/dispatch/evaluation.py) treats this as a
+    # signal to skip its own LLM judgement entirely: the tool already knows
+    # more cheaply and more reliably than a second LLM call re-guessing it
+    # would.
     needs_clarification: bool = False
+
+
+@dataclass(frozen=True)
+class MissingInputField:
+    """One required input slot a tool could not resolve for this turn.
+    `slot` is a stable, machine-readable id (e.g. "target_role") used to
+    de-duplicate the same requirement across multiple matched tools;
+    `prompt` is the exact user-facing text asking for it — reused verbatim
+    from the tool's own existing wording wherever one already exists, so
+    the single-tool case reads identically to before this mechanism
+    existed."""
+
+    slot: str
+    prompt: str
 
 
 @dataclass(frozen=True)
@@ -72,6 +87,16 @@ class Tool:
     # tool that's only ever called directly (by name), never routed to by
     # intent classification.
     trigger_intents: frozenset[str] = field(default_factory=frozenset)
+    # Declares which input slots this tool cannot proceed without, given
+    # the current turn's TurnState. Called once per turn — before any of
+    # this turn's matched tools actually run — by
+    # orchestrator/dispatch/requirements.py, never by the tool itself.
+    # None (the default) means "no hard requirements", the same behavior
+    # every tool had before this mechanism existed. Must be cheap,
+    # deterministic, and synchronous — no LLM call (the same rule
+    # ToolAnswer.needs_clarification already follows: a tool should know
+    # this more cheaply and reliably than asking an LLM to re-guess it).
+    required_input: Callable[[Any], tuple[MissingInputField, ...]] | None = None
 
 
 class ToolNotFoundError(Exception):

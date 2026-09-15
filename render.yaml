@@ -39,31 +39,34 @@ services:
         value: supabase_cached
       - key: REDIS_URL
         sync: false
-      - key: CONVERSATION_DATABASE_URL
-        sync: false
 
-      # Read-only knowledge base for RAG and the raw course catalog (see
-      # app/adapters/knowledge_db_adapter.py)
-      - key: KNOWLEDGE_DATABASE_URL
+      # The one Supabase Postgres project backing both conversation storage
+      # (app/orchestrator/conversation_repository.py) and the read-only
+      # knowledge base for RAG / the raw course catalog (see
+      # app/adapters/knowledge_db_adapter.py).
+      - key: DATABASE_URL
         sync: false
       # Used only to embed RAG queries (text-embedding-3-small) — unrelated
       # to DEEPSEEK_API_KEY above, see app/adapters/openai_embedding_adapter.py
       - key: OPENAI_API_KEY
         sync: false
 
-      # Supabase Storage for checklist file uploads (see
-      # app/adapters/supabase_storage_adapter.py)
+      # Supabase project URL + API keys — Storage for checklist file uploads
+      # (see app/adapters/supabase_storage_adapter.py) and Auth (see
+      # supabase_auth_adapter.py): service_role for privileged calls, anon
+      # for the user-facing sign-in call.
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: CHECKLIST_STORAGE_BUCKET
         value: checklist-documents
 
-      # Self-issued JWT auth (see app/domains/auth/security.py) — must be a
-      # long random string; app refuses to start if this is missing/short.
-      - key: JWT_SECRET_KEY
-        sync: false
+      # No separate JWT-secret env var: access-token verification (see
+      # app/domains/auth/security.py) fetches the current signing key from
+      # this project's own JWKS endpoint, derived from SUPABASE_URL above.
 
       # Email verification codes for registration (see
       # app/domains/auth/service.py + app/adapters/resend_email_adapter.py).

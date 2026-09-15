@@ -22,21 +22,20 @@ layers =
 name = domains form their own internal dependency order
 type = layers
 layers =
-    app.domains.escalation | app.domains.application_tracker | app.domains.alumni_match
-    app.domains.career_planning | app.domains.program_comparison
-    app.domains.course_recommendation | app.domains.profile
+    app.domains.specialist.escalation | app.domains.specialist.application_tracker | app.domains.specialist.alumni_match
+    app.domains.specialist.career_planning | app.domains.specialist.program_comparison | app.domains.specialist.knowledge_qa | app.domains.specialist.assessment
+    app.domains.specialist.course_recommendation | app.domains.profile
     app.domains.checklist | app.domains.knowledge_retrieval
-    app.domains.auth | app.domains.course_catalog
+    app.domains.auth | app.domains.conversation
 
 [importlinter:contract:course-recommendation-agent-report-only]
 name = course recommendation cannot access profile or data stores
 type = forbidden
 source_modules =
-    app.domains.course_recommendation
+    app.domains.specialist.course_recommendation
 forbidden_modules =
     app.domains.profile
     app.domains.knowledge_retrieval
-    app.domains.course_catalog
     app.adapters.knowledge_db_adapter
     app.adapters.conversation_db_adapter
     app.adapters.redis_cache_adapter

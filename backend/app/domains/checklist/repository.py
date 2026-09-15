@@ -28,7 +28,7 @@ def list_items(user_id: str) -> dict[str, dict]:
         select item_id, status, evidence_source, note,
                file_name, content_type, file_size, storage_path,
                uploaded_at, updated_at
-          from student.application_checklist_items
+          from student.checklist_items
          where user_id = %s
         """,
         (user_id,),
@@ -62,7 +62,7 @@ def upsert_item(user_id: str, item_id: str, fields: dict) -> None:
 
     conversation_db.execute(
         f"""
-        insert into student.application_checklist_items
+        insert into student.checklist_items
             ({", ".join(columns)}, updated_at)
         values ({placeholders}, now())
         on conflict (user_id, item_id) do update

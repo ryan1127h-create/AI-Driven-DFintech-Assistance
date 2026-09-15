@@ -1,39 +1,50 @@
 """
-Password hashing and JWT issuance/verification — pure functions, no
-database access (see repository.py for that) and no HTTP concerns (see
+Verification-code helpers and access-token verification — pure functions,
+no database access (see repository.py for that) and no HTTP concerns (see
 service.py for how these are wired into register/login/
 get_current_user_id).
 
-Uses bcrypt directly rather than passlib — passlib has known compatibility
-issues with recent bcrypt releases, and no other domain in this project
-uses it, so there's no existing convention to match.
+Password hashing/checking and token issuance are NOT here — Supabase Auth
+(auth.users) owns the account's password entirely (see
+app/adapters/supabase_auth_adapter.py) and issues the access token itself;
+this module only verifies a token Supabase already signed.
 """
 
 from __future__ import annotations
 
 import hashlib
 import secrets
-import uuid
-from datetime import datetime, timedelta, timezone
 
-import bcrypt
 import jwt
+from jwt import PyJWKClient
 
 from app.core.config import settings
 
-JWT_ALGORITHM = "HS256"
+JWT_ALGORITHM = "ES256"
+JWT_AUDIENCE = "authenticated"  # fixed value Supabase Auth stamps into every access token
+
+# This project's Supabase Auth signs access tokens asymmetrically (ES256)
+# with a key published at its own JWKS endpoint, rather than the legacy
+# HS256-with-a-shared-secret setup older Supabase projects use — confirmed
+# by decoding a real issued token's header (`alg: ES256`) against this
+# endpoint. There is deliberately no "JWT secret" in config for this: the
+# verification key is public by design (that's the point of asymmetric
+# signing) and always fetched fresh from Supabase's own domain, so nothing
+# here is a value that could be missing/weak/forged the way a shared secret
+# could. PyJWKClient fetches and caches (default 300s) the key matching the
+# token's own `kid` header, so verification stays local after first use.
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(f"{settings.supabase_url}/auth/v1/.well-known/jwks.json")
+    return _jwks_client
 
 
 class TokenError(Exception):
     """Raised for any invalid, expired, or malformed access token."""
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
 def generate_verification_code() -> str:
@@ -48,9 +59,9 @@ def hash_code(code: str) -> str:
     comes from its short TTL and capped attempt count (see
     domains/auth/service.py), not from a deliberately slow hash — bcrypt's
     cost factor would just add latency to every check for no benefit here.
-    Passwords (hash_password above) are the opposite case: no TTL/attempt
-    cap bounds a password's exposure, so the slow hash is what's doing the
-    work there."""
+    A password is the opposite case: nothing bounds how long it might be
+    exposed, which is why *that* needs a deliberately slow hash — which is
+    exactly why Supabase Auth owns it instead of this app."""
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
@@ -58,29 +69,13 @@ def verify_code(code: str, code_hash: str) -> bool:
     return hashlib.sha256(code.encode("utf-8")).hexdigest() == code_hash
 
 
-def create_access_token(user_id: str, email: str, role: str) -> tuple[str, int, str]:
-    """Returns (token, expires_in_seconds, jti) — callers that need the jti
-    (e.g. to blacklist it on logout) get it back without decoding the token
-    they just made."""
-    now = datetime.now(timezone.utc)
-    expires_in = settings.jwt_access_token_expire_minutes * 60
-    jti = str(uuid.uuid4())
-    payload = {
-        "sub": str(user_id),
-        "email": email,
-        "role": role,
-        "jti": jti,
-        "iat": now,
-        "exp": now + timedelta(seconds=expires_in),
-    }
-    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=JWT_ALGORITHM)
-    return token, expires_in, jti
-
-
 def decode_access_token(token: str) -> dict:
-    """Returns the decoded payload, or raises TokenError for any invalid,
-    expired, or malformed token."""
+    """Returns the decoded payload of a Supabase Auth-issued access token,
+    or raises TokenError for any invalid, expired, or malformed token, or
+    one whose signature can't be verified against the current JWKS
+    (including a lookup failure — e.g. no key matches the token's `kid`)."""
     try:
-        return jwt.decode(token, settings.jwt_secret_key, algorithms=[JWT_ALGORITHM])
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(token, signing_key.key, algorithms=[JWT_ALGORITHM], audience=JWT_AUDIENCE)
     except jwt.PyJWTError as exc:
         raise TokenError(str(exc)) from exc

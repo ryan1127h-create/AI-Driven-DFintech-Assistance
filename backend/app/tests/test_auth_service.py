@@ -1,8 +1,9 @@
 """Exercises domains/auth/service.py's registration flow: role/email-domain
 validation, the two-step register-then-verify handoff through Redis (never
-touching student.users until verification succeeds), resend cooldown, the
-wrong-code attempt cap, and that a failed email send never leaves behind a
-pending entry that looks like it succeeded."""
+creating an account until verification succeeds), resend cooldown, the
+wrong-code attempt cap, that a failed email send never leaves behind a
+pending entry that looks like it succeeded, and login's role-matches-account
+check on top of a fake AuthPort standing in for Supabase Auth."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import pytest
 
 from app.core.errors import ConflictError, RateLimitError, ServiceUnavailableError, UnauthorizedError, ValidationError
 from app.domains.auth import service
+from app.ports.auth_port import AuthenticationError, AuthSession
 
 
 class _FakeCache:
@@ -45,6 +47,35 @@ class _FakeEmail:
         self.sent.append((to, subject, text_body))
 
 
+class _FakeAuthProvider:
+    """Stand-in for AuthPort/SupabaseAuthAdapter — an in-memory
+    email/password->user_id store, enough to exercise service.py's
+    create-then-sign-in (verify_email) and sign-in-only (login) paths
+    without a real Supabase project."""
+
+    def __init__(self) -> None:
+        self.created_users: list[tuple[str, str, str]] = []
+        self._accounts: dict[str, tuple[str, str]] = {}  # email -> (user_id, password)
+        self._next_id = 0
+
+    def create_user(self, email: str, password: str, full_name: str) -> str:
+        self._next_id += 1
+        user_id = f"11111111-1111-1111-1111-{self._next_id:012d}"
+        self.created_users.append((email, password, full_name))
+        self._accounts[email] = (user_id, password)
+        return user_id
+
+    def sign_in(self, email: str, password: str) -> AuthSession:
+        entry = self._accounts.get(email)
+        if entry is None or entry[1] != password:
+            raise AuthenticationError("Invalid login credentials.")
+        user_id, _ = entry
+        return AuthSession(user_id=user_id, access_token=f"token-for-{user_id}", expires_in=3600)
+
+    def sign_out(self, access_token: str) -> None:
+        pass
+
+
 @pytest.fixture()
 def fake_cache(monkeypatch):
     fake = _FakeCache()
@@ -56,6 +87,13 @@ def fake_cache(monkeypatch):
 def fake_email(monkeypatch):
     fake = _FakeEmail()
     monkeypatch.setattr(service, "email_sender", fake)
+    return fake
+
+
+@pytest.fixture()
+def fake_auth_provider(monkeypatch):
+    fake = _FakeAuthProvider()
+    monkeypatch.setattr(service, "auth_provider", fake)
     return fake
 
 
@@ -175,13 +213,13 @@ def test_verify_email_caps_attempts(fake_cache, fake_email, monkeypatch):
     assert service._load_pending("someone@gmail.com") is None  # cleaned up after the cap
 
 
-def test_verify_email_success_creates_the_user_and_logs_in(fake_cache, fake_email, monkeypatch):
+def test_verify_email_success_creates_the_user_and_logs_in(fake_cache, fake_email, fake_auth_provider, monkeypatch):
     created = {}
 
-    def _fake_create(email, password_hash, full_name, role):
-        created.update(email=email, password_hash=password_hash, full_name=full_name, role=role)
+    def _fake_create(user_id, email, full_name, role):
+        created.update(user_id=user_id, email=email, full_name=full_name, role=role)
         return {
-            "user_id": "11111111-1111-1111-1111-111111111111", "email": email,
+            "user_id": user_id, "email": email,
             "full_name": full_name, "role": role, "account_status": "active",
         }
 
@@ -195,6 +233,10 @@ def test_verify_email_success_creates_the_user_and_logs_in(fake_cache, fake_emai
     assert response.user.role == "applicant"
     assert response.access_token
     assert created["role"] == "applicant"
+    # The account was actually created with Supabase (not just our own
+    # extension row), and this app's row uses the id Supabase issued.
+    assert fake_auth_provider.created_users == [("someone@gmail.com", "password123", "Test Applicant")]
+    assert created["user_id"] == response.user.user_id
     # One-time use: the pending entry is gone, a second verify fails.
     with pytest.raises(ValidationError):
         service.verify_email("someone@gmail.com", code)
@@ -207,31 +249,38 @@ def test_verify_email_with_no_pending_registration(fake_cache, fake_email):
 
 # ---- login: role must match the account's actual stored role ------------
 
-def _user_row(role: str = "applicant") -> dict:
+def _user_row(role: str, user_id: str) -> dict:
     return {
-        "user_id": "11111111-1111-1111-1111-111111111111", "email": "someone@gmail.com",
+        "user_id": user_id, "email": "someone@gmail.com",
         "full_name": "Test User", "role": role, "account_status": "active",
-        "password_hash": service.hash_password("password123"),
     }
 
 
-def test_login_succeeds_when_selected_role_matches(monkeypatch):
-    monkeypatch.setattr(service.repository, "get_by_email", lambda email: _user_row("applicant"))
-    monkeypatch.setattr(service.repository, "update_last_login", lambda user_id: None)
+def test_login_succeeds_when_selected_role_matches(monkeypatch, fake_auth_provider):
+    user_id = fake_auth_provider.create_user("someone@gmail.com", "password123", "Test User")
+    monkeypatch.setattr(service.repository, "get_by_id", lambda uid: _user_row("applicant", uid))
+    monkeypatch.setattr(service.repository, "update_last_login", lambda uid: None)
 
     response = service.login("someone@gmail.com", "password123", "applicant")
     assert response.user.role == "applicant"
+    assert response.user.user_id == user_id
 
 
-def test_login_rejects_a_mismatched_role_even_with_the_correct_password(monkeypatch):
-    monkeypatch.setattr(service.repository, "get_by_email", lambda email: _user_row("applicant"))
-    monkeypatch.setattr(service.repository, "update_last_login", lambda user_id: None)
+def test_login_rejects_a_mismatched_role_even_with_the_correct_password(monkeypatch, fake_auth_provider):
+    fake_auth_provider.create_user("someone@gmail.com", "password123", "Test User")
+    monkeypatch.setattr(service.repository, "get_by_id", lambda uid: _user_row("applicant", uid))
+    monkeypatch.setattr(service.repository, "update_last_login", lambda uid: None)
 
     with pytest.raises(UnauthorizedError):
         service.login("someone@gmail.com", "password123", "admin")
 
 
-def test_login_wrong_password_is_checked_before_role(monkeypatch):
-    monkeypatch.setattr(service.repository, "get_by_email", lambda email: _user_row("applicant"))
+def test_login_wrong_password_is_checked_before_role(fake_auth_provider):
+    fake_auth_provider.create_user("someone@gmail.com", "password123", "Test User")
     with pytest.raises(UnauthorizedError):
         service.login("someone@gmail.com", "wrong-password", "admin")
+
+
+def test_login_unknown_email_is_rejected(fake_auth_provider):
+    with pytest.raises(UnauthorizedError):
+        service.login("never-registered@gmail.com", "password123", "applicant")

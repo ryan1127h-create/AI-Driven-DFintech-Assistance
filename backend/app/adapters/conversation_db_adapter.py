@@ -91,4 +91,4 @@ class ConversationDBAdapter(RelationalDBPort):
             raise
 
 
-conversation_db = ConversationDBAdapter(settings.conversation_database_url)
+conversation_db = ConversationDBAdapter(settings.database_url)

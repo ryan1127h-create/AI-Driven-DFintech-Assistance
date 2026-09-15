@@ -3,9 +3,10 @@ User profile repository — pure data access (no LLM calls) for
 `student.user_profiles`. Lives in the same Supabase project as every other
 domain's per-user tables (conversation_db) but in the `student` schema.
 
-`student.user_profiles.user_id` is PK + FK -> student.users(user_id), so a
-row must already exist in student.users (see the auth domain) before a
-profile can be written.
+`student.user_profiles.user_id` is PK + FK -> auth.users(id) (same identity
+source every student.* table's user_id points at), so a row must already
+exist there — i.e. the account must already be verified (see the auth
+domain) — before a profile can be written.
 """
 
 from __future__ import annotations

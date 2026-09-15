@@ -38,12 +38,12 @@ class TurnState:
     # given" as a first-class, gracefully-handled case.
     target_role_hint: str | None = None
     program_hints: list[str] = field(default_factory=list)
-    # Also set by the intent classifier (see orchestrator/routing.py) — the
-    # language the FINAL reply should end up in. Every generation prompt in
-    # this app (RAG, assessment, general chat, evaluation) ignores this
-    # field entirely and answers in English as usual; only
-    # orchestrator/localization.py reads it, as the very last step of a
-    # turn. "en" (the default) means "no conversion needed".
+    # Also set by the intent classifier (see orchestrator/classification.py)
+    # — the language the FINAL reply should end up in. Every generation
+    # prompt in this app (RAG, assessment, general chat, evaluation)
+    # ignores this field entirely and answers in English as usual; only
+    # orchestrator/dispatch/localization.py reads it, as the very last step
+    # of a turn. "en" (the default) means "no conversion needed".
     reply_language: str = "en"
 
 

@@ -1,7 +1,7 @@
 """
 Postgres adapter for KnowledgeBasePort — pure SQL access (no embedding
 calls, no ranking logic) to the read-only knowledge-base database (schema
-`app`, table `document_chunks`). Only ever issues SELECT statements.
+`knowledge`, table `document_chunks`). Only ever issues SELECT statements.
 
 The whole corpus is small and static enough to cache in process for the
 adapter's lifetime rather than re-querying per call.
@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from app.core.config import settings
 from app.ports.knowledge_base_port import KnowledgeBasePort
 
-_APP_SCHEMA = "app"
+_APP_SCHEMA = "knowledge"
 
 
 class KnowledgeDBAdapter(KnowledgeBasePort):
@@ -29,6 +29,10 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
         self._chunks_lock = threading.Lock()
         self._courses: list[dict] | None = None
         self._courses_lock = threading.Lock()
+        self._module_skills: list[dict] | None = None
+        self._module_skills_lock = threading.Lock()
+        self._course_electives: list[dict] | None = None
+        self._course_electives_lock = threading.Lock()
 
     def _get_conn(self) -> psycopg.Connection:
         if self._conn is None or self._conn.closed:
@@ -60,16 +64,58 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
                     with self._get_conn().cursor(row_factory=dict_row) as cur:
                         cur.execute(
                             f"""
-                            select course_code, title, annex_title, nusmods_title,
-                                   annex_presence, annex_section, module_credit,
-                                   faculty, department, description, prerequisite,
-                                   corequisite, preclusion, semester_count, source_url
+                            select course_code, title, annex_section, module_credit,
+                                   faculty, department, description, source_url,
+                                   can_recommend, needs_review, workload,
+                                   prerequisite_grad_text, corequisite_grad_text,
+                                   preclusion_codes, current_ay_label, current_ay_semesters
                             from {_APP_SCHEMA}.courses
                             order by course_code
                             """
                         )
                         self._courses = cur.fetchall()
         return self._courses
+
+    def fetch_module_skills(self) -> list[dict]:
+        if self._module_skills is None:
+            with self._module_skills_lock:
+                if self._module_skills is None:
+                    with self._get_conn().cursor(row_factory=dict_row) as cur:
+                        cur.execute(
+                            f"select module_code, skill_id from {_APP_SCHEMA}.module_skills"
+                        )
+                        self._module_skills = cur.fetchall()
+        return self._module_skills
+
+    def fetch_career_role_modules(self, role_id: str) -> list[dict]:
+        # career_role_modules has no module_name column of its own — the
+        # display title is joined live from courses.title so it can never
+        # drift out of sync with a course's own record (see the
+        # table-simplification note: module_name used to duplicate this
+        # verbatim, with zero divergence found before it was dropped).
+        with self._get_conn().cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                f"""
+                select crm.role_id, crm.course_code, c.title as module_name, crm.position
+                from {_APP_SCHEMA}.career_role_modules crm
+                join {_APP_SCHEMA}.courses c on c.course_code = crm.course_code
+                where crm.role_id = %s
+                order by crm.position
+                """,
+                (role_id,),
+            )
+            return cur.fetchall()
+
+    def fetch_course_electives(self) -> list[dict]:
+        if self._course_electives is None:
+            with self._course_electives_lock:
+                if self._course_electives is None:
+                    with self._get_conn().cursor(row_factory=dict_row) as cur:
+                        cur.execute(
+                            f"select course_code, vertical from {_APP_SCHEMA}.course_electives"
+                        )
+                        self._course_electives = cur.fetchall()
+        return self._course_electives
 
     @staticmethod
     def _to_pgvector(vec: list[float]) -> str:
@@ -92,4 +138,4 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
             return cur.fetchall()
 
 
-knowledge_db = KnowledgeDBAdapter(settings.knowledge_database_url)
+knowledge_db = KnowledgeDBAdapter(settings.database_url)

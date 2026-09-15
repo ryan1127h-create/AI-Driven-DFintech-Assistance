@@ -26,6 +26,16 @@ from app.adapters.redis_cache_adapter import cache
 from app.core.config import settings
 from app.domains.knowledge_retrieval.models import Hit
 
+# Official source URLs cited by both knowledge_qa's admissions topic and the
+# assessment domain's readiness-assessment prompt — lives here (the common
+# dependency both already sit above) rather than in either specialist
+# domain, so neither has to import the other just for this constant.
+ADMISSIONS_OFFICIAL_SOURCES = """\
+- NUS MSc DFinTech Programme Information : https://www.comp.nus.edu.sg/programmes/pg/mdft/
+- NUS MSc DFinTech Application Information: https://www.comp.nus.edu.sg/programmes/pg/mdft/application/
+- NUS MSc DFinTech Fees and Scholarships  : https://www.comp.nus.edu.sg/programmes/pg/mdft/scholarships/
+"""
+
 # RRF weights: semantic-first, keyword as a booster for codes/numbers that
 # embeddings tend to blur together (e.g. FT5005 vs FT5009).
 W_SEMANTIC = 0.8
@@ -378,3 +388,94 @@ def cited_sources(hits: list[Hit]) -> list[str]:
             seen.add(s)
             sources.append(s)
     return sources
+
+
+# --- structured, non-search access ------------------------------------------
+#
+# The three functions below are deterministic reads, not retrieval — for a
+# caller that needs "every row of X", not "the most relevant chunks for this
+# query". course_recommendation's chat adapter (see
+# app/tools/specialist/course_recommendation_tool.py) is the current
+# consumer of all three.
+
+def list_courses() -> list[dict]:
+    """The complete NUS course catalogue, unranked, straight from
+    knowledge.courses (see knowledge_db_adapter.fetch_all_courses())."""
+    return knowledge_db.fetch_all_courses()
+
+
+def list_curriculum_rules() -> list[dict]:
+    """Every course_rules chunk for the current intake (_CURRENT_INTAKE),
+    verbatim — a deterministic filter over fetch_all_chunks(), not a
+    semantic search, so nothing is missed or reordered by relevance
+    scoring. Same "filter fetch_all_chunks() by source_table" pattern
+    app/domains/specialist/program_comparison/repository.py already uses
+    for its own curriculum-rule lookups, promoted here as a public,
+    reusable capability."""
+    return [
+        c for c in knowledge_db.fetch_all_chunks()
+        if c["source_table"] == "course_rules"
+        and (c["metadata"] or {}).get("intake") == _CURRENT_INTAKE
+    ]
+
+
+def list_module_skills() -> dict[str, list[str]]:
+    """Every course's tagged skills, grouped by course code — a course with
+    no rows in module_skills simply gets an empty list. Same "structured
+    read, not retrieval" contract as list_courses()/list_curriculum_rules();
+    course_recommendation_tool.py is the current consumer."""
+    grouped: dict[str, list[str]] = {}
+    for row in knowledge_db.fetch_module_skills():
+        grouped.setdefault(row["module_code"], []).append(row["skill_id"])
+    return grouped
+
+
+def list_career_role_modules(role_id: str) -> list[dict]:
+    """The domain-expert-curated, priority-ordered course list for one
+    career role (role_id/course_code/module_name/position) — empty list if
+    the role has no curated list. course_recommendation_tool.py is the
+    current consumer, using this as a strong prior alongside the
+    skill-derived candidate pool."""
+    return knowledge_db.fetch_career_role_modules(role_id)
+
+
+def list_course_electives() -> dict[str, list[str]]:
+    """Every course's elective-vertical membership(s), grouped by course
+    code. A course can belong to more than one entry here (or to none,
+    e.g. a pure core course) — this is where a core-replacement course
+    that's also a vertical elective (see contracts.py's dual-membership
+    note) shows both memberships, unlike the single-valued
+    `annex_section` column list_courses() returns."""
+    grouped: dict[str, list[str]] = {}
+    for row in knowledge_db.fetch_course_electives():
+        grouped.setdefault(row["course_code"], []).append(row["vertical"])
+    return grouped
+
+
+def resolve_role_profile(role_query: str) -> dict | None:
+    """Resolves a free-text role description to {role_id, role_title,
+    required_skills} from the career_roles chunks, or None if nothing
+    matched. Same retrieval pattern
+    app/domains/specialist/career_planning/service.py::_career_context()
+    already uses privately for its own role lookups, promoted here as a
+    public, reusable capability. Takes the first career_roles hit —
+    filter_topics={"career"} keeps recall limited to the 6 known roles, so
+    the top hit is reliably the right one for any reasonable role query."""
+    hits = retrieve(
+        f"career pathway responsibilities skills {role_query}",
+        top_k=3, filter_topics={"career"},
+    )
+    for h in hits:
+        if h.source_table != "career_roles":
+            continue
+        md = h.metadata or {}
+        role_id = md.get("role_id")
+        role_title = md.get("role_title")
+        if not role_id or not role_title:
+            continue
+        return {
+            "role_id": role_id,
+            "role_title": role_title,
+            "required_skills": md.get("required_skills") or [],
+        }
+    return None

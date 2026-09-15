@@ -1,17 +1,19 @@
 """
-Shared rendering layer: turns a structured result dict from
-program_comparison (or any future domain with the same shape of problem)
-into one natural-language chat reply.
+Shared rendering layer: turns a structured result dict from a specialist
+domain (currently program_comparison and career_planning — any future
+domain with the same shape of problem can reuse this too) into one
+natural-language chat reply.
 
 The source domain already writes most of its content in natural language
-(`best_fit_summary`/`program_comments`) —
-they just return it as a structured dict shaped for a REST/frontend
+(program_comparison's `best_fit_summary`/`program_comments`,
+career_planning's `current_fit`/skill-assessment evidence/phase actions) —
+it just returns that as a structured dict shaped for a REST/frontend
 consumer, not a single chat-ready string. So this is a *reflow* step, not
 a "write from scratch" step: connect already-written material into one
 coherent reply that matches the user's own language, not compose new
 analysis. Kept deliberately cheap (small max_tokens) and with its own
 deterministic fallback — mirrors the fallback discipline every LLM step
-inside those two domains already follows.
+inside those domains already follows.
 """
 
 from __future__ import annotations
