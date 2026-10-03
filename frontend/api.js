@@ -15,8 +15,15 @@ function getAuthHeaders() {
   return { Authorization: `Bearer ${token}` };
 }
 
+// Fired when the server rejects the stored token (expired or revoked);
+// RoleContext listens for it and signs the user out locally.
+export const SESSION_EXPIRED_EVENT = "auth:session-expired";
+
 async function handleResponse(response) {
   if (!response.ok) {
+    if (response.status === 401 && localStorage.getItem("token")) {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
     const error = await response.json().catch(() => ({}));
 
     throw new Error(
@@ -50,6 +57,23 @@ export async function logout(){
   });
   return handleResponse(response);
 } 
+
+// The logged-in user (role and lifecycle stage as the server sees them now).
+export async function getMe() {
+  const response = await fetch(buildUrl("/auth/me"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
+// Changes the user's display name; returns the refreshed user.
+export function updateMe(fullName) {
+  return jsonRequest("PATCH", "/auth/me", { full_name: fullName });
+}
+
+// Records that the user skipped or finished the profile welcome
+// questionnaire ("skipped" | "completed"); returns the refreshed user.
+export function setOnboardingStatus(status) {
+  return jsonRequest("PUT", "/auth/onboarding", { status });
+}
 
 // Register — two steps: register() starts it and emails a 6-digit code (no
 // account exists yet, no token), verifyEmail() completes it and logs the
@@ -169,45 +193,6 @@ export async function getChatHistory(sessionId) {
   return handleResponse(response);
 }
 
-export async function recommendCourses(payload = {}) {
-  const response = await fetch(buildUrl("/course-recommendations"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(response);
-}
-
-export async function comparePrograms(payload = {}) {
-  const response = await fetch(buildUrl("/program-comparisons"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(response);
-}
-
-export async function createCareerPlan(payload = {}) {
-  const response = await fetch(buildUrl("/career-plans"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(response);
-}
-
 export async function rollbackChat(sessionId, turns) {
   const response = await fetch(buildUrl(`/chat/${sessionId}/rollback`), {
     method: "POST",
@@ -233,106 +218,86 @@ export async function clearChat(sessionId) {
   return handleResponse(response);
 }
 
-export async function extractProfile(formData) {
-  const lifecycle = formData?.lifecycle_stage === "current" ? "enrolled" : "applicant";
-  const cvFile = formData?.cvFile || null;
-
-  if (!cvFile) {
-    return {
-      prefill: {
-        lifecycle_stage: formData?.lifecycle_stage || "applicant",
-        profile_summary: formData?.text || "",
-      },
-    };
-  }
-
-  const uploadData = new FormData();
-  uploadData.append("file", cvFile);
-  const uploadResponse = await fetch(buildUrl("/checklist/items/cv/file"), {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: uploadData,
-  });
-  await handleResponse(uploadResponse);
-
-  const response = await fetch(buildUrl("/profile/resume"), {
-    method: "POST",
-    headers: getAuthHeaders(),
-  });
-
-  const profile = await handleResponse(response);
-
-  return {
-    prefill: {
-      lifecycle_stage:
-        profile.lifecycle_stage === "applicant" ? "applicant" : "prospect",
-      degree_level: "",
-      field_of_study: profile.academic_background_std || "",
-      academic_background_std: profile.academic_background_std || "",
-      work_years: profile.work_years ?? "",
-      technical_proficiency: profile.tech_level_std || "",
-      tech_level_std: profile.tech_level_std || "",
-      target_roles: profile.target_role_std ? [profile.target_role_std] : [],
-      target_role_std: profile.target_role_std || "",
-      target_role_raw: profile.target_role_raw || "",
-      completed_modules: Array.isArray(profile.completed_courses) ? profile.completed_courses.join(", ") : "",
-      completed_courses: Array.isArray(profile.completed_courses) ? profile.completed_courses : [],
-      application_type: "",
-      finance_knowledge: "",
-      parsed_lifecycle_stage: lifecycle,
-    },
-  };
+function jsonRequest(method, path, body) {
+  return fetch(buildUrl(path), {
+    method,
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).then(handleResponse);
 }
+
+// Profile — field-dictionary based (see backend/app/domains/profile/api.py).
+// GET /profile returns { user_id, fields: { key: { value, source, verified,
+// updated_at, editable, locked_reason } }, open_conflicts }.
 
 export async function getProfile() {
-  const response = await fetch(buildUrl("/profile"), {
-    headers: getAuthHeaders(),
-  });
-
-  if (response.status === 404) {
-    return null;
-  }
-
+  const response = await fetch(buildUrl("/profile"), { headers: getAuthHeaders() });
   return handleResponse(response);
 }
 
-export async function updateProfile(data) {
-  const response = await fetch(buildUrl("/profile"), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (response.status === 404) {
-    const createResponse = await fetch(buildUrl("/profile"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
-    });
-
-    return handleResponse(createResponse);
-  }
-
+export async function getProfileDefinitions() {
+  const response = await fetch(buildUrl("/profile/definitions"), { headers: getAuthHeaders() });
   return handleResponse(response);
 }
 
-export async function createProfile(data) {
-  const response = await fetch(buildUrl("/profile"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(data),
-  });
+// fields: { field_key: value } — a null value deletes the field.
+// cvDocumentId: set when the answers were reviewed after a CV import, so
+// the server can store unchanged CV values as coming from the CV.
+export function updateProfile(fields, cvDocumentId) {
+  return jsonRequest("PATCH", "/profile", cvDocumentId ? { fields, cv_document_id: cvDocumentId } : { fields });
+}
 
+// Uploads a PDF/DOCX CV; returns the checked candidates it yielded (see
+// backend/app/domains/cv_import/). The browser sets the multipart
+// Content-Type itself.
+export async function importCv(file) {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(buildUrl("/cv-import"), { method: "POST", headers: getAuthHeaders(), body });
   return handleResponse(response);
+}
+
+// Forgets what was kept from the user's CVs (details found and the lines
+// they came from); values already on the profile stay.
+export function deleteCvData() {
+  return jsonRequest("DELETE", "/cv-import");
+}
+
+// Assistant preferences: { language_pref: ["en", ...], answer_depth:
+// "concise" | "standard" | "detailed", email_notifications }.
+export async function getSettings() {
+  const response = await fetch(buildUrl("/auth/settings"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
+export function updateSettings(changes) {
+  return jsonRequest("PATCH", "/auth/settings", changes);
+}
+
+// The user's most recent CV import, or null.
+export async function getLatestCvImport() {
+  const response = await fetch(buildUrl("/cv-import/latest"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
+export async function getProfileConflicts() {
+  const response = await fetch(buildUrl("/profile/conflicts"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
+// action: "accept_candidate" | "keep_current" | "dismiss"
+export function resolveProfileConflict(conflictId, action) {
+  return jsonRequest("POST", `/profile/conflicts/${conflictId}`, { action });
+}
+
+export async function getConsents() {
+  const response = await fetch(buildUrl("/profile/consents"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
+// consents: { consent_key: boolean }
+export function updateConsents(consents) {
+  return jsonRequest("PUT", "/profile/consents", { consents });
 }
 
 export async function getChecklist() {
@@ -342,21 +307,16 @@ export async function getChecklist() {
   return handleResponse(response);
 }
 
-export async function getCourses() {
-  const response = await fetch(buildUrl("/courses"));
+// The current student's academic record, course enrollments and degree
+// progress — current/graduating students only (403 otherwise).
+export async function getLifecycle() {
+  const response = await fetch(buildUrl("/lifecycle"), { headers: getAuthHeaders() });
   return handleResponse(response);
 }
 
-export async function uploadChecklistItemFile(itemId, file) {
-  const formData = new FormData();
-  formData.append("file", file);
 
-  const response = await fetch(buildUrl(`/checklist/items/${encodeURIComponent(itemId)}/file`), {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: formData,
-  });
-
-  return handleResponse(response);
+// Binds the admission application filed under the user's login email to
+// their account; returns the refreshed checklist.
+export function bindApplication(applicationNo) {
+  return jsonRequest("POST", "/checklist/application", { application_no: applicationNo });
 }
-

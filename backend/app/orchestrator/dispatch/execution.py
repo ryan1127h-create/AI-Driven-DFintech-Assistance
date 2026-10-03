@@ -130,7 +130,7 @@ def run_and_synthesize(
     partials = [(name, results[name]) for name in tool_names]
     return run_with_timeout(
         lambda: synthesis.synthesize(
-            synthesis.SynthesizeInput(user_message=user_message, partials=partials), on_event=on_event,
+            synthesis.SynthesizeInput(user_message=user_message, partials=partials, depth=state.answer_depth), on_event=on_event,
         ),
         _SYNTHESIS_TIMEOUT_SECONDS,
     )

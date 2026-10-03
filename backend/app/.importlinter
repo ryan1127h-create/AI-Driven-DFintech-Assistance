@@ -13,29 +13,66 @@ layers =
     app.ports
     app.core
 
-; auth (identity) and checklist (the résumé file profile reads) are the two
-; domains everything else may legitimately depend on; profile sits above
-; checklist. Course recommendation receives a complete Agent report and is
-; intentionally isolated from every data-owning domain. Domains listed on the
-; same line, separated by "|", are siblings: neither may import the other.
+; The data-owning domains, highest first: a domain may import (the
+; interface of) a domain below it, never one above. Domains on the same
+; line, separated by "|", are siblings: neither may import the other.
+; checklist links applications (sis) to accounts (auth) and lifecycle
+; stages (profile); lifecycle shows a student's sis record and their degree
+; progress, computed by the course_recommendation specialist's pure
+; curriculum rules; cv_import reads an uploaded CV with the cv_extraction
+; specialist and stores the checked result in profile (those two are the
+; only specialists a data domain imports); derived_labels computes labels
+; from profile, sis and knowledge (reusing lifecycle's degree progress
+; rules) and stores them in profile; auth
+; records the registration stage and consent in profile; profile validates
+; role tags against knowledge_retrieval.
+; Every domain's api.py resolves the caller through auth's
+; get_current_user_id dependency - HTTP plumbing, not a domain dependency -
+; so those imports are exempt.
 [importlinter:contract:domain-layers]
-name = domains form their own internal dependency order
+name = data-owning domains form their own dependency order
 type = layers
 layers =
-    app.domains.specialist.escalation | app.domains.specialist.application_tracker | app.domains.specialist.alumni_match
-    app.domains.specialist.career_planning | app.domains.specialist.program_comparison | app.domains.specialist.knowledge_qa | app.domains.specialist.assessment
-    app.domains.specialist.course_recommendation | app.domains.profile
-    app.domains.checklist | app.domains.knowledge_retrieval
-    app.domains.auth | app.domains.conversation
+    app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels
+    app.domains.auth
+    app.domains.profile
+    app.domains.sis | app.domains.knowledge_retrieval | app.domains.conversation
+ignore_imports =
+    app.domains.*.api -> app.domains.auth.interface
 
-[importlinter:contract:course-recommendation-agent-report-only]
-name = course recommendation cannot access profile or data stores
+; Specialist agents read no data themselves: the tools layer assembles
+; every input (profile facts, knowledge-base content, retrieval context)
+; and passes it in. They may use the LLM adapter, nothing else below.
+[importlinter:contract:specialists-get-data-from-tools]
+name = specialist agents never read data themselves
 type = forbidden
 source_modules =
-    app.domains.specialist.course_recommendation
+    app.domains.specialist
 forbidden_modules =
-    app.domains.profile
+    app.domains.auth
+    app.domains.checklist
+    app.domains.conversation
     app.domains.knowledge_retrieval
+    app.domains.profile
+    app.domains.sis
+    app.adapters.postgres_pool
+    app.adapters.account_db_adapter
+    app.adapters.profile_db_adapter
+    app.adapters.sis_db_adapter
+    app.adapters.chat_db_adapter
     app.adapters.knowledge_db_adapter
-    app.adapters.conversation_db_adapter
     app.adapters.redis_cache_adapter
+    app.adapters.openai_embedding_adapter
+    app.adapters.supabase_auth_adapter
+    app.adapters.resend_email_adapter
+
+[importlinter:contract:specialists-independent]
+name = specialist agents do not import each other
+type = independence
+modules =
+    app.domains.specialist.assessment
+    app.domains.specialist.career_planning
+    app.domains.specialist.course_recommendation
+    app.domains.specialist.cv_extraction
+    app.domains.specialist.knowledge_qa
+    app.domains.specialist.program_comparison

@@ -1,9 +1,20 @@
-"""Orchestrator adapter for independent career-readiness planning."""
+"""Orchestrator adapter for independent career-readiness planning.
+
+career_planning reads no data itself, so this tool assembles its inputs:
+the target role (named in the message, else the profile's main target role,
+else its first target role family), the user's career evidence (the
+profile's "career" purpose facts plus lifecycle stage, as English lines) and
+the career reference chunks retrieved for that role.
+"""
 
 from __future__ import annotations
 
-from app.domains.profile.interface import get_profile
+from dataclasses import asdict
+
+from app.domains.knowledge_retrieval.interface import get_role_profile
+from app.domains.profile.interface import describe_facts, describe_value, get_profile_field, get_profile_for_purpose
 from app.domains.specialist.career_planning.interface import create_career_plan
+from app.tools.knowledge_context import retrieve_context
 from app.tools.contracts import MissingInputField, OnEvent, Tool, ToolAnswer
 from app.tools.structured_reply import render_structured_reply
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
@@ -36,11 +47,33 @@ self-check against, not a guarantee or an official requirement.
 about that limitation rather than glossing over it."""
 
 
-def _has_known_target_role(state: TurnState) -> bool:
+def _career_facts(state: TurnState) -> dict:
+    return get_profile_for_purpose(state.user_id, "career") if state.user_id else {}
+
+
+def _target_role(state: TurnState, facts: dict) -> str | None:
+    """The role named in the message, else the profile's main role, else
+    its first listed role (as the role family's English name)."""
     if state.target_role_hint:
-        return True
-    profile = get_profile(state.user_id) if state.user_id else None
-    return bool((profile or {}).get("target_role_raw") or (profile or {}).get("target_role_std"))
+        return state.target_role_hint
+    families = facts.get("target_role_families") or []
+    tag = facts.get("main_target_role") or (families[0] if families else None)
+    if not tag:
+        return None
+    role = get_role_profile(tag)
+    return role["role_title"] if role else tag
+
+
+def _evidence(state: TurnState, facts: dict) -> list[str]:
+    lines = describe_facts(facts)
+    stage = get_profile_field(state.user_id, "lifecycle_stage") if state.user_id else None
+    if stage:
+        lines.append("Career stage: " + describe_value("lifecycle_stage", stage))
+    return lines
+
+
+def _has_known_target_role(state: TurnState) -> bool:
+    return bool(_target_role(state, _career_facts(state)))
 
 
 def _required_input(state: TurnState) -> tuple[MissingInputField, ...]:
@@ -64,9 +97,19 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
             needs_clarification=True,
         )
 
-    result = create_career_plan(user_id=state.user_id, target_role=state.target_role_hint)
+    facts = _career_facts(state)
+    role = _target_role(state, facts)
+    retrieved = retrieve_context(
+        f"career pathway responsibilities skills experience portfolio hiring {role}",
+        top_k=3, filter_topics={"career"},
+    )
+    result = create_career_plan(
+        role, _evidence(state, facts), [asdict(h) for h in retrieved.hits], retrieved.sources,
+    )
     user_message = last_human_message(state.messages)
-    answer, sources = render_structured_reply(result, user_message, CAREER_STYLE_PROMPT, on_event=on_event)
+    answer, sources = render_structured_reply(
+        result, user_message, CAREER_STYLE_PROMPT, on_event=on_event, depth=state.answer_depth,
+    )
     return ToolAnswer(text=answer, sources=sources, agent_used="career_agent")
 
 

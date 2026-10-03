@@ -800,6 +800,24 @@ def _courses_from_report(request: CourseRecommendationInput) -> list[Course]:
     ]
 
 
+def compute_degree_progress(catalogue: list[dict], completed_codes: list[str]) -> DegreeProgress:
+    """STAGE 2 classification + STAGE 3 alone, for a caller that needs only
+    the progress numbers a recommendation is built on, not a recommendation.
+    `catalogue` items carry just code, units and vertical; completed codes
+    not in it are ignored, as in eligibility.build_candidate_pool()."""
+    courses = _classify_courses([
+        Course(
+            code=item["code"], title="", units=item["units"], section="", skills=(), description="",
+            prerequisite_text="", preclusion_text="", can_recommend=True, source_url="",
+            vertical=tuple(item.get("vertical") or ()),
+        )
+        for item in catalogue
+    ])
+    units_by_code = {c.code: c.units for c in courses}
+    recognized = tuple(code for code in dict.fromkeys(completed_codes) if code in units_by_code)
+    return degree_progress_pipeline.compute(courses, recognized, sum(units_by_code[c] for c in recognized))
+
+
 def _classify_courses(courses: list[Course]) -> list[Course]:
     return [
         replace(

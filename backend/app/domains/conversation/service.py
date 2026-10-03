@@ -76,9 +76,11 @@ def record_turn(
     # Intent-classification log for this turn — persisted to the hot
     # conversations table, not the archive, until a future freeze moves the
     # entries covering this turn into the archive.
-    state.pending_turn_intents = state.pending_turn_intents + [
-        {"turn": state.turn_count, "intents": intents, "agent_used": agent_used}
-    ]
+    entry = {"turn": state.turn_count, "intents": intents, "agent_used": agent_used}
+    sources = (ai_message.additional_kwargs or {}).get("sources")
+    if sources:
+        entry["sources"] = list(sources)
+    state.pending_turn_intents = state.pending_turn_intents + [entry]
     get_session_store().save_state(session_id, state)
 
 
@@ -259,6 +261,7 @@ def _pair_to_turns(
         if entry is not None:
             ai_turn["intents"] = entry.get("intents")
             ai_turn["agent_used"] = entry.get("agent_used")
+            ai_turn["sources"] = entry.get("sources") or []
         turns.append(ai_turn)
         turn += 1
     return turns

@@ -48,6 +48,9 @@ class ConversationTurn(BaseModel):
     # existed, not for "no intent". Never set on "human" turns.
     intents: Optional[list[str]] = None
     agent_used: Optional[str] = None
+    # What the answer cited (URLs or source names); [] when nothing was,
+    # None for turns logged before sources were kept.
+    sources: Optional[list[str]] = None
 
 
 class HistoryBlockOut(BaseModel):

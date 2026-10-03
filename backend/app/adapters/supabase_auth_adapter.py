@@ -1,7 +1,7 @@
 """
 Supabase Auth adapter for AuthPort. Two lazily-built clients, on purpose:
-admin operations (create_user, sign_out-by-token) need the service_role key
-the same way supabase_storage_adapter.py's uploads do, but the actual
+admin operations (create_user, sign_out-by-token) need the service_role key,
+but the actual
 password check (sign_in_with_password) is a public GoTrue endpoint meant to
 be called with the anon key — using service_role there would work but skips
 the provider's own per-key rate limiting on login attempts.
@@ -42,6 +42,11 @@ class SupabaseAuthAdapter(AuthPort):
             "user_metadata": {"full_name": full_name},
         })
         return response.user.id
+
+    def update_full_name(self, user_id: str, full_name: str) -> None:
+        self._get_admin_client().auth.admin.update_user_by_id(
+            user_id, {"user_metadata": {"full_name": full_name}}
+        )
 
     def sign_in(self, email: str, password: str) -> AuthSession:
         try:

@@ -5,15 +5,15 @@ this. Private to the conversation domain — other domains and the
 orchestrator should go through interface.py, never import this module
 directly.
 
-Storage shape per session, in the `student` schema:
-  - `student.conversations` (hot table, always small): turn_count,
+Storage shape per session, in the `chat` schema:
+  - `chat.conversations` (hot table, always small): turn_count,
     last_frozen_end, raw_tail (unfrozen recent messages only),
     history_summaries (list of frozen block summaries), pending_turn_intents
     (one {"turn","intents","agent_used"} entry per not-yet-archived turn —
     see models.py::ConversationState). Read/written every turn — this is
     the ONLY table a normal turn writes to. `conversation_id` doubles as
     the app-level `session_id`.
-  - `student.messages` (cold table, one row per conversation, keyed by the
+  - `chat.messages` (cold table, one row per conversation, keyed by the
     same conversation_id): archived_blocks is a jsonb array that each
     freeze appends one entry to, and turn_intents is the same shape, moved
     wholesale out of `conversations.pending_turn_intents` for exactly the
@@ -26,7 +26,7 @@ Storage shape per session, in the `student` schema:
 Three backends are available, selected via settings.session_store_backend:
   "memory"          — process-local dict. Lost on restart, not shared across workers.
   "redis"           — the whole ConversationState cached in Redis (no durable backing).
-  "supabase_cached" — durable storage in the `student` schema, with a cache
+  "supabase_cached" — durable storage in the `chat` schema, with a cache
                        in front as a cache-aside layer.
 
 Usage:
@@ -46,7 +46,7 @@ from dataclasses import asdict
 
 from langchain_core.messages import HumanMessage, messages_from_dict, messages_to_dict
 
-from app.adapters.conversation_db_adapter import conversation_db
+from app.adapters.chat_db_adapter import chat_db
 from app.adapters.redis_cache_adapter import cache
 from app.core.config import settings
 from app.domains.conversation.models import (
@@ -287,25 +287,25 @@ class RedisConversationStore(ConversationStore):
 
 
 class SupabaseConversationStore(ConversationStore):
-    """Durable storage in the `student` schema (same conversation database
+    """Durable storage in the `chat` schema (same conversation database
     every other domain's per-user tables live in) — hot
-    `student.conversations` table + cold `student.messages` table (one row
+    `chat.conversations` table + cold `chat.messages` table (one row
     per conversation in both, `conversation_id` is the PK of each).
     `conversation_id` also doubles as the app-level `session_id` used
     throughout this module.
 
-    `student.conversations.user_id` is a nullable FK to `auth.users` (same
-    identity source every other student.* table's user_id points at —
+    `chat.conversations.user_id` is a nullable FK to `auth.users` (same
+    identity source every per-user table's user_id points at —
     see app/domains/auth/repository.py); written as the authenticated
     caller's user_id, threaded down through ConversationState.user_id /
     try_lock()'s user_id argument.
     """
 
     def get_state(self, session_id: str) -> ConversationState:
-        row = conversation_db.fetch_one(
+        row = chat_db.fetch_one(
             "select turn_count, last_frozen_end, raw_tail, history_summaries, "
             "pending_turn_intents, user_id "
-            "from student.conversations where conversation_id = %s",
+            "from chat.conversations where conversation_id = %s",
             (session_id,),
         )
         if not row:
@@ -321,9 +321,9 @@ class SupabaseConversationStore(ConversationStore):
         )
 
     def save_state(self, session_id: str, state: ConversationState) -> None:
-        conversation_db.execute(
+        chat_db.execute(
             """
-            insert into student.conversations
+            insert into chat.conversations
               (conversation_id, user_id, turn_count, last_frozen_end, raw_tail,
                history_summaries, pending_turn_intents, total_messages)
             values (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s)
@@ -347,7 +347,7 @@ class SupabaseConversationStore(ConversationStore):
     def archive_block(
         self, session_id: str, block: HistoryBlock, raw_messages: list, turn_intents: list[dict]
     ) -> None:
-        """One row per conversation in student.messages (conversation_id is
+        """One row per conversation in chat.messages (conversation_id is
         its PK), appended to on every freeze rather than inserting new rows
         — this is a single atomic UPDATE using jsonb `||` concatenation, so
         concurrent archive_block calls for the same session serialize
@@ -355,12 +355,12 @@ class SupabaseConversationStore(ConversationStore):
         inserting their own rows.
 
         Writes archived_blocks and turn_intents together in one statement —
-        this is the only method that writes to student.messages, and it
+        this is the only method that writes to chat.messages, and it
         only runs from service.py::freeze_and_unlock (never on
         a normal turn), so this table is genuinely archive-only:
         `turn_intents` here is just the slice of the caller's
         ConversationState.pending_turn_intents that this block covers,
-        moved out of student.conversations and into this table's own copy
+        moved out of chat.conversations and into this table's own copy
         — the caller is responsible for then dropping those entries from
         pending_turn_intents before it next calls save_state()/
         unlock_after_freeze().
@@ -377,13 +377,13 @@ class SupabaseConversationStore(ConversationStore):
             "raw_messages": messages_to_dict(raw_messages),
         }])
         intents_payload = json.dumps(turn_intents)
-        conversation_db.execute(
+        chat_db.execute(
             """
-            insert into student.messages (conversation_id, archived_blocks, turn_intents)
+            insert into chat.messages (conversation_id, archived_blocks, turn_intents)
             values (%s, %s::jsonb, %s::jsonb)
             on conflict (conversation_id) do update
-              set archived_blocks = student.messages.archived_blocks || excluded.archived_blocks,
-                  turn_intents = student.messages.turn_intents || excluded.turn_intents,
+              set archived_blocks = chat.messages.archived_blocks || excluded.archived_blocks,
+                  turn_intents = chat.messages.turn_intents || excluded.turn_intents,
                   updated_at = now()
             """,
             (session_id, payload, intents_payload),
@@ -398,8 +398,8 @@ class SupabaseConversationStore(ConversationStore):
         are two parallel arrays — each archive_block() call appends exactly
         one entry to both in the same statement, so they zip elementwise by
         position."""
-        row = conversation_db.fetch_one(
-            "select archived_blocks, turn_intents from student.messages where conversation_id = %s",
+        row = chat_db.fetch_one(
+            "select archived_blocks, turn_intents from chat.messages where conversation_id = %s",
             (session_id,),
         )
         if not row or not row[0]:
@@ -411,9 +411,9 @@ class SupabaseConversationStore(ConversationStore):
         ]
 
     def list_sessions(self, user_id: str) -> list[dict]:
-        rows = conversation_db.fetch_all(
+        rows = chat_db.fetch_all(
             "select conversation_id, turn_count, last_frozen_end, status_updated_at, raw_tail "
-            "from student.conversations where user_id = %s order by status_updated_at desc",
+            "from chat.conversations where user_id = %s order by status_updated_at desc",
             (user_id,),
         )
         return [
@@ -428,8 +428,8 @@ class SupabaseConversationStore(ConversationStore):
         ]
 
     def delete(self, session_id: str) -> None:
-        # student.messages rows cascade-delete via the FK.
-        conversation_db.execute("delete from student.conversations where conversation_id = %s", (session_id,))
+        # chat.messages rows cascade-delete via the FK.
+        chat_db.execute("delete from chat.conversations where conversation_id = %s", (session_id,))
 
     def try_lock(self, session_id: str, status: str, user_id: str) -> str | None:
         """Atomic CAS: normal->`status`, or takeover of a stale
@@ -451,14 +451,14 @@ class SupabaseConversationStore(ConversationStore):
         On failure, looks up the current status to report back to the
         caller (e.g. so api.py can tell "processing" and "summarizing"
         apart with a distinct HTTP status each)."""
-        acquired_row = conversation_db.execute_returning(
+        acquired_row = chat_db.execute_returning(
             """
-            insert into student.conversations (conversation_id, user_id, status, status_updated_at)
+            insert into chat.conversations (conversation_id, user_id, status, status_updated_at)
             values (%s, %s, %s, now())
             on conflict (conversation_id) do update
               set status = excluded.status, status_updated_at = excluded.status_updated_at
-              where student.conversations.status = 'normal'
-                 or student.conversations.status_updated_at < now() - make_interval(secs => %s)
+              where chat.conversations.status = 'normal'
+                 or chat.conversations.status_updated_at < now() - make_interval(secs => %s)
             returning conversation_id
             """,
             (session_id, user_id, status, settings.freeze_lock_ttl_seconds),
@@ -466,23 +466,23 @@ class SupabaseConversationStore(ConversationStore):
         if acquired_row is not None:
             return None
 
-        row = conversation_db.fetch_one(
-            "select status from student.conversations where conversation_id = %s",
+        row = chat_db.fetch_one(
+            "select status from chat.conversations where conversation_id = %s",
             (session_id,),
         )
         return row[0] if row else None
 
     def release_lock(self, session_id: str) -> None:
-        conversation_db.execute(
-            "update student.conversations set status = 'normal', status_updated_at = now() "
+        chat_db.execute(
+            "update chat.conversations set status = 'normal', status_updated_at = now() "
             "where conversation_id = %s",
             (session_id,),
         )
 
     def unlock_after_freeze(self, session_id: str, state: ConversationState) -> None:
-        conversation_db.execute(
+        chat_db.execute(
             """
-            update student.conversations
+            update chat.conversations
             set turn_count = %s,
                 last_frozen_end = %s,
                 raw_tail = %s::jsonb,

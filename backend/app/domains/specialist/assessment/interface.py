@@ -10,9 +10,12 @@ Current consumers:
       all" check (needs_clarification) lives in that adapter, not here —
       this domain always assumes a real user_message was given.
 
+The caller retrieves the reference context (broadly, no topic filter)
+and passes it in; this domain reads no data itself.
+
 Usage:
     from app.domains.specialist.assessment.interface import assess
-    text, sources = assess(user_message, chat_history)
+    text = assess(chat_history, context=context, official_sources=sources_text)
 """
 
 from __future__ import annotations
@@ -24,9 +27,10 @@ __all__ = ["assess"]
 
 
 def assess(
-    user_message: str, chat_history: list[dict], on_event: OnEvent | None = None,
-) -> tuple[str, list[str]]:
-    """Runs the Application Readiness Assessment: broad knowledge-base
-    retrieval (no topic filter) plus one LLM generation call against the
-    9-section structured prompt. Returns (answer_text, cited_sources)."""
-    return service.assess(user_message, chat_history, on_event=on_event)
+    chat_history: list[dict], *, context: str | None, official_sources: str,
+    on_event: OnEvent | None = None, depth: str | None = None,
+) -> str:
+    """Runs the Application Readiness Assessment: one LLM generation call
+    against the 9-section structured prompt, grounded in `context`.
+    Returns the answer text."""
+    return service.assess(chat_history, context=context, official_sources=official_sources, on_event=on_event, depth=depth)

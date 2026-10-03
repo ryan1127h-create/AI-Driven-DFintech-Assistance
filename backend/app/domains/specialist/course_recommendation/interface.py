@@ -8,9 +8,14 @@ Usage:
     from app.domains.specialist.course_recommendation.interface import recommend_courses
 
     result = recommend_courses(complete_upstream_agent_report)
+
+compute_degree_progress() and requirement_role() expose the same curriculum
+interpretation on its own, for the lifecycle page's degree progress.
 """
 
 from __future__ import annotations
+
+from dataclasses import asdict
 
 from pydantic import ValidationError as PydanticValidationError
 
@@ -21,13 +26,16 @@ from app.domains.specialist.course_recommendation.errors import (
     ErrorCode,
     input_validation_error,
 )
+from app.domains.specialist.course_recommendation.pipeline import catalog
 from app.domains.specialist.course_recommendation.schemas import response_from_result
 
 logger = get_logger(__name__)
 
 __all__ = [
     "CourseRecommendationInput",
+    "compute_degree_progress",
     "recommend_courses",
+    "requirement_role",
 ]
 
 
@@ -56,3 +64,17 @@ def recommend_courses(
 
     result = service.recommend_courses(validated)
     return response_from_result(result).model_dump(mode="json")
+
+
+def compute_degree_progress(catalogue: list[dict], completed_codes: list[str]) -> dict:
+    """Degree progress for the completed course codes against the current
+    curriculum: core mandatory / core choice / elective units / capstone
+    path / total units. `catalogue` is [{code, units, vertical}]."""
+    return asdict(service.compute_degree_progress(catalogue, completed_codes))
+
+
+def requirement_role(code: str, vertical: list[str]) -> str:
+    """What a course counts as in the curriculum: core_mandatory,
+    core_choice, elective, capstone, core_replacement_candidate or
+    unclassified."""
+    return catalog.classify_requirement_role(code, tuple(vertical))

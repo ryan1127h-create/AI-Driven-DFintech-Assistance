@@ -1,16 +1,16 @@
 """
 Fixed-topic registry for Knowledge QA: one role prompt + soft topic-boost
-per topic, plus the generic escape hatch (answer_with_role_prompt) for a
-caller with its own role prompt/topic scoping — currently used by
-program_comparison's legacy-RAG fallback (see
-app/tools/specialist/program_comparison_tool.py).
+per topic (retrieval_scope() tells the caller how to retrieve), plus the
+generic escape hatch (answer_with_role_prompt) for a caller with its own
+role prompt — currently used by program_comparison's legacy-RAG fallback
+(see app/tools/specialist/program_comparison_tool.py). The caller
+retrieves and passes the context in.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.domains.knowledge_retrieval.interface import ADMISSIONS_OFFICIAL_SOURCES
 from app.domains.specialist.knowledge_qa import qa_agent
 from app.domains.specialist.knowledge_qa.qa_agent import OnEvent
 
@@ -23,7 +23,7 @@ class _TopicSpec:
 
 _TOPICS: dict[str, _TopicSpec] = {
     "admissions": _TopicSpec(
-        role_prompt=f"""\
+        role_prompt="""\
 You are the Admissions Advisor for the NUS Master of Science in Digital \
 Financial Technology (MSc DFT) programme.
 
@@ -37,7 +37,7 @@ backgrounds)
 - The NUS Graduate Admission System
 
 Official information sources (cite when helpful):
-{ADMISSIONS_OFFICIAL_SOURCES}
+{official_sources}
 """,
         boost_topics={"admissions"},
     ),
@@ -103,27 +103,27 @@ mind a more specialised advisor may give a more complete answer.
 }
 
 
+def retrieval_scope(topic: str) -> set[str]:
+    """The topics to boost when retrieving context for this fixed topic."""
+    return set(_TOPICS[topic].boost_topics)
+
+
 def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
-    on_event: OnEvent | None = None,
-) -> tuple[str, list[str]]:
-    """Runs the plain-RAG answer for one of the four fixed topics above,
-    scoped via that topic's own boost_topics. Returns (answer_text,
-    cited_sources)."""
-    spec = _TOPICS[topic]
-    return qa_agent.answer(
-        spec.role_prompt, user_message, chat_history,
-        boost_topics=spec.boost_topics, on_event=on_event,
-    )
+    *, context: str | None, official_sources: str, on_event: OnEvent | None = None,
+    depth: str | None = None,
+) -> str:
+    """Answers for one of the four fixed topics above from the caller's
+    retrieved `context`; `official_sources` fills the admissions prompt's
+    source list."""
+    role_prompt = _TOPICS[topic].role_prompt.replace("{official_sources}", official_sources)
+    return qa_agent.answer(role_prompt, user_message, chat_history, context=context, on_event=on_event, depth=depth)
 
 
 def answer_with_role_prompt(
     role_prompt: str, user_message: str, chat_history: list[dict],
-    on_event: OnEvent | None = None, *, filter_topics: set[str] | None = None,
-) -> tuple[str, list[str]]:
-    """Generic escape hatch for a caller with its own role prompt/topic
-    scoping, outside the four fixed topics above."""
-    return qa_agent.answer(
-        role_prompt, user_message, chat_history,
-        filter_topics=filter_topics, on_event=on_event,
-    )
+    *, context: str | None, on_event: OnEvent | None = None, depth: str | None = None,
+) -> str:
+    """Generic escape hatch for a caller with its own role prompt, outside
+    the four fixed topics above."""
+    return qa_agent.answer(role_prompt, user_message, chat_history, context=context, on_event=on_event, depth=depth)

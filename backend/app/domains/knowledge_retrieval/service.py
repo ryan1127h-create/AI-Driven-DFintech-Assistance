@@ -130,7 +130,7 @@ def _topic_of(source_table: str, metadata: dict | None) -> str:
         return "admissions"
     if source_table in ("courses", "course_rules"):
         return "academic"
-    if source_table == "career_roles":
+    if source_table == "tags_definition":
         return "career"
     if source_table == "competitor_programs":
         return "comparison"
@@ -335,7 +335,7 @@ _FALLBACK_SOURCE = {
     "admissions_items": "NUS MSc DFT admissions requirements (official)",
     "course_rules": "Annex A curriculum structure",
     "application_status_translations": "Application status guide (official)",
-    "career_roles": "Career pathway mapping — compiled by this project, not official NUS content",
+    "tags_definition": "Role tags — compiled by this project, not official NUS content",
     "knowledge_snippets": "Programme FAQ (official)",
     "programme_pages": "NUS MSc DFT programme website",
     "courses": "NUSMods course catalogue",
@@ -398,10 +398,49 @@ def cited_sources(hits: list[Hit]) -> list[str]:
 # app/tools/specialist/course_recommendation_tool.py) is the current
 # consumer of all three.
 
+# course_requirements.prerequisite keeps corequisites in the same text, as
+# " | "-separated parts prefixed "并修(coreq):" (there is no corequisite
+# column). _split_requirements() moves them into corequisite_grad_text.
+_COREQ_PREFIX = re.compile(r"^\s*(?:并修\s*)?\(?\s*coreq\s*\)?\s*[:：]\s*", re.IGNORECASE)
+
+
+def _split_requirements(text: str | None) -> tuple[str | None, str | None]:
+    """(prerequisite, corequisite) from the stored prerequisite text."""
+    prereqs, coreqs = [], []
+    for part in (text or "").split("|"):
+        part = part.strip()
+        if not part:
+            continue
+        match = _COREQ_PREFIX.match(part)
+        if match:
+            coreqs.append(part[match.end():].strip())
+        else:
+            prereqs.append(part)
+    return " | ".join(prereqs) or None, "; ".join(coreqs) or None
+
+
 def list_courses() -> list[dict]:
-    """The complete NUS course catalogue, unranked, straight from
-    knowledge.courses (see knowledge_db_adapter.fetch_all_courses())."""
-    return knowledge_db.fetch_all_courses()
+    """The complete course catalogue, unranked — one dict per course
+    assembled from the course tables (see
+    knowledge_db_adapter.fetch_all_courses()); workload as floats, and
+    corequisites split out of the prerequisite text."""
+    courses = []
+    for row in knowledge_db.fetch_all_courses():
+        prerequisite, corequisite = _split_requirements(row["prerequisite_grad_text"])
+        courses.append({
+            **row,
+            "prerequisite_grad_text": prerequisite,
+            "corequisite_grad_text": corequisite,
+            "workload": [float(x) for x in row["workload"]] if row["workload"] is not None else None,
+        })
+    return courses
+
+
+def list_chunks() -> list[dict]:
+    """Every knowledge-base chunk (chunk_key, source_table, content, context,
+    conflict_group, authoritative, metadata), unranked — for a caller that
+    assembles its own facts from specific chunks rather than searching."""
+    return knowledge_db.fetch_all_chunks()
 
 
 def list_curriculum_rules() -> list[dict]:
@@ -419,26 +458,6 @@ def list_curriculum_rules() -> list[dict]:
     ]
 
 
-def list_module_skills() -> dict[str, list[str]]:
-    """Every course's tagged skills, grouped by course code — a course with
-    no rows in module_skills simply gets an empty list. Same "structured
-    read, not retrieval" contract as list_courses()/list_curriculum_rules();
-    course_recommendation_tool.py is the current consumer."""
-    grouped: dict[str, list[str]] = {}
-    for row in knowledge_db.fetch_module_skills():
-        grouped.setdefault(row["module_code"], []).append(row["skill_id"])
-    return grouped
-
-
-def list_career_role_modules(role_id: str) -> list[dict]:
-    """The domain-expert-curated, priority-ordered course list for one
-    career role (role_id/course_code/module_name/position) — empty list if
-    the role has no curated list. course_recommendation_tool.py is the
-    current consumer, using this as a strong prior alongside the
-    skill-derived candidate pool."""
-    return knowledge_db.fetch_career_role_modules(role_id)
-
-
 def list_course_electives() -> dict[str, list[str]]:
     """Every course's elective-vertical membership(s), grouped by course
     code. A course can belong to more than one entry here (or to none,
@@ -452,30 +471,65 @@ def list_course_electives() -> dict[str, list[str]]:
     return grouped
 
 
-def resolve_role_profile(role_query: str) -> dict | None:
-    """Resolves a free-text role description to {role_id, role_title,
-    required_skills} from the career_roles chunks, or None if nothing
-    matched. Same retrieval pattern
-    app/domains/specialist/career_planning/service.py::_career_context()
-    already uses privately for its own role lookups, promoted here as a
-    public, reusable capability. Takes the first career_roles hit —
-    filter_topics={"career"} keeps recall limited to the 6 known roles, so
-    the top hit is reliably the right one for any reasonable role query."""
-    hits = retrieve(
-        f"career pathway responsibilities skills {role_query}",
-        top_k=3, filter_topics={"career"},
-    )
-    for h in hits:
-        if h.source_table != "career_roles":
-            continue
-        md = h.metadata or {}
-        role_id = md.get("role_id")
-        role_title = md.get("role_title")
-        if not role_id or not role_title:
-            continue
-        return {
-            "role_id": role_id,
-            "role_title": role_title,
-            "required_skills": md.get("required_skills") or [],
-        }
+def list_role_tags() -> list[dict]:
+    """The 12 role tags (role families): {tag, name_en, definition,
+    required_skills}. Courses carry these tags, and a profile's
+    target_role_families takes its values from them."""
+    return [
+        {**row, "required_skills": list(row["required_skills"] or [])}
+        for row in knowledge_db.fetch_role_tags()
+    ]
+
+
+def list_course_tags() -> dict[str, list[str]]:
+    """Every course's role tags, grouped by course code."""
+    grouped: dict[str, list[str]] = {}
+    for row in knowledge_db.fetch_course_tags():
+        grouped.setdefault(row["course_code"], []).append(row["tag"])
+    return grouped
+
+
+def list_admissions_items() -> dict[str, dict]:
+    """key -> {label, description, required} for every admissions document."""
+    return {
+        row["key"]: {"label": row["label"], "description": row["why"], "required": bool(row["required"])}
+        for row in knowledge_db.fetch_admissions_items()
+    }
+
+
+def explain_application_status(status_code: str | None) -> dict:
+    """{status_label, next_step} for an application status code (both None
+    when the code has no explanation)."""
+    for row in knowledge_db.fetch_status_translations():
+        if row["status_code"] == status_code:
+            return {"status_label": row["human_status"], "next_step": row["next_step"]}
+    return {"status_label": None, "next_step": None}
+
+
+def get_role_profile(tag: str) -> dict | None:
+    """{role_id, role_title, required_skills} for one role tag (role_id is
+    the tag, role_title its English name), or None for an unknown tag."""
+    for row in list_role_tags():
+        if row["tag"] == tag:
+            return {"role_id": row["tag"], "role_title": row["name_en"], "required_skills": row["required_skills"]}
     return None
+
+
+def _normalize_role_text(text: str) -> str:
+    text = text.lower().replace("&", " and ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+def match_role_tag(text: str) -> str | None:
+    """Maps free text naming a role family ("machine learning & AI",
+    "data_analytics", "I want a blockchain job") to its tag — the tag key
+    or English name appearing in the text, preferring the longest match.
+    None if no tag is named."""
+    normalized = f" {_normalize_role_text(text)} "
+    best, best_len = None, 0
+    for row in list_role_tags():
+        for name in (row["tag"], row["name_en"]):
+            candidate = _normalize_role_text(name)
+            if candidate and f" {candidate} " in normalized and len(candidate) > best_len:
+                best, best_len = row["tag"], len(candidate)
+    return best

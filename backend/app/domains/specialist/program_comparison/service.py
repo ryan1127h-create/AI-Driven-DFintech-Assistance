@@ -1,24 +1,22 @@
 """
-Program-comparison orchestration — the engine behind the
-/program-comparisons endpoint (see api.py), kept independent of FastAPI.
+Program-comparison orchestration. Reads no data itself: the caller (the
+tools layer) supplies the knowledge-base chunks, the target role's skills
+and the applicant facts.
 
 Straight-line flow:
 
     1. resolve which programmes to compare (default: NUS + all competitors)
-    2. build the raw facts table            repository, pure code
+    2. build the raw facts table            facts.py, pure code
     3. compute personal match scores        match_scorer.py, pure code
-         profile via profile.interface
     4. LLM rewrites cells + comments        comparison_agent.py
-         on failure -> raw text cells, endpoint still answers
+         on failure -> raw text cells, still answers
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.domains.profile.interface import get_profile
-from app.domains.specialist.program_comparison import repository
-from app.domains.specialist.program_comparison import comparison_agent, match_scorer
+from app.domains.specialist.program_comparison import comparison_agent, facts, match_scorer
 from app.domains.specialist.program_comparison.models import ProgramFacts, ProgramMatch
 
 SUPPORTED_DIMENSIONS = ("curriculum", "fees", "admission")
@@ -36,7 +34,7 @@ _ADVISORY_NOTE = (
 
 @dataclass(frozen=True)
 class ComparisonResult:
-    """What compare_programs() returns to api.py / interface.py."""
+    """What compare_programs() returns to interface.py."""
     dimensions: tuple[str, ...]
     programs: tuple[str, ...]
     cells: dict[str, dict[str, str]]  # dimension -> programme -> cell text
@@ -47,27 +45,23 @@ class ComparisonResult:
     sources: tuple[str, ...]
 
 
-def list_options() -> dict:
-    """Everything the frontend needs to build the comparison form as
-    dropdowns/checkboxes (instead of free-text input, so users can never
-    ask for a programme we have no data on)."""
-    programs = [repository.load_nus()] + repository.load_competitors()
-    return {
-        "programs": [p.name for p in programs],
-        "dimensions": list(SUPPORTED_DIMENSIONS),
-    }
-
-
 def compare_programs(
-    user_id: str | None = None,
+    chunks: list[dict],
     programs: list[str] | None = None,
     focus: list[str] | None = None,
     target_role: str | None = None,
+    role_skills: list[str] | None = None,
+    applicant: dict | None = None,
 ) -> ComparisonResult:
+    """`chunks`: every knowledge-base chunk; `role_skills`: the target
+    role's skills (empty when the role is unknown); `applicant`:
+    {"has_gmat_gre": bool | None, "work_years": int | None}, None meaning
+    not known."""
     notes: list[str] = []
+    known = [facts.build_nus(chunks)] + facts.build_competitors(chunks)
 
     # 1. Which programmes and which dimensions.
-    selected = _select_programs(programs or [], notes)
+    selected = _select_programs(known, programs or [], notes)
     dimensions = _select_dimensions(focus or [], notes)
 
     # 2. Raw facts table (pure code).
@@ -76,16 +70,14 @@ def compare_programs(
         for dim in dimensions
     }
 
-    # 3. Personal match scores (pure code; role text falls back to profile).
-    profile = get_profile(user_id) if user_id else None
-    role_text = target_role or (profile or {}).get("target_role_std")
-    role_skills: list[str] = []
-    if role_text:
+    # 3. Personal match scores (pure code).
+    role_skills = list(role_skills or [])
+    if target_role and not role_skills:
         notes.append(
-            "Target-role skills were not supplied to program comparison, so "
-            "the skill-focus component was excluded from personal match scores."
+            f"'{target_role}' is not one of the known role families, so the "
+            "skill-focus component was excluded from personal match scores."
         )
-    matches = match_scorer.score_programs(selected, role_skills, profile)
+    matches = match_scorer.score_programs(selected, role_skills, applicant)
 
     # 4. LLM presentation with raw-text fallback.
     cells, comments, summary, agent_notes = comparison_agent.present(table, selected, matches)
@@ -110,11 +102,10 @@ def compare_programs(
     )
 
 
-def _select_programs(requested: list[str], notes: list[str]) -> list[ProgramFacts]:
+def _select_programs(known: list[ProgramFacts], requested: list[str], notes: list[str]) -> list[ProgramFacts]:
     """Empty request -> NUS + all competitors. Otherwise case-insensitive
     substring match against known names; unknown names are noted, NUS is
     always included as the baseline."""
-    known = [repository.load_nus()] + repository.load_competitors()
     if not any(name.strip() for name in requested):
         return known
 

@@ -11,7 +11,9 @@ and service.py).
 
 from __future__ import annotations
 
+from app.domains.knowledge_retrieval.interface import ADMISSIONS_OFFICIAL_SOURCES
 from app.domains.specialist.knowledge_qa import interface as knowledge_qa
+from app.tools.knowledge_context import RetrievedContext, retrieve_context
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message, to_chat_messages
 
@@ -23,8 +25,16 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
     def handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
         user_message = last_human_message(state.messages)
         chat_history = to_chat_messages(state.messages)
-        text, sources = knowledge_qa.answer_topic(topic, user_message, chat_history, on_event=on_event)
-        return ToolAnswer(text=text, sources=sources, agent_used=agent_name)
+        retrieved = (
+            retrieve_context(user_message, boost_topics=knowledge_qa.retrieval_scope(topic))
+            if user_message else RetrievedContext(text=None)
+        )
+        text = knowledge_qa.answer_topic(
+            topic, user_message, chat_history,
+            context=retrieved.text, official_sources=ADMISSIONS_OFFICIAL_SOURCES, on_event=on_event,
+            depth=state.answer_depth,
+        )
+        return ToolAnswer(text=text, sources=retrieved.sources, agent_used=agent_name)
 
     return Tool(
         name=name,

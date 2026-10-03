@@ -17,8 +17,10 @@ a requirement it silently doesn't enforce.
 
 from __future__ import annotations
 
+from app.domains.knowledge_retrieval.interface import ADMISSIONS_OFFICIAL_SOURCES
 from app.domains.specialist.assessment.interface import assess
 from app.tools.contracts import MissingInputField, OnEvent, Tool, ToolAnswer
+from app.tools.knowledge_context import retrieve_context
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message, to_chat_messages
 
 _NEEDS_BACKGROUND_REPLY = (
@@ -40,8 +42,14 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
         return ToolAnswer(text=_NEEDS_BACKGROUND_REPLY, agent_used="assessment_agent", needs_clarification=True)
 
     chat_history = to_chat_messages(state.messages)
-    text, sources = assess(last_user_message, chat_history, on_event=on_event)
-    return ToolAnswer(text=text, sources=sources, agent_used="assessment_agent")
+    # Broad retrieval, no topic filter: both admission requirements and the
+    # programme overview are relevant to a readiness assessment.
+    retrieved = retrieve_context(last_user_message)
+    text = assess(
+        chat_history, context=retrieved.text, official_sources=ADMISSIONS_OFFICIAL_SOURCES, on_event=on_event,
+        depth=state.answer_depth,
+    )
+    return ToolAnswer(text=text, sources=retrieved.sources, agent_used="assessment_agent")
 
 
 ASSESSMENT_TOOL = Tool(

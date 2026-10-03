@@ -10,17 +10,29 @@ role profile, and its curated course shortlist) is real business logic,
 done here because course_recommendation's own isolation is deliberate and
 stays untouched.
 
-`course_catalog[].skills` comes from knowledge.module_skills (real
-per-course tagging), `vertical` from knowledge.course_electives, and
-`can_recommend`/`needs_review` are passed through from knowledge.courses
-as-is. `prerequisite_text`/`corequisite_text`/`preclusion_text` use the
-grad-student-only, already-cleaned columns rather than NUSMods' raw text,
-which mixes in undergraduate-only conditions that never apply to a DFT
-(Graduate Coursework) student.
+Roles are the knowledge base's 12 role tags. A course's `skills` are the
+union of the required_skills of the role tags it carries
+(knowledge.course_tags -> tags_definition) — the same skill vocabulary a
+role profile's required_skills use, so matching stays like-for-like.
+`vertical` comes from knowledge.course_electives, and
+`can_recommend`/`needs_review` from the catalogue (active course / a
+description flagged for review). `prerequisite_text`/`preclusion_text`
+are the grad-student-only, already-cleaned requirements rather than
+NUSMods' raw text, which mixes in undergraduate-only conditions that never
+apply to a DFT (Graduate Coursework) student; there is no corequisite
+data.
 
-`career_role_modules` (the curated role->course shortlist) is now wired in
-as `curated_role_courses` — a soft scoring bonus in the domain's STAGE 5,
-never a restriction. `preferences` (workload/style text) is not populated
+The courses tagged with the target role are passed as
+`curated_role_courses` — a soft scoring bonus in the domain's STAGE 5,
+never a restriction.
+
+Profile facts come from the profile's "course" purpose (consent-filtered;
+empty without consent, in which case the recommendation is simply not
+personalised). The target role is the role the user names in the message
+if it maps to a role tag, else the profile's main_target_role, else the
+first of its target_role_families; other listed roles are mentioned in the
+result's notes. Current courses count as completed: the plan is for the
+semesters after them. `preferences` (workload/style text) is not populated
 here yet: nothing upstream of this tool currently extracts that from the
 chat turn, so the domain runs with its safe "no preference signal" default.
 """
@@ -28,14 +40,15 @@ chat turn, so the domain runs with its safe "no preference signal" default.
 from __future__ import annotations
 
 from app.domains.knowledge_retrieval.interface import (
-    list_career_role_modules,
+    get_role_profile,
     list_course_electives,
+    list_course_tags,
     list_courses,
     list_curriculum_rules,
-    list_module_skills,
-    resolve_role_profile,
+    list_role_tags,
+    match_role_tag,
 )
-from app.domains.profile.interface import get_profile
+from app.domains.profile.interface import derived_course_notes, describe_value, get_profile_for_purpose
 from app.domains.specialist.course_recommendation.interface import recommend_courses
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.structured_reply import render_structured_reply
@@ -86,10 +99,29 @@ honestly — do not omit it or smooth it over.
 frame it as such if the user's message implies otherwise."""
 
 
+# The contract caps the curated shortlist.
+_MAX_CURATED_COURSES = 20
+
+
+def _course_skills(course_tags: dict[str, list[str]], role_tags: list[dict]) -> dict[str, list[str]]:
+    """course_code -> the union of its role tags' required_skills, in a
+    stable order."""
+    skills_by_tag = {row["tag"]: row["required_skills"] for row in role_tags}
+    result: dict[str, list[str]] = {}
+    for code, tags in course_tags.items():
+        skills: list[str] = []
+        for tag in tags:
+            for skill in skills_by_tag.get(tag, []):
+                if skill not in skills:
+                    skills.append(skill)
+        result[code] = skills
+    return result
+
+
 def _preclusion_display_text(row: dict) -> str:
-    """knowledge.courses no longer carries NUSMods' raw preclusion prose —
-    only the parsed, grad-relevant course-code array. Empty when the
-    course has no preclusion applicable to a Graduate Coursework student."""
+    """The catalogue carries preclusions as a parsed, grad-relevant
+    course-code array. Empty when the course has no preclusion applicable
+    to a Graduate Coursework student."""
     codes = row.get("preclusion_codes")
     if not codes:
         return ""
@@ -106,14 +138,14 @@ def _offered_terms(row: dict) -> list[str]:
 
 
 def _map_course(
-    row: dict, module_skills: dict[str, list[str]], course_electives: dict[str, list[str]]
+    row: dict, course_skills: dict[str, list[str]], course_electives: dict[str, list[str]]
 ) -> dict:
     return {
         "code": row["course_code"],
         "title": (row.get("title") or "")[:300],
         "units": int(row["module_credit"]) if row.get("module_credit") is not None else 0,
         "section": (row.get("annex_section") or "")[:300],
-        "skills": module_skills.get(row["course_code"], []),
+        "skills": course_skills.get(row["course_code"], []),
         "can_recommend": bool(row.get("can_recommend")),
         "description": (row.get("description") or "")[:5000],
         # Grad-Coursework-only text: never carries an undergraduate-only
@@ -141,54 +173,123 @@ def _map_rule(chunk: dict) -> dict:
     }
 
 
+# Skill-level fields rendered into the report's tech_level text.
+_LEVEL_FIELDS = (
+    ("code_level", "Programming"),
+    ("ml_ai_level", "Machine learning"),
+    ("math_stats_level", "Maths & statistics"),
+    ("finance_level", "Finance"),
+    ("data_engineering_level", "Data engineering"),
+    ("blockchain_level", "Blockchain"),
+)
+_MAX_TEXT = 300  # the report's LongText limit
+
+
+def _resolve_role_tag(facts: dict, target_role_hint: str | None) -> str | None:
+    """The role named in the message (if it is a known role tag), else the
+    profile's main role, else its first listed role."""
+    if target_role_hint:
+        tag = match_role_tag(target_role_hint)
+        if tag:
+            return tag
+    families = facts.get("target_role_families") or []
+    return facts.get("main_target_role") or (families[0] if families else None)
+
+
+def _academic_background(facts: dict) -> str | None:
+    parts = []
+    if "degree_discipline_category" in facts:
+        parts.append(describe_value("degree_discipline_category", facts["degree_discipline_category"]))
+    if "prior_coursework" in facts:
+        parts.append("prior coursework: " + describe_value("prior_coursework", facts["prior_coursework"]))
+    return "; ".join(parts)[:_MAX_TEXT] or None
+
+
+def _tech_level(facts: dict, readiness_notes: list[str]) -> str | None:
+    parts = [
+        f"{name}: {describe_value(key, facts[key])}"
+        for key, name in _LEVEL_FIELDS if key in facts
+    ]
+    if "tech_stack" in facts:
+        parts.append("tech stack: " + describe_value("tech_stack", facts["tech_stack"]))
+    parts.extend(readiness_notes)
+    return "; ".join(parts)[:_MAX_TEXT] or None
+
+
+def _done_course_codes(facts: dict) -> list[str]:
+    """Completed plus current courses, by code."""
+    codes: list[str] = []
+    for key in ("completed_modules", "current_modules"):
+        for item in facts.get(key) or []:
+            code = item.get("course_code") if isinstance(item, dict) else item
+            if code and code not in codes:
+                codes.append(code)
+    return codes[:50]
+
+
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
-    profile = get_profile(state.user_id) if state.user_id else None
-    profile = profile or {}
+    facts = get_profile_for_purpose(state.user_id, "course") if state.user_id else {}
+    role_tag = _resolve_role_tag(facts, state.target_role_hint)
+    derived = derived_course_notes(state.user_id) if state.user_id else {"readiness": [], "graduation": []}
 
-    target_role = state.target_role_hint or profile.get("target_role_std") or profile.get("target_role_raw")
+    result = recommend_courses(build_request(facts, role_tag, readiness_notes=derived["readiness"]))
+    # Graduation risks aren't a recommendation input; they ride along so the
+    # reply can point them out.
+    result["notes"].extend(derived["graduation"])
+    other_roles = [t for t in facts.get("target_role_families") or [] if t != role_tag]
+    if role_tag and other_roles:
+        result["notes"].append(
+            "Planned around the main target role; the profile also lists: "
+            + describe_value("target_role_families", other_roles) + "."
+        )
+    user_message = last_human_message(state.messages)
+    answer, sources = render_structured_reply(
+        result, user_message, COURSE_RECOMMENDATION_STYLE_PROMPT, on_event=on_event, depth=state.answer_depth,
+    )
+    return ToolAnswer(text=answer, sources=sources, agent_used="course_recommendation_agent")
 
-    role_profile = resolve_role_profile(target_role) if target_role else None
-    if target_role and role_profile is None:
-        # The report requires target_role and role_profile to be both
-        # present or both absent — if resolution fails, drop target_role
-        # too so the request stays valid rather than failing outright.
-        target_role = None
 
+def build_request(facts: dict, role_tag: str | None, readiness_notes: list[str] | None = None) -> dict:
+    """The complete report course_recommendation consumes: the user's
+    profile facts (purpose "course"), the resolved role tag, and the
+    knowledge base's catalogue and current-intake curriculum rules.
+    readiness_notes (derived readiness gaps) extend the stated tech level."""
+    role_profile = get_role_profile(role_tag) if role_tag else None
+    # The report requires target_role and role_profile to be both present
+    # or both absent.
+    target_role = role_profile["role_title"] if role_profile else None
+
+    course_tags = list_course_tags()
     curated_role_courses: list[str] = []
     if role_profile is not None:
-        curated_role_courses = [
-            row["course_code"] for row in list_career_role_modules(role_profile["role_id"])
-        ]
+        curated_role_courses = sorted(
+            code for code, tags in course_tags.items() if role_profile["role_id"] in tags
+        )[:_MAX_CURATED_COURSES]
 
-    module_skills = list_module_skills()
+    course_skills = _course_skills(course_tags, list_role_tags())
     course_electives = list_course_electives()
-    request = {
+    return {
         "goals": {
             "target_role": target_role,
-            "target_industry": profile.get("target_industry_std") or profile.get("target_industry_raw"),
+            "target_industry": None,
         },
         "background": {
-            "academic_background": profile.get("academic_background_std") or profile.get("academic_background_raw"),
-            "tech_level": profile.get("tech_level_std") or profile.get("tech_level_raw"),
-            "school_tier": profile.get("school_tier"),
-            "work_years": profile.get("work_years"),
-            "completed_courses": [c[:300] for c in (profile.get("completed_courses") or [])][:50],
+            "academic_background": _academic_background(facts),
+            "tech_level": _tech_level(facts, readiness_notes or []),
+            "school_tier": None,
+            "work_years": None,
+            "completed_courses": _done_course_codes(facts),
         },
         "role_profile": role_profile,
         "curated_role_courses": curated_role_courses,
         "course_catalog": [
-            _map_course(row, module_skills, course_electives) for row in list_courses()
+            _map_course(row, course_skills, course_electives) for row in list_courses()
         ],
         "curriculum_rules": [_map_rule(chunk) for chunk in list_curriculum_rules()],
         "evidence_sources": [
-            "applicant profile", "knowledge base course catalog", "knowledge base curriculum rules",
+            "user profile", "knowledge base course catalog", "knowledge base curriculum rules",
         ],
     }
-
-    result = recommend_courses(request)
-    user_message = last_human_message(state.messages)
-    answer, sources = render_structured_reply(result, user_message, COURSE_RECOMMENDATION_STYLE_PROMPT, on_event=on_event)
-    return ToolAnswer(text=answer, sources=sources, agent_used="course_recommendation_agent")
 
 
 def _fallback(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:

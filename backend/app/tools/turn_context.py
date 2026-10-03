@@ -45,6 +45,11 @@ class TurnState:
     # orchestrator/dispatch/localization.py reads it, as the very last step
     # of a turn. "en" (the default) means "no conversion needed".
     reply_language: str = "en"
+    # The user's answer-detail preference (concise / standard / detailed,
+    # see app/core/answer_depth.py), read from their settings once per
+    # turn. Unlike reply_language it is applied while answers are written,
+    # by every tool that writes the final text.
+    answer_depth: str = "standard"
 
 
 class ChatToolInput(BaseModel):

@@ -29,7 +29,14 @@ const themes = {
 };
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("light");
+  // Remembered per browser; light until the user picks otherwise.
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
 
   useEffect(() => {
     const current = themes[theme];
@@ -42,6 +49,11 @@ export function ThemeProvider({ children }) {
     });
 
     document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {
+      // storage unavailable (private mode): the choice lasts this visit only
+    }
   }, [theme]);
 
   const toggleTheme = () =>
@@ -53,6 +65,7 @@ export function ThemeProvider({ children }) {
         theme,
         themeConfig: themes[theme],
         toggleTheme,
+        setTheme,
       }}
     >
       {children}

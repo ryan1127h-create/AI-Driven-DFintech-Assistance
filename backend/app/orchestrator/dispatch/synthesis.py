@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.adapters.deepseek_adapter import llm
+from app.core import answer_depth
 from app.tools.contracts import OnEvent, ToolAnswer
 
 _SYNTHESIS_PROMPT = """\
@@ -53,14 +54,16 @@ class SynthesizeInput:
     # order, so the synthesis prompt sees drafts in a predictable,
     # reproducible sequence regardless of which branch finished first.
     partials: list[tuple[str, ToolAnswer]]
+    # The user's answer-detail preference (app/core/answer_depth.py).
+    depth: str | None = None
 
 
 def synthesize(inp: SynthesizeInput, on_event: OnEvent | None = None) -> ToolAnswer:
     drafts = "\n\n".join(f"[{answer.agent_used or name} draft]\n{answer.text}" for name, answer in inp.partials)
-    prompt = _SYNTHESIS_PROMPT.format(drafts=drafts)
+    prompt = answer_depth.with_instruction(_SYNTHESIS_PROMPT.format(drafts=drafts), inp.depth)
 
     chunks: list[str] = []
-    for chunk in llm.stream(prompt, [{"role": "user", "content": inp.user_message}], temperature=0.2, max_tokens=2000):
+    for chunk in llm.stream(prompt, [{"role": "user", "content": inp.user_message}], temperature=0.2, max_tokens=answer_depth.max_tokens(inp.depth, 2000)):
         chunks.append(chunk)
         if on_event is not None:
             on_event({"type": "token", "text": chunk})

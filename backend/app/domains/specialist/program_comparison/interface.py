@@ -3,6 +3,9 @@ Public interface of the program_comparison domain — the only module other
 domains (and the orchestrator) are allowed to import from
 app.domains.specialist.program_comparison.
 
+The caller supplies every input (knowledge-base chunks, role skills,
+applicant facts); this domain reads no data itself.
+
 Usage:
     from app.domains.specialist.program_comparison.interface import compare_programs
 """
@@ -17,15 +20,18 @@ __all__ = ["compare_programs"]
 
 
 def compare_programs(
-    user_id: str | None = None,
+    chunks: list[dict],
     programs: list[str] | None = None,
     focus: list[str] | None = None,
     target_role: str | None = None,
+    role_skills: list[str] | None = None,
+    applicant: dict | None = None,
 ) -> dict:
-    """Runs a comparison and returns it as a plain dict (same shape as the
-    /program-comparisons response body)."""
+    """Runs a comparison and returns it as a plain dict. See
+    service.compare_programs for the inputs."""
     result = service.compare_programs(
-        user_id=user_id, programs=programs, focus=focus, target_role=target_role,
+        chunks, programs=programs, focus=focus, target_role=target_role,
+        role_skills=role_skills, applicant=applicant,
     )
     return {
         "programs": list(result.programs),

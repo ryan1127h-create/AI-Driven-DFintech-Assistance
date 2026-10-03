@@ -29,9 +29,9 @@ export default function Login() {
   // edited, replacing the old "does email end with @u.nus.edu" check.
   const [nusLocalPart, setNusLocalPart] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const { login: setAuth, sessionExpired } = useRole();
+  const [error, setError] = useState(sessionExpired ? "Your session has expired. Log in again." : null);
   const [loading, setLoading] = useState(false);
-  const { login: setAuth } = useRole();
 
   const emailValue = tab === "enrolled_student" ? `${nusLocalPart.trim()}${NUS_EMAIL_DOMAIN}` : email.trim();
 

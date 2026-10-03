@@ -24,9 +24,10 @@ export default function Register() {
   const navigate = useNavigate();
   const { login: setAuth } = useRole();
 
-  // "form" (email/password/role) -> "code" (enter the emailed 6-digit code,
-  // which on success logs the new account straight in — no separate /login
-  // round trip, see backend/app/domains/auth/api.py::verify_email).
+  // "form" (email/password/role) -> "code" (enrolled students only: enter
+  // the emailed 6-digit code, which on success logs the new account straight
+  // in — no separate /login round trip, see
+  // backend/app/domains/auth/api.py::verify_email). Applicants skip "code".
   const [step, setStep] = useState("form");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -38,6 +39,7 @@ export default function Register() {
     confirmPassword: "",
     full_name: "",
     role: "applicant",
+    consent_personalized_rec: false,
   });
   // Local part only (before "@u.nus.edu") for the enrolled_student role —
   // kept separate from form.email so the fixed domain suffix can never be
@@ -86,12 +88,20 @@ export default function Register() {
 
     setSaving(true);
     try {
-      await register({
+      const response = await register({
         email: emailValue,
         password: form.password,
         full_name: form.full_name,
         role: form.role,
+        consent_personalized_rec: form.consent_personalized_rec,
       });
+      // Applicants are registered and logged in straight away (no email
+      // verification); only enrolled students get a code to confirm.
+      if (response.access_token) {
+        setAuth({ access_token: response.access_token, user: response.user, role: response.user.role });
+        navigate("/app");
+        return;
+      }
       setForm((f) => ({ ...f, email: emailValue }));
       setStep("code");
       startResendCooldown();
@@ -245,6 +255,22 @@ export default function Register() {
                       required
                     />
                   </div>
+
+                  <label className="flex items-start gap-2 text-sm text-app-secondary">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={form.consent_personalized_rec}
+                      onChange={(e) => setForm({ ...form, consent_personalized_rec: e.target.checked })}
+                    />
+                    <span>
+                      Use my profile to personalise recommendations
+                      <span className="block text-xs text-app-faint">
+                        Optional. Without it the assistant only knows your lifecycle stage. You can change this later
+                        on your profile page.
+                      </span>
+                    </span>
+                  </label>
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => navigate("/")} className="btn-outline flex-1">

@@ -27,7 +27,10 @@ from typing import Any, Callable, Type
 
 from pydantic import BaseModel
 
+from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
+
+logger = get_logger(__name__)
 
 OnEvent = Callable[[dict], None]
 ToolHandler = Callable[..., Any]  # (input, *, on_event: OnEvent | None = None) -> Any
@@ -137,6 +140,9 @@ class ToolRegistry:
             return run_with_timeout(lambda: tool.handler(input_obj, on_event=on_event), tool.timeout_seconds)
         except Exception:
             if tool.fallback is not None:
+                # The user only sees the fallback reply, so the cause must
+                # reach the log.
+                logger.exception("tool %s failed; answering with its fallback", tool.name)
                 return tool.fallback(input_obj, on_event=on_event)
             raise
 

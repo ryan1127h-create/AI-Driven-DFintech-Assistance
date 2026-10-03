@@ -34,14 +34,15 @@ class Settings:
     # admin-only operations like creating a user).
     supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY", "")
 
-    # The one Supabase Postgres project backing both conversation_db_adapter
-    # (student.users/user_profiles/checklist_items/conversations/messages,
-    # read+write) and knowledge_db_adapter (schema `knowledge` — document
-    # chunks, courses, ... — read-only). Two separate adapter objects, one
-    # shared connection string: each adapter's own cursor/connection
-    # lifecycle and caching behavior is a property of the adapter, not of
-    # which database it happens to point at.
+    # The one Supabase Postgres database behind every schema adapter
+    # (account, profile, sis, chat read+write; knowledge read-only), which
+    # share one connection pool (see app/adapters/postgres_pool.py).
     database_url: str = os.getenv("DATABASE_URL", "")
+
+    # Upper bound on the shared PostgreSQL connection pool (every schema
+    # adapter, knowledge retrieval included — see postgres_pool.py): how
+    # many database calls can run at once.
+    db_pool_max_size: int = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
 
     # Query-time embeddings for hybrid retrieval — unrelated to DeepSeek.
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -109,13 +110,11 @@ class Settings:
         os.getenv("ENABLE_INPUT_REQUIREMENTS_GATE", "true").lower() == "true"
     )
 
-    # Object storage — checklist file uploads. Same Supabase project as
-    # database_url, but a separate API-style credential (a project URL +
-    # service_role key, not a Postgres DSN), since Storage is accessed
-    # through its own REST API rather than SQL.
+    # Supabase project URL + service_role key — API-style credentials for
+    # the same project as database_url (not a Postgres DSN), used by the
+    # Auth adapter's admin calls (see supabase_auth_adapter.py).
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
-    checklist_storage_bucket: str = os.getenv("CHECKLIST_STORAGE_BUCKET", "checklist-documents")
 
     # Email verification codes (see app/domains/auth/service.py +
     # app/adapters/resend_email_adapter.py). Unset RESEND_API_KEY makes the

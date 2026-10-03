@@ -94,7 +94,7 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
         answer = ToolAnswer(text=_OFF_TOPIC_REPLY, agent_used="orchestrator_decline")
     elif mode == "general":
         try:
-            answer = classification.run_general_chat(state.messages, on_event)
+            answer = classification.run_general_chat(state.messages, on_event, depth=state.answer_depth)
         except Exception as exc:
             print(f"[dispatch] Warning: general chat failed — {exc}")
             answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
@@ -141,4 +141,7 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
     except Exception as exc:
         print(f"[dispatch] Warning: localize call failed, returning the answer as-is — {exc}")
 
-    return AIMessage(content=answer.text), _reply_with_sources(answer), answer.agent_used
+    # The sources ride on the message (not in its text, which is what later
+    # turns see as history) so the conversation log can keep them per turn.
+    extra = {"sources": list(answer.sources)} if answer.sources else {}
+    return AIMessage(content=answer.text, additional_kwargs=extra), _reply_with_sources(answer), answer.agent_used

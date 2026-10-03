@@ -1,29 +1,9 @@
-import { TrendingUp as TrendUp, TrendingDown as TrendDown } from "lucide-react";
 import { cn } from "../utils/cn";
 
 export function Card({ className, children, ...props }) {
   return (
     <div className={cn("card p-5", className)} {...props}>
       {children}
-    </div>
-  );
-}
-
-export function SectionTitle({ icon: Icon, title, subtitle, action }) {
-  return (
-    <div className="flex items-start justify-between gap-4 mb-4">
-      <div className="flex items-center gap-3">
-        {Icon && (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500/15 text-brand-300">
-            <Icon className="h-4.5 w-4.5" size={18} />
-          </div>
-        )}
-        <div>
-          <h2 className="font-display text-lg font-semibold text-app-primary">{title}</h2>
-          {subtitle && <p className="text-sm text-app-muted">{subtitle}</p>}
-        </div>
-      </div>
-      {action}
     </div>
   );
 }
@@ -70,26 +50,6 @@ export function ProgressBar({ value, max = 100, color = "brand", className }) {
   );
 }
 
-export function StatCard({ label, value, delta, trend, icon: Icon }) {
-  const trendColor = trend === "up" ? "text-emerald2-400" : "text-red-400";
-  const TrendIcon = trend === "up" ? TrendUp : TrendDown;
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300">
-          {Icon && <Icon size={20} />}
-        </div>
-        <div className={cn("flex items-center gap-1 text-xs font-medium", trendColor)}>
-          <TrendIcon size={14} />
-          {delta}
-        </div>
-      </div>
-      <p className="mt-3 text-2xl font-display font-bold text-app-primary">{value}</p>
-      <p className="text-sm text-app-muted">{label}</p>
-    </div>
-  );
-}
-
 export function EmptyState({ icon: Icon, title, subtitle }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -101,5 +61,43 @@ export function EmptyState({ icon: Icon, title, subtitle }) {
       <h3 className="font-display text-base font-semibold text-app-primary">{title}</h3>
       {subtitle && <p className="text-sm text-app-muted mt-1 max-w-xs">{subtitle}</p>}
     </div>
+  );
+}
+
+// An on/off control; `label` names it for screen readers.
+export function Switch({ checked, onChange, disabled, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative h-5 w-9 flex-shrink-0 rounded-full transition",
+        checked ? "bg-brand-500" : "border border-app-input bg-app-hover",
+        disabled && "opacity-50",
+      )}
+    >
+      <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", checked ? "left-[18px]" : "left-0.5")} />
+    </button>
+  );
+}
+
+// One selectable option in a row of choices.
+export function OptionChip({ active, onClick, disabled, children }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "rounded-lg border px-2.5 py-1 text-xs transition",
+        active ? "border-brand-400/40 bg-brand-500/15 text-brand-300" : "border-app-subtle text-app-secondary hover:border-brand-400/30",
+      )}
+    >
+      {children}
+    </button>
   );
 }

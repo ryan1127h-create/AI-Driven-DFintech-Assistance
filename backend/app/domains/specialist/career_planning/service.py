@@ -5,9 +5,10 @@ to course recommendation:
 
     target role -> career evidence -> role context -> phased action plan
 
-Profile data is read through the profile domain. Career reference material
-comes from the shared knowledge-retrieval domain. Academic material is
-excluded before anything reaches the planning LLM.
+This domain reads no data itself: the caller (the tools layer) resolves the
+target role and supplies the user's career evidence lines and the
+retrieved career reference chunks. Academic material is excluded before
+anything reaches the planning LLM.
 """
 
 from __future__ import annotations
@@ -15,8 +16,6 @@ from __future__ import annotations
 import re
 
 from app.core.errors import ValidationError
-from app.domains.knowledge_retrieval.interface import cited_sources, retrieve
-from app.domains.profile.interface import get_profile
 from app.domains.specialist.career_planning import planning_agent
 from app.domains.specialist.career_planning.models import CareerPlanResult
 
@@ -29,45 +28,23 @@ _ACADEMIC_LINE = re.compile(
 )
 
 
-def _resolve_target_role(requested_role: str | None, profile: dict | None) -> str:
-    """Request value wins; otherwise use the best role evidence on file."""
-    for value in (
-        requested_role,
-        (profile or {}).get("target_role_std"),
-        (profile or {}).get("target_role_raw"),
-    ):
-        if isinstance(value, str) and value.strip():
-            role = value.strip()
-            if _ACADEMIC_LINE.search(role):
-                raise ValidationError(
-                    "TARGET_ROLE_INVALID: provide a job role rather than an academic selection request."
-                )
-            return role
+def _resolve_target_role(requested_role: str | None) -> str:
+    """The role the caller resolved (from the message or the profile)."""
+    if isinstance(requested_role, str) and requested_role.strip():
+        role = requested_role.strip()
+        if _ACADEMIC_LINE.search(role):
+            raise ValidationError(
+                "TARGET_ROLE_INVALID: provide a job role rather than an academic selection request."
+            )
+        return role
     raise ValidationError(
         "TARGET_ROLE_REQUIRED: provide a target role or add one to your profile before creating a career plan."
     )
 
 
-def _career_profile_summary(profile: dict | None) -> str:
-    """Render only career-relevant evidence; intentionally excludes study history."""
-    if not profile:
-        return ""
-
-    lines: list[str] = []
-
-    def _raw_or_standard(raw_field: str, standard_field: str, label: str) -> None:
-        value = profile.get(standard_field) or profile.get(raw_field)
-        if value:
-            lines.append(f"- {label}: {value}")
-
-    _raw_or_standard("academic_background_raw", "academic_background_std", "Academic background")
-    _raw_or_standard("tech_level_raw", "tech_level_std", "Technical level")
-    if profile.get("work_years") is not None:
-        lines.append(f"- Work experience: {profile['work_years']} years")
-    _raw_or_standard("target_industry_raw", "target_industry_std", "Target industry")
-    if profile.get("lifecycle_stage"):
-        lines.append(f"- Career stage: {profile['lifecycle_stage']}")
-
+def _career_profile_summary(evidence: list[str]) -> str:
+    """Render only career-relevant evidence; academic lines are dropped."""
+    lines = [f"- {line}" for line in evidence if line and not _ACADEMIC_LINE.search(line)]
     if not lines:
         return ""
     return "Known career evidence from the user's profile:\n" + "\n".join(lines)
@@ -92,14 +69,14 @@ def _clean_optional_hint(value: str | None) -> str | None:
     return None if _ACADEMIC_LINE.search(cleaned) else cleaned
 
 
-def _career_context(hits: list, requested_role: str) -> tuple[str, str]:
+def _career_context(chunks: list[dict], requested_role: str) -> tuple[str, str]:
     """Build course-free context, using structured role metadata where available."""
     blocks: list[str] = []
     resolved_title = requested_role
 
-    for hit in hits:
-        metadata = hit.metadata if isinstance(hit.metadata, dict) else {}
-        if hit.source_table == "career_roles":
+    for hit in chunks:
+        metadata = hit.get("metadata") if isinstance(hit.get("metadata"), dict) else {}
+        if hit.get("source_table") == "tags_definition":
             role_id = str(metadata.get("role_id") or "").strip()
             role_title = str(metadata.get("role_title") or "").strip()
             raw_skills = metadata.get("required_skills") or []
@@ -123,8 +100,8 @@ def _career_context(hits: list, requested_role: str) -> tuple[str, str]:
                 blocks.append("\n".join(facts))
             continue
 
-        context = _clean_reference_text(hit.context)
-        content = _clean_reference_text(hit.content)
+        context = _clean_reference_text(hit.get("context"))
+        content = _clean_reference_text(hit.get("content"))
         block = "\n".join(part for part in (context, content) if part)
         if block:
             blocks.append(block)
@@ -133,23 +110,22 @@ def _career_context(hits: list, requested_role: str) -> tuple[str, str]:
 
 
 def create_career_plan(
-    user_id: str | None = None,
-    target_role: str | None = None,
+    target_role: str | None,
+    profile_evidence: list[str],
+    reference_chunks: list[dict],
+    sources: list[str],
     timeline: str | None = None,
     region: str | None = None,
 ) -> CareerPlanResult:
-    profile = get_profile(user_id) if user_id else None
-    requested_role = _resolve_target_role(target_role, profile)
-    profile_summary = _career_profile_summary(profile)
+    """`profile_evidence`: "Label: value" lines about the user;
+    `reference_chunks`: retrieved career reference chunks (dicts with
+    source_table, content, context, metadata); `sources`: what they cite."""
+    requested_role = _resolve_target_role(target_role)
+    profile_summary = _career_profile_summary(profile_evidence)
     timeline = _clean_optional_hint(timeline)
     region = _clean_optional_hint(region)
 
-    hits = retrieve(
-        f"career pathway responsibilities skills experience portfolio hiring {requested_role}",
-        top_k=3,
-        filter_topics={"career"},
-    )
-    career_context, role_title = _career_context(hits, requested_role)
+    career_context, role_title = _career_context(reference_chunks, requested_role)
 
     plan = None
     if career_context:
@@ -186,5 +162,5 @@ def create_career_plan(
         phases=tuple(plan["phases"]),
         success_indicators=tuple(plan["success_indicators"]),
         notes=tuple(notes),
-        sources=tuple(cited_sources(hits)),
+        sources=tuple(sources),
     )

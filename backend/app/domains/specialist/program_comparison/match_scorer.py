@@ -49,16 +49,18 @@ MIN_WORK_YEARS_FOR_FLEXIBILITY = 2
 def score_programs(
     programs: list[ProgramFacts],
     role_skills: list[str],
-    profile: dict | None,
+    applicant: dict | None,
 ) -> list[ProgramMatch]:
-    return [_score_one(p, role_skills, profile or {}) for p in programs]
+    """`applicant`: {"has_gmat_gre": bool | None, "work_years": int | None};
+    None / a None value means that fact is not known."""
+    return [_score_one(p, role_skills, applicant or {}) for p in programs]
 
 
-def _score_one(program: ProgramFacts, role_skills: list[str], profile: dict) -> ProgramMatch:
+def _score_one(program: ProgramFacts, role_skills: list[str], applicant: dict) -> ProgramMatch:
     subscores = (
         _skill_focus(program, role_skills),
-        _test_scores(program, profile),
-        _flexibility(program, profile),
+        _test_scores(program, applicant),
+        _flexibility(program, applicant),
     )
 
     included = [s for s in subscores if s.included]
@@ -91,8 +93,12 @@ def _skill_focus(program: ProgramFacts, role_skills: list[str]) -> SubScore:
     )
 
 
-def _test_scores(program: ProgramFacts, profile: dict) -> SubScore:
-    if profile.get("gmat") is not None or profile.get("gre") is not None:
+def _test_scores(program: ProgramFacts, applicant: dict) -> SubScore:
+    has_score = applicant.get("has_gmat_gre")
+    if has_score is None:
+        return SubScore("test_scores", W_TEST_SCORES, 0, False,
+                        "No test-score information in your profile.")
+    if has_score:
         return SubScore("test_scores", W_TEST_SCORES, 100, True,
                         "You already have a GMAT/GRE score on file.")
 
@@ -112,8 +118,8 @@ def _test_scores(program: ProgramFacts, profile: dict) -> SubScore:
                     "GMAT/GRE policy for this programme could not be determined.")
 
 
-def _flexibility(program: ProgramFacts, profile: dict) -> SubScore:
-    work_years = profile.get("work_years")
+def _flexibility(program: ProgramFacts, applicant: dict) -> SubScore:
+    work_years = applicant.get("work_years")
     if work_years is None:
         return SubScore("flexibility", W_FLEXIBILITY, 0, False,
                         "No work-experience information in your profile.")

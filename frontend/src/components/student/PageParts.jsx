@@ -1,4 +1,3 @@
-import { Badge } from "../ui";
 import { Loader2 } from "lucide-react";
 import { cn } from "../../utils/cn";
 
@@ -77,44 +76,4 @@ export function PageHeader({ icon: Icon, title, subtitle, action }) {
       {action}
     </div>
   );
-}
-
-export function InfoRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-app-soft last:border-0">
-      <span className="text-sm text-app-muted">{label}</span>
-      <span className="text-sm font-medium text-app-primary">{value}</span>
-    </div>
-  );
-}
-
-export function StatusBadge({ status }) {
-  const map = {
-    verified: { color: "emerald2", label: "Verified" },
-    missing: { color: "red", label: "Missing" },
-    pending: { color: "amber", label: "Pending" },
-    published: { color: "emerald2", label: "Published" },
-    review: { color: "amber", label: "In Review" },
-    draft: { color: "ink", label: "Draft" },
-    met: { color: "emerald2", label: "Met" },
-    inProgress: { color: "amber", label: "In Progress" },
-    open: { color: "amber", label: "Open" },
-    resolved: { color: "emerald2", label: "Resolved" },
-    "in-progress": { color: "brand", label: "In Progress" },
-    active: { color: "emerald2", label: "Active" },
-    none: { color: "ink", label: "Not Connected" },
-    connected: { color: "emerald2", label: "Connected" },
-    accepted: { color: "emerald2", label: "Accepted" },
-    assigned: { color: "brand", label: "Assigned" },
-    waiting: { color: "amber", label: "Waiting User Response" },
-    closed: { color: "ink", label: "Closed" },
-    submitted: { color: "brand", label: "Submitted" },
-    "under-review": { color: "amber", label: "Under Review" },
-    interview: { color: "royal", label: "Interview" },
-    offered: { color: "emerald2", label: "Offered" },
-    rejected: { color: "red", label: "Rejected" },
-    archived: { color: "ink", label: "Archived" },
-  };
-  const m = map[status] || { color: "ink", label: status };
-  return <Badge color={m.color}>{m.label}</Badge>;
 }

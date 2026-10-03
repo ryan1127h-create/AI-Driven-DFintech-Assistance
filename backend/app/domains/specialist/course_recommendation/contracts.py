@@ -20,9 +20,12 @@ InputSource = Literal[
     "default",
 ]
 SchemaVersion = Literal["2.0"]
+# The skill vocabulary of the knowledge base's role tags
+# (knowledge.tags_definition.required_skills).
 SkillId = Literal[
     "ai_ml",
     "data_analytics",
+    "data_engineering",
     "finance",
     "payments_systems",
     "product",
@@ -135,7 +138,7 @@ class RoleProfileInput(_StrictInputModel):
 
     role_id: ShortText
     role_title: LongText
-    required_skills: list[SkillId] = Field(min_length=1, max_length=9)
+    required_skills: list[SkillId] = Field(min_length=1, max_length=10)
 
     @field_validator("required_skills")
     @classmethod
@@ -153,7 +156,7 @@ class CourseCatalogItemInput(_StrictInputModel):
     title: LongText
     units: int = Field(ge=0, le=40)
     section: LongText = ""
-    skills: list[SkillId] = Field(default_factory=list, max_length=9)
+    skills: list[SkillId] = Field(default_factory=list, max_length=10)
     description: str = Field(default="", max_length=5000)
     prerequisite_text: str = Field(default="", max_length=3000)
     preclusion_text: str = Field(default="", max_length=3000)
@@ -224,10 +227,9 @@ class CourseRecommendationInput(_StrictInputModel):
         default_factory=RecommendationConstraints
     )
     role_profile: RoleProfileInput | None = None
-    # Domain-expert-curated course shortlist for the resolved role
-    # (knowledge.career_role_modules), used as a soft scoring bonus in
-    # STAGE 5 — never a restriction. Empty when no role resolved or the
-    # role has no curated list.
+    # Courses tagged with the resolved role (knowledge.course_tags), used
+    # as a soft scoring bonus in STAGE 5 — never a restriction, and in no
+    # particular order. Empty when no role resolved.
     curated_role_courses: list[ShortText] = Field(default_factory=list, max_length=20)
     course_catalog: list[CourseCatalogItemInput] = Field(min_length=1, max_length=500)
     curriculum_rules: list[CurriculumRuleInput] = Field(min_length=1, max_length=100)

@@ -11,10 +11,12 @@ from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.logging import CorrelationIdMiddleware, configure_logging
+from app.domains.derived_labels.service import register as register_derived_labels
 from app.tools.registration import register_all as register_tools
 
 configure_logging()
 register_tools()
+register_derived_labels()
 
 app = FastAPI(
     title=settings.app_name,

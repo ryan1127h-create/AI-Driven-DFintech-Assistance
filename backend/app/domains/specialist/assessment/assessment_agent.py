@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.adapters.deepseek_adapter import llm
-from app.domains.knowledge_retrieval.interface import ADMISSIONS_OFFICIAL_SOURCES
+from app.core import answer_depth
 
 OnEvent = Callable[[dict], None]
 
@@ -90,7 +90,7 @@ Official programme context:
 {{context}}
 
 Official information sources:
-{ADMISSIONS_OFFICIAL_SOURCES}
+{{official_sources}}
 
 The applicant's background is provided in the conversation above. \
 Assess it and provide a structured personalised assessment with these sections:
@@ -129,15 +129,19 @@ If career goals are not provided, advise clarifying FinTech-related motivation.
 """
 
 
-def write_assessment(context: str, chat_history: list[dict], on_event: OnEvent | None = None) -> str:
+def write_assessment(
+    context: str, official_sources: str, chat_history: list[dict], on_event: OnEvent | None = None,
+    depth: str | None = None,
+) -> str:
     """Streams the structured 9-section assessment given an already-built
-    programme context. See service.py::assess() for how `context` gets
-    built."""
-    system_prompt = _ASSESSMENT_SYSTEM_PROMPT.format(context=context)
+    programme context and the official source list to cite."""
+    system_prompt = answer_depth.with_instruction(
+        _ASSESSMENT_SYSTEM_PROMPT.format(context=context, official_sources=official_sources), depth
+    )
     # This is a long 9-section structured reply — generous max_tokens to
     # avoid truncating mid-section.
     chunks: list[str] = []
-    for chunk in llm.stream(system_prompt, chat_history, temperature=0.2, max_tokens=4096):
+    for chunk in llm.stream(system_prompt, chat_history, temperature=0.2, max_tokens=answer_depth.max_tokens(depth, 4096)):
         chunks.append(chunk)
         if on_event is not None:
             on_event({"type": "token", "text": chunk})

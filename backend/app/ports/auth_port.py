@@ -34,6 +34,10 @@ class AuthPort(Protocol):
         confirmation email."""
         ...
 
+    def update_full_name(self, user_id: str, full_name: str) -> None:
+        """Updates the name kept in the provider's user metadata."""
+        ...
+
     def sign_in(self, email: str, password: str) -> AuthSession:
         """Verifies the password and returns a new session. Raises
         AuthenticationError for invalid credentials."""

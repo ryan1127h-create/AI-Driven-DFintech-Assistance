@@ -5,6 +5,10 @@ const ChatContext = createContext(null);
 export function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  // Bumped when a conversation was created or changed on the server, so the
+  // sidebar (mounted once for the whole session) knows to reload its list.
+  const [conversationsVersion, setConversationsVersion] = useState(0);
+  const conversationsChanged = () => setConversationsVersion((v) => v + 1);
 
   const addMessage = (msg) => setMessages((prev) => [...prev, msg]);
   const clearMessages = () => setMessages([]);
@@ -38,8 +42,10 @@ export function ChatProvider({ children }) {
       clearMessages,
       updateLastMessage,
       removeLastMessages,
+      conversationsVersion,
+      conversationsChanged,
     }),
-    [messages, isStreaming],
+    [messages, isStreaming, conversationsVersion],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

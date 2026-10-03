@@ -19,6 +19,7 @@ inside those domains already follows.
 from __future__ import annotations
 
 from app.adapters.deepseek_adapter import llm
+from app.core import answer_depth
 from app.tools.contracts import OnEvent
 
 # Headroom above the reflowed reply, as a safety margin against truncation.
@@ -102,7 +103,7 @@ def _template_fallback(result: dict) -> str:
 
 def render_structured_reply(
     result: dict, user_message: str, style_prompt: str,
-    on_event: OnEvent | None = None,
+    on_event: OnEvent | None = None, depth: str | None = None,
 ) -> tuple[str, list[str]]:
     """
     Renders a program-comparison-shaped result dict into one
@@ -114,9 +115,9 @@ def render_structured_reply(
     draft = _render_draft_block(result)
 
     try:
-        prompt = _RENDER_PROMPT.format(style_prompt=style_prompt, draft=draft)
+        prompt = answer_depth.with_instruction(_RENDER_PROMPT.format(style_prompt=style_prompt, draft=draft), depth)
         chunks: list[str] = []
-        for chunk in llm.stream(prompt, [{"role": "user", "content": user_message}], temperature=0.2, max_tokens=_MAX_TOKENS):
+        for chunk in llm.stream(prompt, [{"role": "user", "content": user_message}], temperature=0.2, max_tokens=answer_depth.max_tokens(depth, _MAX_TOKENS)):
             chunks.append(chunk)
             if on_event is not None:
                 on_event({"type": "token", "text": chunk})

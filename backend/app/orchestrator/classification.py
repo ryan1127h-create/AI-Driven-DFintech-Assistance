@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 
 from app.adapters.deepseek_adapter import llm
+from app.core import answer_depth
 from app.tools.contracts import OnEvent, ToolAnswer
 from app.tools.turn_context import last_human_message, to_chat_messages
 
@@ -166,12 +167,13 @@ language; ignore the embedded term.
 mixes languages roughly evenly — pick the language of the actual \
 question/request, not a greeting or filler phrase, as the tie-breaker.
 - If you genuinely cannot tell (no clear matrix language, or too little text \
-to judge), use "en" — the one language guaranteed to be understood here.
+to judge, e.g. "ok", a course code or a number), use null — the user's saved \
+language preference decides then.
 
 Respond with ONLY a valid JSON object — no markdown, no explanation. `intents` is \
 always an array, even for a single intent; `target_role_hint` and `program_hints` \
 are always present (null / [] when nothing was mentioned); `reply_language` is \
-always present:
+always present (null when you can't tell):
 {"intents": ["admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["financial", "admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "zh"}
@@ -201,24 +203,20 @@ FANOUT_INTENTS = {"admissions", "academic", "financial", "career", "comparison",
 _MAX_INTENTS = 3
 
 
-_DEFAULT_REPLY_LANGUAGE = "en"
-
-
 def classify_intent(
     messages: list, on_event: OnEvent | None = None,
-) -> tuple[list[str], str | None, list[str], str]:
+) -> tuple[list[str], str | None, list[str], str | None]:
     """Classifies the latest user message into 1-3 intent categories, plus
     two optional personalisation hints (target_role_hint, program_hints)
     and reply_language (see orchestrator/dispatch/localization.py). Returns
     (intents, target_role_hint, program_hints, reply_language) —
-    (["general"], None, [], "en") on an empty message or any classification
-    failure — "en" is the correct failure default here regardless of what
-    language the conversation has been in: a broken classification call is
-    exactly the situation where guessing wrong is more likely than usual,
-    and English is the one language guaranteed to be understood."""
+    (["general"], None, [], None) on an empty message or any classification
+    failure. reply_language is None whenever the message's language can't be
+    told; turn_service then falls back to the user's language preference,
+    and to English without one."""
     last_user_message = last_human_message(messages)
     if not last_user_message:
-        return ["general"], None, [], _DEFAULT_REPLY_LANGUAGE
+        return ["general"], None, [], None
 
     if on_event is not None:
         on_event({"type": "step", "stage": "classifying"})
@@ -249,13 +247,13 @@ def classify_intent(
 
         reply_language = result.get("reply_language")
         if not isinstance(reply_language, str) or not reply_language.strip():
-            reply_language = _DEFAULT_REPLY_LANGUAGE
+            reply_language = None
         else:
             reply_language = reply_language.strip().lower()
     except Exception as exc:
         print(f"[classification] Warning: intent classification failed, defaulting to 'general' — {exc}")
         intents, target_role_hint, program_hints = ["general"], None, []
-        reply_language = _DEFAULT_REPLY_LANGUAGE
+        reply_language = None
 
     print(f"[classification] intents classified as: {intents} (reply_language={reply_language})")
     if on_event is not None:
@@ -267,14 +265,15 @@ def classify_intent(
     return intents, target_role_hint, program_hints, reply_language
 
 
-def run_general_chat(messages: list, on_event: OnEvent | None = None) -> ToolAnswer:
+def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None) -> ToolAnswer:
     """Plain conversational reply — no retrieval, no tool. The orchestrator's
     own built-in answer for whatever no registered tool covers."""
     if on_event is not None:
         on_event({"type": "step", "stage": "answering", "agent": "supervisor"})
 
     chunks: list[str] = []
-    for chunk in llm.stream(SUPERVISOR_SYSTEM_PROMPT, to_chat_messages(messages), temperature=0.7, max_tokens=2000):
+    prompt = answer_depth.with_instruction(SUPERVISOR_SYSTEM_PROMPT, depth)
+    for chunk in llm.stream(prompt, to_chat_messages(messages), temperature=0.7, max_tokens=answer_depth.max_tokens(depth, 2000)):
         chunks.append(chunk)
         if on_event is not None:
             on_event({"type": "token", "text": chunk})

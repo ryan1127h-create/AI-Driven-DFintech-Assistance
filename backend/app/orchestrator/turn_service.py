@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.domains.auth.interface import get_assistant_preferences
 from app.domains.conversation import interface as conversation
 from app.domains.profile.interface import get_profile_summary_text
 from app.orchestrator import classification, dispatch
@@ -32,6 +33,13 @@ class ChatTurnResult:
     agent_used: str
     user_message: str
     intents: list[str] = field(default_factory=list)
+
+
+def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
+    """The language the message was written in wins; the user's first
+    preferred language only decides when that can't be told (e.g. "ok" or
+    a course code), and English when there is no preference either."""
+    return detected or (preferred[0] if preferred else "en")
 
 
 def run_turn(
@@ -80,13 +88,15 @@ def run_turn(
 
     llm_messages = system_blocks + state.raw_tail + [new_message]
 
-    intents, target_role_hint, program_hints, reply_language = classification.classify_intent(
+    intents, target_role_hint, program_hints, detected_language = classification.classify_intent(
         llm_messages, on_event
     )
+    preferences = get_assistant_preferences(user_id)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
         target_role_hint=target_role_hint, program_hints=program_hints,
-        reply_language=reply_language,
+        reply_language=resolve_reply_language(detected_language, preferences["language_pref"]),
+        answer_depth=preferences["answer_depth"],
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
 

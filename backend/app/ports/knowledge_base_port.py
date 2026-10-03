@@ -1,7 +1,8 @@
 """
 Contract for read-only access to the shared knowledge base — the document
-chunks (courses, career roles, curriculum rules, programme pages, FAQ
-content, ...) every retrieval-driven domain reads from.
+chunks (courses, role tags, curriculum rules, programme pages, FAQ
+content, ...) every retrieval-driven domain reads from, plus the
+structured course catalogue and role tags behind them.
 """
 
 from __future__ import annotations
@@ -21,21 +22,9 @@ class KnowledgeBasePort(Protocol):
         ...
 
     def fetch_all_courses(self) -> list[dict]:
-        """Returns every row of the raw course catalog (schema `app`, table
-        `courses`) — the source table course_recommendation's chunk-based
-        retrieval is itself derived from. Unrelated to fetch_all_chunks()."""
-        ...
-
-    def fetch_module_skills(self) -> list[dict]:
-        """Returns every (module_code, skill_id) row from the course-skill
-        tagging table — a many-to-many join callers group by module_code
-        themselves; a course with no tagged skills simply has no rows here."""
-        ...
-
-    def fetch_career_role_modules(self, role_id: str) -> list[dict]:
-        """Returns the domain-expert-curated, priority-ordered course list
-        for one career role (role_id/course_code/module_name/position),
-        ordered by position. Empty list if the role has no curated list."""
+        """Returns one row per course of the catalogue, assembled from the
+        course tables (courses + descriptions, meta, requirements,
+        workload, schedule). Unrelated to fetch_all_chunks()."""
         ...
 
     def fetch_course_electives(self) -> list[dict]:
@@ -44,4 +33,24 @@ class KnowledgeBasePort(Protocol):
         single-valued `annex_section` column on courses, this is where a
         course's full elective membership (including a core-replacement
         course that's also a vertical elective) lives."""
+        ...
+
+    def fetch_role_tags(self) -> list[dict]:
+        """Returns every role tag (tag, name_en, definition,
+        required_skills) — the 12 role families courses and profiles use."""
+        ...
+
+    def fetch_course_tags(self) -> list[dict]:
+        """Returns every (course_code, tag) row; every course has at least
+        one tag."""
+        ...
+
+    def fetch_admissions_items(self) -> list[dict]:
+        """Returns every admissions document item (key, label, why,
+        required)."""
+        ...
+
+    def fetch_status_translations(self) -> list[dict]:
+        """Returns every application status explanation (status_code,
+        human_status, next_step)."""
         ...

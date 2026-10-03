@@ -1,6 +1,7 @@
 """
-Knowledge QA's only LLM step: retrieve, build a tagged context, stream an
-answer grounded strictly in that context. Shared by every fixed topic (see
+Knowledge QA's only LLM step: stream an answer grounded strictly in the
+reference context the caller retrieved (the tools layer — this domain
+reads no data itself). Shared by every fixed topic (see
 service.py's registry) and by any caller supplying its own role prompt
 (service.py::answer_with_role_prompt).
 
@@ -20,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.adapters.deepseek_adapter import llm
-from app.domains.knowledge_retrieval.interface import build_context, cited_sources, retrieve
+from app.core import answer_depth
 
 OnEvent = Callable[[dict], None]
 
@@ -63,29 +64,29 @@ Reference material:
 
 def answer(
     role_prompt: str, user_message: str, chat_history: list[dict],
-    *, filter_topics: set[str] | None = None, boost_topics: set[str] | None = None,
-    on_event: OnEvent | None = None,
-) -> tuple[str, list[str]]:
+    *, context: str | None, on_event: OnEvent | None = None, depth: str | None = None,
+) -> str:
     """
-    Core RAG step: retrieve (scoped by filter_topics/boost_topics), build a
-    tagged context, call the LLM with `role_prompt` layered onto the shared
-    rules above. Returns (answer_text, cited_sources).
+    Core generation step: call the LLM with `role_prompt` layered onto the
+    shared rules above and the caller's reference `context` (None = nothing
+    was found). Returns the answer text.
     """
     if not user_message:
-        return "I couldn't identify your question. Could you please rephrase it?", []
+        return "I couldn't identify your question. Could you please rephrase it?"
 
-    hits = retrieve(user_message, top_k=5, filter_topics=filter_topics, boost_topics=boost_topics)
-    context = build_context(hits) if hits else (
+    context = context or (
         "No specific programme information is currently available in the "
         "knowledge base. Please contact the admissions office directly."
     )
 
-    system_prompt = _BASE_SYSTEM_PROMPT.format(role_prompt=role_prompt, context=context)
+    system_prompt = answer_depth.with_instruction(
+        _BASE_SYSTEM_PROMPT.format(role_prompt=role_prompt, context=context), depth
+    )
     # max_tokens is generous relative to the expected answer length as a
     # safety margin against truncation.
     chunks: list[str] = []
-    for chunk in llm.stream(system_prompt, chat_history, temperature=0.2, max_tokens=2000):
+    for chunk in llm.stream(system_prompt, chat_history, temperature=0.2, max_tokens=answer_depth.max_tokens(depth, 2000)):
         chunks.append(chunk)
         if on_event is not None:
             on_event({"type": "token", "text": chunk})
-    return "".join(chunks), cited_sources(hits)
+    return "".join(chunks)
