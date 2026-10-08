@@ -18,6 +18,7 @@ import pytest
 from app.domains.knowledge_retrieval import service
 from app.domains.specialist.course_recommendation.interface import recommend_courses
 from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request
+from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_LIVE_DB_TESTS") != "1", reason="set RUN_LIVE_DB_TESTS=1 to run against the live database"
@@ -53,7 +54,7 @@ def test_role_text_resolves_to_tags():
 
 @pytest.mark.parametrize("role", ["data_analytics", None])
 def test_course_recommendation_runs_on_the_live_catalogue(role):
-    result = recommend_courses(build_request({}, role))
+    result = recommend_courses(build_request(prefetch(None, role)))
     assert result["workflow_status"] in ("ok", "degraded")
     assert result["groups"] and any(g["recommendations"] for g in result["groups"])
     if role:

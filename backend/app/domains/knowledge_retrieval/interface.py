@@ -42,6 +42,7 @@ from app.domains.knowledge_retrieval.service import (
     list_role_tags,
     match_role_tag,
     retrieve,
+    warm_cache,
 )
 
 __all__ = [
@@ -60,4 +61,5 @@ __all__ = [
     "list_role_tags",
     "get_role_profile",
     "match_role_tag",
+    "warm_cache",
 ]

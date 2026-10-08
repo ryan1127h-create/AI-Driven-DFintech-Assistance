@@ -103,3 +103,13 @@ def test_course_skills_are_the_union_of_their_tags_skills():
         "IT5006": ["payments_systems", "programming"],
     }
 
+
+
+def test_warm_cache_loads_every_catalogue_table(monkeypatch):
+    loaded = []
+    for name in ("list_courses", "list_curriculum_rules", "list_course_tags", "list_role_tags", "list_course_electives"):
+        monkeypatch.setattr(service, name, lambda name=name: loaded.append(name))
+    service.warm_cache()
+    assert sorted(loaded) == sorted(
+        ["list_courses", "list_curriculum_rules", "list_course_tags", "list_role_tags", "list_course_electives"]
+    )

@@ -419,6 +419,17 @@ def _split_requirements(text: str | None) -> tuple[str | None, str | None]:
     return " | ".join(prereqs) or None, "; ".join(coreqs) or None
 
 
+def warm_cache() -> None:
+    """Loads the cached catalogue tables (courses, chunks, course tags,
+    role tags, electives) so the first request in a process doesn't pay
+    for them. Safe to call more than once."""
+    list_courses()
+    list_curriculum_rules()
+    list_course_tags()
+    list_role_tags()
+    list_course_electives()
+
+
 def list_courses() -> list[dict]:
     """The complete course catalogue, unranked — one dict per course
     assembled from the course tables (see
