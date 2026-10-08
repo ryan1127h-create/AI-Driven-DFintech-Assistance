@@ -1,5 +1,5 @@
 """
-STAGE 3 — degree progress computation. Turns "which courses has this
+S3 (third part) — degree progress computation. Turns "which courses has this
 student completed" into the numeric ground truth every later stage reads
 instead of re-deriving quota state itself: how many of the 4 mandatory
 core courses are done, how many of the 11-choose-3 core electives, how
@@ -7,7 +7,7 @@ many elective units, how many of those sit at the 4000 level, and where
 the student stands on the Capstone-vs-three-more-electives decision.
 
 Pure function, no I/O. Depends only on policy/curriculum.py's
-constants and the Course facts STAGE 2 already classified.
+constants and the Course facts catalog.py already classified.
 """
 
 from __future__ import annotations

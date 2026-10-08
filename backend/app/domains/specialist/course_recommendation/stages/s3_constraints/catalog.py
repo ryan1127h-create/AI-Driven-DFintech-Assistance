@@ -1,5 +1,5 @@
 """
-STAGE 2 (first half) — course catalog classification.
+S3 (first part) — course catalog classification.
 
 Assigns each course its `requirement_role` (which degree requirement it
 would count towards), `level` (4000/5000/6000, parsed from the course

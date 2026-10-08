@@ -1,5 +1,5 @@
-"""Exercises stages/s5_scoring/scorer.py: STAGE 5's per-slot multi-signal scoring
-and the 2-pick complementarity re-rank."""
+"""Exercises stages/s5_scoring/scorer.py and signals.py: S5's per-slot
+multi-signal scoring and its auditable breakdown."""
 
 from __future__ import annotations
 
@@ -65,26 +65,26 @@ def test_project_heavy_course_not_penalized_when_no_preference_given():
     assert scored[0].workload_note is None
 
 
-def test_best_pair_prefers_skill_diversity_over_raw_top_two():
-    # A and B both teach the same single skill; C is slightly lower-scored
-    # individually but covers a different skill entirely alongside A.
-    a = _course("A", skills=("data_analytics",))
-    b = _course("B", skills=("data_analytics",))
-    c = _course("C", skills=("security",))
+def test_matched_skills_are_the_role_relevant_ones_in_course_order():
+    course = _course("A", skills=("security", "finance", "programming"))
+    scored = scoring.score_slot_candidates((course,), ["finance", "security"], ("security",), [], [], project_averse=False)
+    assert scored[0].matched_skills == ["security", "finance"]
+
+
+def test_score_is_the_sum_of_its_breakdown():
+    course = _course("A", skills=("finance", "programming"), workload_shape="project_heavy", description="blockchain intro")
     scored = scoring.score_slot_candidates(
-        (a, b, c), [], ("data_analytics", "security"), [], [], project_averse=False,
-    )
-    pair = scoring.best_pair(scored)
-    assert pair is not None
-    codes = {sc.course.code for sc in pair}
-    assert codes == {"A", "C"} or codes == {"B", "C"}
+        (course,), ["finance", "programming"], ("finance",), ["blockchain"], ["A"], project_averse=True,
+    )[0]
+    signals = {item.signal: item.delta for item in scored.breakdown}
+    assert signals == {
+        "skill_gap": 2.0, "role_skill": 1.0, "preference": 1.5,
+        "curated_role_course": 1.0, "project_heavy": -1.0,
+    }
+    assert scored.score == sum(signals.values())
+    assert scored.workload_note == "This course is primarily independent project work."
 
 
-def test_best_pair_none_with_fewer_than_two_candidates():
-    scored = scoring.score_slot_candidates((_course("A"),), [], (), [], [], project_averse=False)
-    assert scoring.best_pair(scored) is None
-
-
-def test_matched_skills_of_intersects_role_skills():
-    course = _course("A", skills=("finance", "programming"))
-    assert scoring.matched_skills_of(course, ["finance", "security"]) == ["finance"]
+def test_no_signal_fires_without_inputs():
+    scored = scoring.score_slot_candidates((_course("A", skills=("finance",)),), [], (), [], [], project_averse=False)
+    assert scored[0].breakdown == () and scored[0].score == 0

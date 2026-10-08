@@ -24,6 +24,12 @@ from app.domains.specialist.course_recommendation.models import (
 logger = get_logger(__name__)
 
 
+class ScoreItemResponse(BaseModel):
+    signal: str
+    delta: float
+    evidence: str
+
+
 class RecommendedCourse(BaseModel):
     course_code: str
     course_title: str
@@ -38,6 +44,7 @@ class RecommendedCourse(BaseModel):
     reason: str
     caution: str | None
     recommended: bool
+    score_breakdown: list[ScoreItemResponse]
 
 
 class RecommendationGroup(BaseModel):

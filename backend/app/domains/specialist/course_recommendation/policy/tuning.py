@@ -7,7 +7,7 @@ without any rule changing. Change them here only; the stages read them.
 
 from __future__ import annotations
 
-# STAGE 5 scoring weights (stages/s5_scoring/scorer.py).
+# S5 scoring weights (stages/s5_scoring/scorer.py).
 W_GAP_SKILL = 2.0
 W_ROLE_SKILL = 1.0
 W_PREFERENCE = 1.5
@@ -19,15 +19,15 @@ PROJECT_HEAVY_PENALTY = -1.0
 # handful of courses), so this stays cheap.
 PAIR_CANDIDATE_WINDOW = 4
 
-# STAGE 4: the most picks any one requirement group asks for at a time.
+# S4: the most picks any one requirement group asks for at a time.
 MAX_PICKS_PER_SLOT = 2
 
-# STAGE 4: how many more candidates to show beyond what's strictly
+# S4: how many more candidates to show beyond what's strictly
 # required, so the student gets real choice instead of one pre-made
 # decision (fixed +2, capped by how many eligible candidates exist).
 EXTRA_DISPLAY_OPTIONS = 2
 
-# STAGE 5 scoring: free-text keyword hints that a student wants to avoid
+# S5 scoring: free-text keyword hints that a student wants to avoid
 # heavy independent-project coursework (see stages/s3_constraints/catalog.py
 # is_project_averse()). Not exhaustive — a keyword table, not an NLP model.
 PROJECT_AVERSE_KEYWORDS = (

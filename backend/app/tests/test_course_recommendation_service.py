@@ -1,13 +1,11 @@
-"""End-to-end smoke test for the redesigned course_recommendation workflow:
-runs the whole 6-STAGE pipeline through the public interface with the LLM
-call forced to fail, so every group is filled by the deterministic
-fallback — this exercises the real STAGE sequence, diagnostics, and the
-grouped response shape without depending on a live model."""
+"""End-to-end smoke test for the course_recommendation workflow: runs every
+stage through the public interface — the domain is pure computation, so
+this exercises the real stage sequence, diagnostics, and the grouped
+response shape with no database or model."""
 
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation import interface
-from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection as selection
 
 
 def _request() -> dict:
@@ -52,12 +50,7 @@ def _request() -> dict:
     }
 
 
-def test_full_workflow_produces_grouped_recommendations_via_fallback(monkeypatch):
-    def _raise(*args, **kwargs):
-        raise RuntimeError("no network in tests")
-
-    monkeypatch.setattr(selection.llm, "complete", _raise)
-
+def test_full_workflow_produces_grouped_recommendations():
     result = interface.recommend_courses(_request())
 
     assert result["workflow_status"] == "degraded"  # no role profile supplied
@@ -88,13 +81,11 @@ def test_full_workflow_produces_grouped_recommendations_via_fallback(monkeypatch
     assert "slot_selection" in stage_names
 
     slot_selection_stages = [s for s in result["stage_results"] if s["stage"] == "slot_selection"]
-    assert all(s["status"] == "degraded" for s in slot_selection_stages)
+    assert slot_selection_stages and all(s["status"] == "success" for s in slot_selection_stages)
+    assert all("score_breakdown" in r for g in result["groups"] for r in g["recommendations"])
 
 
-def test_scoping_to_specific_codes_restricts_recommendations(monkeypatch):
-    monkeypatch.setattr(
-        selection.llm, "complete", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no llm"))
-    )
+def test_scoping_to_specific_codes_restricts_recommendations():
     request = _request()
     request["constraints"] = {"candidate_course_codes": ["CS4221"]}
 

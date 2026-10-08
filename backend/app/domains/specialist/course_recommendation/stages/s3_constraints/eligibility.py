@@ -1,12 +1,12 @@
 """
-STAGE 2 (second half) — hard eligibility rules. Pure code, no LLM, no I/O.
+S3 (second part) — hard eligibility rules. Pure code, no LLM, no I/O.
 
 Division of labour: this file decides WHO IS ALLOWED into the candidate
 pool (exclude completed courses, preclusion conflicts, non-recommendable
 courses, data still under review) and computes hard facts (completed
 units, skill gaps, prerequisite/corequisite cautions). WHICH courses end
-up recommended is STAGE 4/5's job (requirement_slots.py, scoring.py,
-selection.py), working strictly from the pool this module produces.
+up recommended is S4/S5's job (s4_slots.py, s5_scoring/),
+working strictly from the pool this module produces.
 
 Everything here is deterministic and has no database or LLM dependency —
 straightforward to unit-test in isolation.
@@ -85,7 +85,7 @@ def build_candidate_pool(
          that is not among the student's completed courses. Free-text
          prerequisites with no checkable course code (e.g. "instructor's
          consent") never trigger this — there is nothing to verify.
-    No ranking happens here — the pool goes to STAGE 4 as-is.
+    No ranking happens here — the pool goes to S4 as-is.
     """
     completed, non_codes = normalize_codes(completed_codes)
     by_code = {c.code: c for c in courses}

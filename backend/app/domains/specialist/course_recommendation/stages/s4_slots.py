@@ -1,5 +1,5 @@
 """
-STAGE 4 — requirement slot derivation and cross-slot conflict resolution.
+S4 — requirement slot derivation and cross-slot conflict resolution.
 
 Turns DegreeProgress's numeric state into the actual "Group A / Group B /
 Group C" skeleton: one open slot per still-unmet requirement category,
@@ -9,7 +9,7 @@ advanced student simply sees fewer, different slots than a fresh one.
 
 Every slot shows more candidates than it strictly requires (`display_count`
 = `required_pick_count` + tuning.EXTRA_DISPLAY_OPTIONS, capped by how many
-eligible candidates exist) so STAGE 5 hands the student real choice
+eligible candidates exist) so S5 hands the student real choice
 instead of one pre-made decision.
 
 Vertical electives share ONE quota, not one each: the programme only
@@ -58,12 +58,6 @@ _VERTICAL_SHORT_LABEL = {
     "Vertical #3. Digital Financial Transactions and Risk Management": "Vertical #3 · Digital Financial Transactions",
 }
 
-SECONDARY_VERTICAL_NOTE = (
-    "This Vertical isn't currently the primary source for your remaining "
-    "elective requirement (see the other Vertical group for that) — these "
-    "are optional courses worth exploring if this direction interests you."
-)
-
 
 def _remaining_course_count(remaining_units: int) -> int:
     if remaining_units <= 0:
@@ -88,7 +82,7 @@ def _make_slot(slot_id: str, slot_type, label: str, required_pick_count: int, ca
 
 def _primary_vertical(by_vertical: dict[str, list[str]], courses_by_code: dict[str, Course], skill_gaps: tuple[str, ...]) -> str:
     """Which Vertical best covers the student's skill gaps — a lightweight
-    proxy available from STAGE 2/3 output alone (no full STAGE 5 scoring
+    proxy available from S3 output alone (no full S5 scoring
     needed just to rank Verticals against each other). Ties break on more
     eligible candidates, then alphabetically for full determinism."""
     gap_set = set(skill_gaps)

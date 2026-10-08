@@ -108,7 +108,7 @@ class BackgroundInput(_StrictInputModel):
 
 class PreferenceInput(_StrictInputModel):
     # Free text (e.g. "prefer discussion-based courses, not much independent
-    # project work"). Used by the domain's STAGE 5 scoring as a soft,
+    # project work"). Used by the domain's S5 scoring as a soft,
     # best-effort keyword signal against each course's workload shape —
     # never a hard filter, since free text can't be safely parsed as a
     # guarantee.
@@ -177,7 +177,7 @@ class CourseCatalogItemInput(_StrictInputModel):
     data_quality: DataQuality = "clean"
     # Elective-vertical membership (knowledge.course_electives), e.g.
     # ["Vertical #1. Computing Technologies"]. Empty for a course that is
-    # not a vertical elective (core, mandatory, Capstone). Drives STAGE 4's
+    # not a vertical elective (core, mandatory, Capstone). Drives S4's
     # requirement-slot derivation — never inferred by this domain.
     vertical: list[ShortText] = Field(default_factory=list, max_length=5)
     corequisite_text: str = Field(default="", max_length=3000)
@@ -228,7 +228,7 @@ class CourseRecommendationInput(_StrictInputModel):
     )
     role_profile: RoleProfileInput | None = None
     # Courses tagged with the resolved role (knowledge.course_tags), used
-    # as a soft scoring bonus in STAGE 5 — never a restriction, and in no
+    # as a soft scoring bonus in S5 — never a restriction, and in no
     # particular order. Empty when no role resolved.
     curated_role_courses: list[ShortText] = Field(default_factory=list, max_length=20)
     course_catalog: list[CourseCatalogItemInput] = Field(min_length=1, max_length=500)

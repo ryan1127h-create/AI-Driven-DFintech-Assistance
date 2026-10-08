@@ -34,17 +34,22 @@ from app.domains.specialist.course_recommendation.models import (
     CurriculumRule,
     DegreeProgress,
     Group,
-    Recommendation,
     RecommendationResult,
     RequirementSlot,
+    SlotPicks,
 )
 from app.domains.specialist.course_recommendation.stages import s4_slots
 from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
 from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
-from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection, scorer
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer, selection
+from app.domains.specialist.course_recommendation.stages.s6_modes.base import ModeStrategy
+from app.domains.specialist.course_recommendation.stages.s6_modes.degree_overview import DegreeOverview
 
 logger = get_logger(__name__)
 T = TypeVar("T")
+
+# S6 output modes by name; P1 always runs degree_overview.
+MODES: dict[str, ModeStrategy] = {"degree_overview": DegreeOverview()}
 
 
 def recommend_courses(request: CourseRecommendationInput) -> RecommendationResult:
@@ -216,7 +221,6 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         slots,
         {c.code: c for c in courses},
         pool,
-        role_title,
         role_skills,
         diagnostics,
         stage_results,
@@ -232,15 +236,15 @@ def _process_slots(
     slots: tuple[RequirementSlot, ...],
     courses_by_code: dict[str, Course],
     pool: CandidatePool,
-    role_title: str | None,
     role_skills: list[str],
     diagnostics: list[WorkflowDiagnostic],
     stage_results: list[WorkflowStageResult],
 ) -> list[Group]:
+    """S5 per slot (score, then select), then the S6 mode assembles the
+    groups from every slot's picks."""
     preferences = _preference_keywords(request)
     project_averse = catalog.is_project_averse(request.preferences.acceptable_workload)
-    student_context = _student_context(request)
-    groups: list[Group] = []
+    slot_picks: list[SlotPicks] = []
 
     for slot in slots:
         candidates = tuple(
@@ -264,167 +268,30 @@ def _process_slots(
                 summary=f"Slot {slot.slot_id} skipped: no eligible candidates.",
                 output={"slot_id": slot.slot_id, "reason": "no_candidates"},
             )
-            groups.append(_empty_group(slot, message))
+            slot_picks.append(SlotPicks(slot=slot, picks=(), note=message))
             continue
 
         scored = scorer.score_slot_candidates(
             candidates, role_skills, pool.skill_gaps, preferences,
             request.curated_role_courses, project_averse,
         )
-        group = _select_slot_group(
-            request, slot, scored, role_title, role_skills, pool, student_context,
-            diagnostics, stage_results,
-        )
-        groups.append(group)
-
-    return groups
-
-
-def _select_slot_group(
-    request: CourseRecommendationInput,
-    slot: RequirementSlot,
-    scored: list,
-    role_title: str | None,
-    role_skills: list[str],
-    pool: CandidatePool,
-    student_context: list[str],
-    diagnostics: list[WorkflowDiagnostic],
-    stage_results: list[WorkflowStageResult],
-) -> Group:
-    try:
-        outcome = llm_selection.select_for_slot(
-            slot, scored, role_title, student_context, request_id=request.request_id
-        )
-    except Exception:
-        logger.exception(
-            "unexpected slot selection failure request_id=%s slot=%s",
-            request.request_id,
-            slot.slot_id,
-        )
-        outcome = llm_selection.SlotSelectionOutcome(
-            picks=None,
-            error_code=ErrorCode.SLOT_LLM_SELECTION_FAILED,
-            error_message="The course-selection stage failed unexpectedly for this group.",
-            retryable=True,
-        )
-
-    if outcome.picks is not None:
+        picks = tuple(selection.select_for_slot(slot, scored))
         _record_stage(
             stage_results,
             diagnostics,
             stage="slot_selection",
-            summary=f"The LLM selector filled {slot.label}.",
+            status="success",
+            summary=f"Scored selection filled {slot.label}.",
             output={
                 "slot_id": slot.slot_id,
-                "model_invoked": True,
-                "attempts": outcome.attempts,
-                "picked": [p["course_code"] for p in outcome.picks],
+                "picked": [pick.scored.course.code for pick in picks],
+                "scores": {pick.scored.course.code: pick.scored.score for pick in picks},
             },
+            diagnostic_codes=(),
         )
-        picks = list(outcome.picks)
-        slot_note = "; ".join(outcome.notes) or None
-    else:
-        code = outcome.error_code or ErrorCode.SLOT_LLM_SELECTION_FAILED
-        _add_diagnostic(
-            diagnostics,
-            request_id=request.request_id,
-            stage="slot_selection",
-            code=code,
-            message=outcome.error_message or "The model selector could not fill this group.",
-            retryable=outcome.retryable,
-        )
-        picks = llm_selection.fallback_for_slot(slot, scored)
-        _record_stage(
-            stage_results,
-            diagnostics,
-            stage="slot_selection",
-            status="degraded",
-            summary=f"Deterministic fallback filled {slot.label}.",
-            output={
-                "slot_id": slot.slot_id,
-                "model_invoked": True,
-                "attempts": outcome.attempts,
-                "picked": [p["course_code"] for p in picks],
-            },
-            diagnostic_codes=(code,),
-        )
-        slot_note = None
-        if not picks:
-            fallback_message = f"No suitable candidate could be ranked for {slot.label}."
-            _add_diagnostic(
-                diagnostics,
-                request_id=request.request_id,
-                stage="slot_selection",
-                code=ErrorCode.SLOT_FALLBACK_EMPTY,
-                message=fallback_message,
-                retryable=False,
-            )
-            slot_note = fallback_message
+        slot_picks.append(SlotPicks(slot=slot, picks=picks))
 
-    by_code = {sc.course.code: sc for sc in scored}
-    recommendations = [
-        _build_recommendation(
-            by_code[p["course_code"]], p["reason"], role_skills, pool,
-            recommended=index < slot.required_pick_count,
-        )
-        for index, p in enumerate(picks)
-    ]
-    if slot.slot_type == "elective" and slot.required_pick_count == 0:
-        slot_note = (
-            f"{slot_note} {s4_slots.SECONDARY_VERTICAL_NOTE}"
-            if slot_note
-            else s4_slots.SECONDARY_VERTICAL_NOTE
-        )
-    return {
-        "slot_id": slot.slot_id,
-        "slot_type": slot.slot_type,
-        "label": slot.label,
-        "required_pick_count": slot.required_pick_count,
-        "recommendations": recommendations,
-        "note": slot_note,
-    }
-
-
-def _empty_group(slot: RequirementSlot, note: str) -> Group:
-    return {
-        "slot_id": slot.slot_id,
-        "slot_type": slot.slot_type,
-        "label": slot.label,
-        "required_pick_count": slot.required_pick_count,
-        "recommendations": [],
-        "note": note,
-    }
-
-
-def _build_recommendation(
-    scored_course, reason: str, role_skills: list[str], pool: CandidatePool, *, recommended: bool
-) -> Recommendation:
-    course = scored_course.course
-    cautions: list[str] = []
-    if course.code in pool.prerequisite_cautions:
-        cautions.append(
-            f"Prerequisite not yet confirmed among completed courses: {course.prerequisite_text}"
-        )
-    if course.corequisite_text:
-        cautions.append(f"Corequisite: {course.corequisite_text}")
-    if scored_course.workload_note:
-        cautions.append(scored_course.workload_note)
-
-    return {
-        "course_code": course.code,
-        "course_title": course.title,
-        "units": course.units,
-        "section": course.section,
-        "vertical": list(course.vertical),
-        "level": course.level,
-        "offered_terms": list(course.offered_terms),
-        "course_time": course.course_time,
-        "workload": list(course.workload) if course.workload is not None else None,
-        "matched_skills": scorer.matched_skills_of(course, role_skills),
-        "reason": reason,
-        "recommended": recommended,
-        "caution": " | ".join(cautions) or None,
-    }
+    return MODES["degree_overview"].assemble(slot_picks, pool)
 
 
 def _build_scoped_pool(
@@ -660,7 +527,7 @@ def _add_diagnostic(
 
 
 def _preference_keywords(request: CourseRecommendationInput) -> list[str]:
-    """Preference text used by STAGE 5 scoring."""
+    """Preference text used by S5 scoring."""
     values = [*request.preferences.course_styles, *request.preferences.other_preferences]
     result: list[str] = []
     seen: set[str] = set()
@@ -670,20 +537,6 @@ def _preference_keywords(request: CourseRecommendationInput) -> list[str]:
             seen.add(key)
             result.append(value)
     return result
-
-
-def _student_context(request: CourseRecommendationInput) -> list[str]:
-    """Structured background facts the selector may cite when personalising."""
-    fields = (
-        ("target industry", request.goals.target_industry),
-        ("academic background", request.background.academic_background),
-        ("technical level", request.background.tech_level),
-        ("school tier", request.background.school_tier),
-    )
-    context = [f"{label}: {value}" for label, value in fields if value is not None]
-    if request.background.work_years is not None:
-        context.append(f"work experience: {request.background.work_years} years")
-    return context
 
 
 def _apply_candidate_scope(
@@ -796,7 +649,7 @@ def _courses_from_report(request: CourseRecommendationInput) -> list[Course]:
 
 
 def compute_degree_progress(catalogue: list[dict], completed_codes: list[str]) -> DegreeProgress:
-    """STAGE 2 classification + STAGE 3 alone, for a caller that needs only
+    """S3 classification + degree progress alone, for a caller that needs only
     the progress numbers a recommendation is built on, not a recommendation.
     `catalogue` items carry just code, units and vertical; completed codes
     not in it are ignored, as in eligibility.build_candidate_pool()."""

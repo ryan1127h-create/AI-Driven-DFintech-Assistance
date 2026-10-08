@@ -1,22 +1,16 @@
-"""Exercises stages/s5_scoring/llm_selection.py: STAGE 5's LLM proposal, its bounded
-self-correction loop, and the deterministic fallback. The LLM call itself
-(`llm.complete`) is always monkeypatched — these tests never hit a real
-model.
+"""Exercises stages/s5_scoring/selection.py: S5's deterministic selection
+within one requirement slot — display order, the 2-pick complementarity
+check, and reasons built from the score breakdown.
 
-Every slot now asks for `display_count` candidates (required_pick_count +
-2, capped by how many are eligible) so the student gets real choice —
-workflow.py, not this module, marks the first `required_pick_count` of the
-returned order as the actual recommendation."""
+Every slot asks for `display_count` candidates (required_pick_count + 2,
+capped by how many are eligible) so the student gets real choice — the
+first `required_pick_count` picks are the recommendation."""
 
 from __future__ import annotations
 
-import json
-
-from app.domains.specialist.course_recommendation.errors import ErrorCode
 from app.domains.specialist.course_recommendation.models import Course, RequirementSlot
 from app.domains.specialist.course_recommendation.policy.tuning import EXTRA_DISPLAY_OPTIONS
-from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection as selection
-from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer as scoring
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer, selection
 
 
 def _course(code: str, skills: tuple[str, ...] = ()) -> Course:
@@ -26,9 +20,8 @@ def _course(code: str, skills: tuple[str, ...] = ()) -> Course:
     )
 
 
-def _scored(codes: list[str]):
-    courses = [_course(c) for c in codes]
-    return scoring.score_slot_candidates(tuple(courses), [], (), [], [], project_averse=False)
+def _scored(courses: list[Course], skill_gaps: tuple[str, ...] = ()):
+    return scorer.score_slot_candidates(tuple(courses), [], skill_gaps, [], [], project_averse=False)
 
 
 def _slot(pick_count: int, codes: list[str]) -> RequirementSlot:
@@ -41,123 +34,37 @@ def _slot(pick_count: int, codes: list[str]) -> RequirementSlot:
 
 
 def test_display_count_is_required_plus_two_capped_by_candidates():
-    slot = _slot(1, ["A", "B"])  # only 2 candidates exist, so 1+2=3 is capped to 2
-    assert slot.display_count == 2
-    slot2 = _slot(1, ["A", "B", "C", "D"])
-    assert slot2.display_count == 3
+    assert _slot(1, ["A", "B"]).display_count == 2  # 1+2=3, capped to the 2 that exist
+    assert _slot(1, ["A", "B", "C", "D"]).display_count == 3
 
 
-def test_validate_picks_accepts_exact_display_count_from_eligible_codes():
-    slot = _slot(1, ["A", "B", "C"])  # display_count = 3
-    raw = [
-        {"course_code": "A", "reason": "top pick"},
-        {"course_code": "B", "reason": "alternative"},
-        {"course_code": "C", "reason": "alternative"},
-    ]
-    picks = selection.validate_picks(raw, slot, {"A", "B", "C"})
-    assert [p["course_code"] for p in picks] == ["A", "B", "C"]
+def test_select_shows_more_than_required_best_first():
+    courses = [_course("A"), _course("B", skills=("finance",)), _course("C")]
+    scored = _scored(courses, skill_gaps=("finance",))
+    picks = selection.select_for_slot(_slot(1, ["A", "B", "C"]), scored)
+    assert [p.scored.course.code for p in picks] == ["B", "A", "C"]  # best first, then by code
 
 
-def test_validate_picks_rejects_unknown_code():
-    slot = _slot(1, ["A"])  # display_count = 1
-    raw = [{"course_code": "ZZ9999", "reason": "hallucinated"}]
-    assert selection.validate_picks(raw, slot, {"A"}) is None
-
-
-def test_validate_picks_rejects_wrong_count():
-    slot = _slot(2, ["A", "B", "C", "D"])  # display_count = 4
-    raw = [{"course_code": "A", "reason": "ok"}]
-    assert selection.validate_picks(raw, slot, {"A", "B", "C", "D"}) is None
-
-
-def test_validate_picks_drops_duplicates_then_fails_count():
-    slot = _slot(1, ["A", "B"])  # display_count = 2
-    raw = [
-        {"course_code": "A", "reason": "ok"},
-        {"course_code": "A", "reason": "ok again"},
-    ]
-    assert selection.validate_picks(raw, slot, {"A", "B"}) is None
-
-
-def test_select_for_slot_succeeds_on_first_attempt(monkeypatch):
-    slot = _slot(1, ["A"])  # only 1 candidate exists -> display_count = 1
-    scored = _scored(["A"])
-    response = json.dumps({"recommendations": [{"course_code": "A", "reason": "good fit"}], "notes": []})
-    monkeypatch.setattr(selection.llm, "complete", lambda *a, **k: response)
-
-    outcome = selection.select_for_slot(slot, scored, None, [], request_id="r1")
-    assert outcome.picks == ({"course_code": "A", "reason": "good fit"},)
-    assert outcome.attempts == 1
-
-
-def test_select_for_slot_retries_after_malformed_json_then_succeeds(monkeypatch):
-    slot = _slot(1, ["A"])
-    scored = _scored(["A"])
-    responses = iter([
-        "not json at all",
-        json.dumps({"recommendations": [{"course_code": "A", "reason": "fixed"}]}),
-    ])
-    monkeypatch.setattr(selection.llm, "complete", lambda *a, **k: next(responses))
-
-    outcome = selection.select_for_slot(slot, scored, None, [], request_id="r1")
-    assert outcome.picks == ({"course_code": "A", "reason": "fixed"},)
-    assert outcome.attempts == 2
-
-
-def test_select_for_slot_gives_up_after_max_attempts(monkeypatch):
-    slot = _slot(1, ["A"])
-    scored = _scored(["A"])
-    bad_response = json.dumps({"recommendations": [{"course_code": "ZZ9999", "reason": "wrong"}]})
-    monkeypatch.setattr(selection.llm, "complete", lambda *a, **k: bad_response)
-
-    outcome = selection.select_for_slot(slot, scored, None, [], request_id="r1")
-    assert outcome.picks is None
-    assert outcome.error_code == ErrorCode.SLOT_VALIDATION_FAILED
-    assert outcome.attempts == selection.MAX_ATTEMPTS
-    assert outcome.retryable is True
-
-
-def test_select_for_slot_handles_llm_exception_without_retry(monkeypatch):
-    slot = _slot(1, ["A"])
-    scored = _scored(["A"])
-
-    def _raise(*args, **kwargs):
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(selection.llm, "complete", _raise)
-
-    outcome = selection.select_for_slot(slot, scored, None, [], request_id="r1")
-    assert outcome.picks is None
-    assert outcome.error_code == ErrorCode.SLOT_LLM_SELECTION_FAILED
-    assert outcome.attempts == 1
-
-
-def test_fallback_for_slot_shows_more_than_required():
-    slot = _slot(1, ["A", "B", "C"])  # display_count = 3, required = 1
-    scored = _scored(["A", "B", "C"])
-    picks = selection.fallback_for_slot(slot, scored)
-    assert len(picks) == 3  # shows the extra 2 alternatives, not just the 1 required
-    assert picks[0]["course_code"] == scored[0].course.code  # best-scored leads
-
-
-def test_fallback_for_slot_two_pick_uses_best_pair_for_the_leading_two():
+def test_two_pick_slot_leads_with_the_skill_diverse_pair():
     a = _course("A", skills=("data_analytics",))
     b = _course("B", skills=("data_analytics",))
     c = _course("C", skills=("security",))
-    scored = scoring.score_slot_candidates(
-        (a, b, c), [], ("data_analytics", "security"), [], [], project_averse=False,
-    )
-    slot = _slot(2, ["A", "B", "C"])  # display_count = min(2+2, 3) = 3
-    picks = selection.fallback_for_slot(slot, scored)
+    scored = _scored([a, b, c], skill_gaps=("data_analytics", "security"))
+    picks = selection.select_for_slot(_slot(2, ["A", "B", "C"]), scored)
     assert len(picks) == 3
-    # the leading pair (the actual recommendation) should be the
-    # skill-diverse one, not the two individually top-scored courses
-    leading_pair = {picks[0]["course_code"], picks[1]["course_code"]}
-    assert "C" in leading_pair
+    assert "C" in {picks[0].scored.course.code, picks[1].scored.course.code}
 
 
-def test_pick_instruction_for_optional_secondary_slot():
-    slot = _slot(0, ["A", "B"])  # required=0 -> secondary/optional group
-    prompt = selection._pick_instruction(slot)
-    assert "None of these are required" in prompt
-    assert str(slot.display_count) in prompt
+def test_best_pair_none_with_fewer_than_two_candidates():
+    assert selection.best_pair(_scored([_course("A")])) is None
+
+
+def test_reason_is_built_from_the_breakdown():
+    scored = _scored([_course("A", skills=("finance",))], skill_gaps=("finance",))
+    [pick] = selection.select_for_slot(_slot(1, ["A"]), scored)
+    assert pick.reason == "Closes skill gaps: finance."
+
+
+def test_reason_falls_back_to_the_requirement_when_no_signal_fired():
+    [pick] = selection.select_for_slot(_slot(1, ["A"]), _scored([_course("A")]))
+    assert pick.reason == "Counts toward Test slot."

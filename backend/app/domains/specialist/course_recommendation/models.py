@@ -27,7 +27,7 @@ RequirementRole = Literal[
 # workload 5-tuple. None when workload data is unavailable.
 WorkloadShape = Literal["lecture_heavy", "project_heavy", "balanced"]
 
-# The four kinds of recommendation group STAGE 4 can open.
+# The four kinds of recommendation group S4 can open.
 SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone"]
 
 CapstonePath = Literal[
@@ -39,12 +39,12 @@ CapstonePath = Literal[
 ]
 
 
-class SelectionPick(TypedDict):
-    """One validated model/fallback selection for a single requirement slot,
-    before catalogue facts are attached."""
+class ScoreBreakdownItem(TypedDict):
+    """One scoring signal's contribution, as returned with a recommendation."""
 
-    course_code: str
-    reason: str
+    signal: str
+    delta: float
+    evidence: str
 
 
 class Recommendation(TypedDict):
@@ -66,6 +66,7 @@ class Recommendation(TypedDict):
     reason: str
     caution: str | None
     recommended: bool
+    score_breakdown: list[ScoreBreakdownItem]
 
 
 class Group(TypedDict):
@@ -97,7 +98,7 @@ class ExcludedCourse(TypedDict, total=False):
 @dataclass(frozen=True)
 class Course:
     """One catalogue course materialized from the upstream-Agent report,
-    enriched in STAGE 2 with requirement_role/level/workload_shape."""
+    enriched in S3 with requirement_role/level/workload_shape."""
 
     code: str
     title: str
@@ -115,7 +116,7 @@ class Course:
     data_quality: Literal["clean", "needs_review"] = "clean"
     vertical: tuple[str, ...] = field(default_factory=tuple)
     corequisite_text: str = ""
-    # Populated by stages/s3_constraints/catalog.py during STAGE 2 — never read before
+    # Populated by stages/s3_constraints/catalog.py during S3 — never read before
     # that stage runs, so default to the safe "not yet classified" values.
     requirement_role: RequirementRole = "unclassified"
     level: int | None = None
@@ -134,7 +135,7 @@ class CurriculumRule:
 
 @dataclass(frozen=True)
 class CandidatePool:
-    """Output of STAGE 2's hard eligibility rules (stages/s3_constraints/eligibility.py):
+    """Output of S3's hard eligibility rules (stages/s3_constraints/eligibility.py):
     every course a requirement slot is ALLOWED to draw from, plus the hard
     facts computed along the way. No ranking implied by `eligible` order."""
 
@@ -153,9 +154,9 @@ class CandidatePool:
 
 @dataclass(frozen=True)
 class DegreeProgress:
-    """STAGE 3's numeric ground truth — the ONE source of truth every later
-    stage (slot derivation, scoring, the LLM prompt) reads instead of
-    re-deriving quota state itself."""
+    """S3's numeric ground truth — the ONE source of truth every later
+    stage (slot derivation, scoring) reads instead of re-deriving quota
+    state itself."""
 
     core_mandatory_done: tuple[str, ...]
     core_mandatory_remaining: tuple[str, ...]
@@ -174,16 +175,16 @@ class DegreeProgress:
 
 @dataclass(frozen=True)
 class RequirementSlot:
-    """One open recommendation group derived in STAGE 4, before STAGE 5
+    """One open recommendation group derived in S4, before S5
     scores and selects within it.
 
     `required_pick_count` is how many of this slot's picks actually count
     toward the degree requirement — it can be 0 for a Vertical elective
     slot that isn't the one currently carrying the shared elective quota
-    (see requirement_slots.py's primary/secondary split), in which case
+    (see s4_slots.py's primary/secondary split), in which case
     every recommendation shown is a browsable, non-binding option.
     `display_count` (>= required_pick_count, capped by how many eligible
-    candidates actually exist) is how many candidates STAGE 5 actually
+    candidates actually exist) is how many candidates S5 actually
     shows — always a few more than strictly required so the student has
     real choice instead of one pre-made decision."""
 
@@ -196,9 +197,20 @@ class RequirementSlot:
 
 
 @dataclass(frozen=True)
+class ScoreItem:
+    """One scoring signal's contribution to a course's score (see
+    stages/s5_scoring/signals.py) — `evidence` is user-readable and becomes
+    part of the recommendation's reason."""
+
+    signal: str
+    delta: float
+    evidence: str
+
+
+@dataclass(frozen=True)
 class ScoredCourse:
-    """A slot candidate plus the evidence it was scored on — surfaced to the
-    LLM prompt and used verbatim by the deterministic fallback."""
+    """A slot candidate plus the evidence it was scored on. `score` is
+    always the sum of `breakdown`'s deltas."""
 
     course: Course
     score: float
@@ -207,6 +219,34 @@ class ScoredCourse:
     matched_preferences: tuple[str, ...]
     curated_match: bool
     workload_note: str | None = None
+    breakdown: tuple[ScoreItem, ...] = field(default_factory=tuple)
+
+    @property
+    def matched_skills(self) -> list[str]:
+        """The course's skills that matter for the target role (gap skills
+        are role skills too), in the course's own order."""
+        relevant = set(self.matched_gap_skills) | set(self.matched_role_skills)
+        return [s for s in self.course.skills if s in relevant]
+
+
+@dataclass(frozen=True)
+class Pick:
+    """One course selected for a requirement slot, with its reason — the
+    first `required_pick_count` of a slot's picks are its recommendation,
+    the rest browsable alternatives."""
+
+    scored: ScoredCourse
+    reason: str
+
+
+@dataclass(frozen=True)
+class SlotPicks:
+    """One requirement slot with its S5 picks, handed to the S6 mode.
+    `picks` is empty and `note` says why when the slot had no candidates."""
+
+    slot: RequirementSlot
+    picks: tuple[Pick, ...]
+    note: str | None = None
 
 
 @dataclass(frozen=True)

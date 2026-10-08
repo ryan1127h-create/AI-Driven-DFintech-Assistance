@@ -1,5 +1,5 @@
 """
-STAGE 2/3/4 shared knowledge — the NUS MSc DFinTech programme structure,
+S3/S4 shared knowledge — the NUS MSc DFinTech programme structure,
 transcribed 1:1 from knowledge.document_chunks (source_table='course_rules',
 intake='2026-08-onwards') into executable constants.
 
