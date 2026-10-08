@@ -83,7 +83,7 @@ def test_a_turn_uses_the_saved_preferences(monkeypatch):
     monkeypatch.setattr(turn_service, "get_assistant_preferences",
                         lambda uid: {"language_pref": ["zh"], "answer_depth": "detailed"})
     monkeypatch.setattr(turn_service.classification, "classify_intent",
-                        lambda messages, on_event=None: (["financial"], None, [], None))
+                        lambda messages, on_event=None: (["financial"], None, [], None, None))
     captured = {}
 
     def answer_turn(turn_state, intents, on_event=None):

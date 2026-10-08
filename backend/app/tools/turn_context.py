@@ -38,6 +38,10 @@ class TurnState:
     # given" as a first-class, gracefully-handled case.
     target_role_hint: str | None = None
     program_hints: list[str] = field(default_factory=list)
+    # Also from the intent classifier: for a course recommendation, which
+    # kind of advice is wanted — "degree_overview", "ad_hoc" or
+    # "semester_plan" (see classification.COURSE_MODES); None otherwise.
+    course_mode_hint: str | None = None
     # Also set by the intent classifier (see orchestrator/classification.py)
     # — the language the FINAL reply should end up in. Every generation
     # prompt in this app (RAG, assessment, general chat, evaluation)

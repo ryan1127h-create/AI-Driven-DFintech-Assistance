@@ -91,13 +91,14 @@ def run_turn(
 
     llm_messages = system_blocks + state.raw_tail + [new_message]
 
-    intents, target_role_hint, program_hints, detected_language = classification.classify_intent(
+    intents, target_role_hint, program_hints, detected_language, course_mode_hint = classification.classify_intent(
         llm_messages, on_event
     )
     preferences = get_assistant_preferences(user_id)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
         target_role_hint=target_role_hint, program_hints=program_hints,
+        course_mode_hint=course_mode_hint,
         reply_language=resolve_reply_language(detected_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
     )
