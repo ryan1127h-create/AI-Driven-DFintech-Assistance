@@ -83,6 +83,7 @@ def build_request(prefetched: Prefetched) -> dict:
         )[:_MAX_CURATED_COURSES]
 
     skills = course_skills(prefetched.course_tags, prefetched.role_tags)
+    role_names = {row["tag"]: row["name_en"] for row in prefetched.role_tags}
     return {
         "goals": {
             "target_role": target_role,
@@ -98,7 +99,8 @@ def build_request(prefetched: Prefetched) -> dict:
         "role_profile": role_profile,
         "curated_role_courses": curated_role_courses,
         "course_catalog": [
-            map_course(row, skills, prefetched.course_electives) for row in prefetched.courses
+            map_course(row, skills, prefetched.course_electives, prefetched.course_tags, role_names)
+            for row in prefetched.courses
         ],
         "curriculum_rules": [map_rule(chunk) for chunk in prefetched.curriculum_rules],
         "evidence_sources": [

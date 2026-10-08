@@ -50,7 +50,11 @@ def _offered_terms(row: dict) -> list[str]:
 
 
 def map_course(
-    row: dict, course_skills: dict[str, list[str]], course_electives: dict[str, list[str]]
+    row: dict,
+    course_skills: dict[str, list[str]],
+    course_electives: dict[str, list[str]],
+    course_tags: dict[str, list[str]],
+    role_names: dict[str, str],
 ) -> dict:
     return {
         "code": row["course_code"],
@@ -71,6 +75,9 @@ def map_course(
         "workload": list(row["workload"]) if row.get("workload") is not None else None,
         "data_quality": "needs_review" if row.get("needs_review") else "clean",
         "vertical": course_electives.get(row["course_code"], []),
+        "role_tags": [
+            {"tag": tag, "name": role_names.get(tag, tag)} for tag in course_tags.get(row["course_code"], [])
+        ],
     }
 
 

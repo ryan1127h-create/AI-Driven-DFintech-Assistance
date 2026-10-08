@@ -67,6 +67,10 @@ class Recommendation(TypedDict):
     caution: str | None
     recommended: bool
     score_breakdown: list[ScoreBreakdownItem]
+    # What the course teaches (its description's opening sentences) and
+    # checkable facts for why it fits — see stages/s5_scoring/evidence.py.
+    synopsis: str
+    evidence: list[str]
 
 
 class Group(TypedDict):
@@ -117,6 +121,8 @@ class Course:
     data_quality: Literal["clean", "needs_review"] = "clean"
     vertical: tuple[str, ...] = field(default_factory=tuple)
     corequisite_text: str = ""
+    # (tag, display name) of each role family the course is tagged for.
+    role_tags: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     # Populated by stages/s3_constraints/catalog.py during S3 — never read before
     # that stage runs, so default to the safe "not yet classified" values.
     requirement_role: RequirementRole = "unclassified"
@@ -238,6 +244,8 @@ class Pick:
 
     scored: ScoredCourse
     reason: str
+    synopsis: str = ""
+    evidence: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

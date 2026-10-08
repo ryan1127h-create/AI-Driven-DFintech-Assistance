@@ -149,6 +149,13 @@ class RoleProfileInput(_StrictInputModel):
 DataQuality = Literal["clean", "needs_review"]
 
 
+class RoleTagInput(_StrictInputModel):
+    """A role family a course is tagged for (knowledge.course_tags)."""
+
+    tag: ShortText
+    name: LongText
+
+
 class CourseCatalogItemInput(_StrictInputModel):
     """One complete course record supplied by the upstream agent."""
 
@@ -181,6 +188,10 @@ class CourseCatalogItemInput(_StrictInputModel):
     # requirement-slot derivation — never inferred by this domain.
     vertical: list[ShortText] = Field(default_factory=list, max_length=5)
     corequisite_text: str = Field(default="", max_length=3000)
+    # The role families the course is tagged for, as supplied — the direct
+    # course-to-role link, used to explain a recommendation (unlike
+    # `skills`, which are derived from these tags and much coarser).
+    role_tags: list[RoleTagInput] = Field(default_factory=list, max_length=12)
 
     @field_validator("code")
     @classmethod

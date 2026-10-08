@@ -55,6 +55,8 @@ def _recommendation(pick: Pick, pool: CandidatePool, *, recommended: bool) -> Re
             {"signal": item.signal, "delta": item.delta, "evidence": item.evidence}
             for item in pick.scored.breakdown
         ],
+        "synopsis": pick.synopsis,
+        "evidence": list(pick.evidence),
     }
 
 

@@ -21,6 +21,9 @@ RESULT = {
             "course_time": None, "workload": None, "matched_skills": ["data_analytics"],
             "reason": "Closes skill gaps: data_analytics.", "caution": None, "recommended": True,
             "score_breakdown": [{"signal": "skill_gap", "delta": 2.0, "evidence": "closes skill gaps: data_analytics"}],
+            "synopsis": "A foundation in data analytics: exploratory data analysis and predictive modeling.",
+            "evidence": ["one of the 2 mandatory core courses you still need",
+                         "tagged for your target role, Data Analytics"],
         }],
     }],
     "degree_progress": {"core_mandatory_done": ["IT5001X"], "core_mandatory_remaining": ["IT5006"],
@@ -41,7 +44,9 @@ def test_view_keeps_what_the_reply_needs_and_drops_audit_data():
     assert set(view) == {"target_role", "groups", "degree_progress", "skill_gaps", "notes", "sources"}
     course = view["groups"][0]["courses"][0]
     assert course["course_code"] == "IT5006" and course["units"] == 4 and course["recommended"] is True
-    assert "score_breakdown" not in course
+    assert course["synopsis"].startswith("A foundation in data analytics")
+    assert course["evidence"][1] == "tagged for your target role, Data Analytics"
+    assert not {"score_breakdown", "reason", "matched_skills"} & set(course)
     assert "elective_level4000_used" not in view["degree_progress"]
 
 

@@ -45,6 +45,8 @@ class RecommendedCourse(BaseModel):
     caution: str | None
     recommended: bool
     score_breakdown: list[ScoreItemResponse]
+    synopsis: str
+    evidence: list[str]
 
 
 class RecommendationGroup(BaseModel):

@@ -42,7 +42,7 @@ from app.domains.specialist.course_recommendation.policy import curriculum as cs
 from app.domains.specialist.course_recommendation.stages import s4_slots
 from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
 from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
-from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer, selection
+from app.domains.specialist.course_recommendation.stages.s5_scoring import evidence, scorer, selection
 from app.domains.specialist.course_recommendation.stages.s6_modes.base import ModeStrategy
 from app.domains.specialist.course_recommendation.stages.s6_modes.degree_overview import DegreeOverview
 
@@ -248,6 +248,12 @@ def _process_slots(
     groups from every slot's picks."""
     preferences = _preference_keywords(request)
     project_averse = catalog.is_project_averse(request.preferences.acceptable_workload)
+    role = request.role_profile
+    evidence_ctx = evidence.EvidenceContext(
+        target_role=(role.role_id, role.role_title) if role else None,
+        skill_share=evidence.skill_shares(list(courses_by_code.values())),
+        prerequisite_cautions=frozenset(pool.prerequisite_cautions),
+    )
     slot_picks: list[SlotPicks] = []
 
     for slot in slots:
@@ -279,7 +285,7 @@ def _process_slots(
             candidates, role_skills, pool.skill_gaps, preferences,
             request.curated_role_courses, project_averse,
         )
-        picks = tuple(selection.select_for_slot(slot, scored))
+        picks = tuple(selection.select_for_slot(slot, scored, evidence_ctx))
         _record_stage(
             stage_results,
             diagnostics,
@@ -666,6 +672,7 @@ def _courses_from_report(request: CourseRecommendationInput) -> list[Course]:
             data_quality=item.data_quality,
             vertical=tuple(item.vertical),
             corequisite_text=item.corequisite_text,
+            role_tags=tuple((role.tag, role.name) for role in item.role_tags),
         )
         for item in request.course_catalog
     ]

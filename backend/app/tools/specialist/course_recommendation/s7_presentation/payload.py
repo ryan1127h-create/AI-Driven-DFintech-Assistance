@@ -21,13 +21,16 @@ _PROGRESS_FIELDS = (
     "total_units_target",
 )
 
+# `synopsis` and `evidence` are what the reply explains a course with;
+# `reason` (their plain-text summary) and `matched_skills` (derived from
+# role tags, too coarse to explain anything) stay out.
 _COURSE_FIELDS = (
     "course_code",
     "course_title",
     "units",
     "recommended",
-    "reason",
-    "matched_skills",
+    "synopsis",
+    "evidence",
     "caution",
     "offered_terms",
 )

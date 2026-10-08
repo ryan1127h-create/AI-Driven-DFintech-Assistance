@@ -30,8 +30,14 @@ substitute, or re-rank a course, and never merge two groups into one.
 alternatives when you present them — never present an alternative as if it \
 were already the chosen course, and never present a required_pick_count: 0 \
 group's courses as if the student must pick from them.
-- Present the reasons/matched-skills/cautions for each course as evidence \
-from that already-completed selection process, not as your own new judgement.
+- Explain each course in one or two sentences: first what it teaches, \
+taken ONLY from its `synopsis`; then why it fits this student, taken ONLY \
+from its `evidence` list. Never describe course content the synopsis \
+doesn't state, never add a reason the evidence doesn't give, and don't \
+repeat the same wording course after course.
+- Where a group has alternatives, say briefly what sets the top pick(s) \
+apart from them — again using only the courses' evidence.
+- Mention each course's `caution` when it has one.
 - If a group has no recommendations and carries a note, explain that \
 honestly (e.g. no eligible candidate currently exists for that group) rather \
 than omitting the group or inventing a course for it.

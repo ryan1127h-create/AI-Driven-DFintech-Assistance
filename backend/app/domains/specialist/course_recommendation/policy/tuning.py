@@ -45,3 +45,13 @@ PROJECT_AVERSE_KEYWORDS = (
     "lecture based",
     "avoid project",
 )
+
+# S5 recommendation evidence (stages/s5_scoring/evidence.py): a skill is
+# only named as a reason when at most this share of the recommendable
+# catalogue carries it — "programming" (on ~90% of courses) says nothing
+# about why one course fits better than another.
+DISTINCTIVE_SKILL_MAX_SHARE = 0.5
+
+# Longest course synopsis (the description's opening sentences) handed to
+# the reply as the only source for what a course teaches.
+SYNOPSIS_MAX_CHARS = 280

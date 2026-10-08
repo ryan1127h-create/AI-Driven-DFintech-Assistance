@@ -5,8 +5,9 @@ Takes a slot's scored candidates (scorer.py) and returns its
 `display_count` picks in best-first order: the first
 `required_pick_count` are the recommendation, the rest browsable
 alternatives (workflow.py and the mode assemble the groups from that
-split). Each pick's reason is built from its score breakdown, so every
-reason is backed by a signal that actually fired.
+split). Each pick carries its synopsis and evidence (evidence.py); its
+plain-text reason, used when the reply falls back to a template, is
+built from that evidence.
 
 Pure function, no I/O, no LLM.
 """
@@ -19,6 +20,11 @@ from app.domains.specialist.course_recommendation.models import (
     ScoredCourse,
 )
 from app.domains.specialist.course_recommendation.policy import tuning
+from app.domains.specialist.course_recommendation.stages.s5_scoring.evidence import (
+    EvidenceContext,
+    evidence_for,
+    synopsis,
+)
 
 
 def best_pair(scored: list[ScoredCourse]) -> tuple[ScoredCourse, ScoredCourse] | None:
@@ -65,16 +71,19 @@ def rank_for_slot(
     return (primary + filler)[:display_count]
 
 
-def reason_for(scored: ScoredCourse, slot: RequirementSlot) -> str:
-    """One sentence of evidence from the score breakdown, falling back to
-    the requirement the course counts toward when no signal fired."""
-    evidence = [item.evidence for item in scored.breakdown] or [f"counts toward {slot.label}"]
-    text = "; ".join(evidence)
+def reason_from(evidence: tuple[str, ...], slot: RequirementSlot) -> str:
+    """The evidence as one sentence, falling back to the requirement the
+    course counts toward when there is none."""
+    text = "; ".join(evidence) or f"counts toward {slot.label}"
     return text[0].upper() + text[1:] + "."
 
 
-def select_for_slot(slot: RequirementSlot, scored: list[ScoredCourse]) -> list[Pick]:
-    return [
-        Pick(scored=sc, reason=reason_for(sc, slot))
-        for sc in rank_for_slot(scored, slot.required_pick_count, slot.display_count)
-    ]
+def select_for_slot(slot: RequirementSlot, scored: list[ScoredCourse], ctx: EvidenceContext) -> list[Pick]:
+    picks = []
+    for sc in rank_for_slot(scored, slot.required_pick_count, slot.display_count):
+        evidence = evidence_for(sc, slot, ctx)
+        picks.append(Pick(
+            scored=sc, reason=reason_from(evidence, slot),
+            synopsis=synopsis(sc.course.description), evidence=evidence,
+        ))
+    return picks
