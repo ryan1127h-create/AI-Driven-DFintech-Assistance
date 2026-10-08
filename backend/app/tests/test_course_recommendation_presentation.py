@@ -41,7 +41,7 @@ RESULT = {
 
 def test_view_keeps_what_the_reply_needs_and_drops_audit_data():
     view = to_render_view(RESULT)
-    assert set(view) == {"target_role", "groups", "degree_progress", "skill_gaps", "notes", "sources"}
+    assert set(view) == {"mode", "target_role", "groups", "degree_progress", "skill_gaps", "notes", "sources"}
     course = view["groups"][0]["courses"][0]
     assert course["course_code"] == "IT5006" and course["units"] == 4 and course["recommended"] is True
     assert course["synopsis"].startswith("A foundation in data analytics")
@@ -96,3 +96,19 @@ def test_renderer_keeps_a_corrected_retry(monkeypatch):
     monkeypatch.setattr(renderer, "render_structured_reply",
                         lambda view, msg, prompt, on_event=None, depth=None: (next(replies), []))
     assert renderer.render(RESULT, "courses?")[0] == "Take IT5006 (4 units)."
+
+
+def test_the_ad_hoc_mode_renders_under_its_own_style(monkeypatch):
+    prompts = []
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("Take IT5006.", []))
+    renderer.render({**RESULT, "mode": "ad_hoc"}, "python courses?")
+    renderer.render(RESULT, "what should I take?")
+    assert prompts[0] == renderer.AD_HOC_STYLE_PROMPT
+    assert prompts[1] == renderer.COURSE_RECOMMENDATION_STYLE_PROMPT
+
+
+def test_guardrail_lets_the_reply_echo_codes_the_user_typed():
+    view = to_render_view(RESULT)
+    assert guardrail.check("FT5003 is left out, as you asked.", view, "please not ft5003") == []
+    assert guardrail.check("FT5003 is left out.", view, "no blockchain please") != []

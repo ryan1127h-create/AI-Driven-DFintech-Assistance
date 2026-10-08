@@ -93,6 +93,7 @@ def prefetch(user_id: str | None, target_role_hint: str | None) -> Prefetched:
 
     role_tag = resolve_role_tag(facts, target_role_hint)
     return Prefetched(
+        stated_role_tag=match_role_tag(target_role_hint) if target_role_hint else None,
         facts=facts,
         fact_labels={key: describe_value(key, facts[key]) for key in LABELLED_FIELDS if key in facts},
         role_labels={

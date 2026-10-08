@@ -24,6 +24,7 @@ from app.tools.specialist.course_recommendation.s1_understanding.schema import P
 from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note
 from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch
 from app.tools.specialist.course_recommendation.s7_presentation import renderer
+from app.tools.specialist.course_recommendation.s7_presentation.save_suggestions import save_suggestions
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
 logger = get_logger(__name__)
@@ -73,7 +74,10 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     if note:
         result["notes"].append(note)
     answer, sources = renderer.render(result, user_message, on_event=on_event, depth=state.answer_depth)
-    return ToolAnswer(text=answer, sources=sources, agent_used="course_recommendation_agent")
+    return ToolAnswer(
+        text=answer, sources=sources, agent_used="course_recommendation_agent",
+        save_suggestions=save_suggestions(parsed, prefetched),
+    )
 
 
 def _fallback(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:

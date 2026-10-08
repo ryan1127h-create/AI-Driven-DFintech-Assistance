@@ -34,12 +34,14 @@ _COURSE_FIELDS = (
     "synopsis",
     "evidence",
     "caution",
+    "counts_toward",
 )
 
 
 def to_render_view(result: dict) -> dict:
     progress = result.get("degree_progress")
     return {
+        "mode": result.get("mode", "degree_overview"),
         "target_role": result.get("target_role"),
         "groups": [
             {

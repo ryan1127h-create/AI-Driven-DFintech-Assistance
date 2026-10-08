@@ -6,7 +6,7 @@ unit count; this verifies it didn't, deterministically.
 Two checks:
   1. every course code in the reply appears somewhere in the view (a
      recommended course, a completed one named in degree progress, or one
-     a note mentions);
+     a note mentions) or in the user's own message;
   2. a unit count written right after a recommended course's code (before
      the next code or line break) matches that course's units.
 """
@@ -24,10 +24,12 @@ _UNITS = re.compile(r"(\d+)\s*(?:units?|MCs?|学分)", re.IGNORECASE)
 _UNITS_WINDOW = 60
 
 
-def check(reply: str, view: dict) -> list[str]:
+def check(reply: str, view: dict, user_message: str = "") -> list[str]:
     """Returns one readable message per violation; empty when the reply is
-    consistent with the view."""
+    consistent with the view. Codes the user typed may be echoed too (e.g.
+    "FT5003 is left out, as you asked")."""
     known_codes = set(_CODE.findall(json.dumps(view, ensure_ascii=False)))
+    known_codes |= set(_CODE.findall(user_message.upper()))
     units = course_units(view)
     violations: list[str] = []
 

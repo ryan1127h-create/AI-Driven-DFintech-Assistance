@@ -93,10 +93,16 @@ def select_top(
     ctx: EvidenceContext,
 ) -> tuple[list[Pick], bool]:
     """The ad_hoc selection: the best `count` courses across every slot.
-    Courses matching something the student asked for come first; when
-    none does, the best general fits are returned instead. Returns (picks,
-    whether they match the request)."""
+    Only courses matching something the student asked for are listed,
+    ranked by how well they match it first and their overall score second
+    — a course that fits the student's role but barely the request mustn't
+    lead. When none matches, the best general fits are returned instead.
+    Returns (picks, whether they match the request)."""
+    def request_score(sc: ScoredCourse) -> float:
+        return sum(item.delta for item in sc.breakdown if item.signal in REQUEST_SIGNALS)
+
     matching = [sc for sc in scored if any(item.signal in REQUEST_SIGNALS for item in sc.breakdown)]
+    matching.sort(key=lambda sc: (-request_score(sc), -sc.score, sc.course.code))
     chosen = (matching or scored)[:count]
     picks = [_pick(sc, slot_by_code.get(sc.course.code), ctx, "your degree") for sc in chosen]
     return picks, bool(matching)

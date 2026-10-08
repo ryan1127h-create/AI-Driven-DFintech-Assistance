@@ -4,26 +4,37 @@ import { updateProfile } from "../../../../api";
 import { cn } from "../../../utils/cn";
 import { loadDictionary, loadProfileValues, profileChanges } from "./profileWrites";
 
+function fieldLabel(dictionary, fieldKey) {
+  return dictionary?.definitions[fieldKey]?.label || fieldKey;
+}
+
+// A value as the profile shows it: option labels, role names, and lists
+// joined.
+function valueLabel(dictionary, { field_key: fieldKey, value }) {
+  const labels = dictionary?.definitions[fieldKey]?.value_labels || {};
+  const one = (v) => labels[String(v)] ?? dictionary?.roleTags?.[v] ?? String(v);
+  return Array.isArray(value) ? value.map(one).join(", ") : one(value);
+}
+
 // Facts the user stated in this turn that differ from their profile (see
 // backend ToolAnswer.save_suggestions), offered for saving one at a time.
 // Nothing is written until the user confirms.
 export default function SaveSuggestions({ suggestions }) {
   const [state, setState] = useState({}); // field_key -> "saving" | "saved" | error message
   const [dismissed, setDismissed] = useState(false);
-  const [labels, setLabels] = useState({});
+  const [dictionary, setDictionary] = useState(null);
 
-  // Field names come from the dictionary; until it loads, the key stands in.
+  // Field names and value labels come from the dictionary; until it loads,
+  // the raw keys stand in.
   useEffect(() => {
     let alive = true;
     loadDictionary()
-      .then(({ definitions }) => alive && setLabels(
-        Object.fromEntries(suggestions.map((s) => [s.field_key, definitions[s.field_key]?.label])),
-      ))
+      .then((dict) => alive && setDictionary(dict))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [suggestions]);
+  }, []);
 
   if (dismissed) return null;
   if (suggestions.every((s) => state[s.field_key] === "saved")) {
@@ -68,8 +79,8 @@ export default function SaveSuggestions({ suggestions }) {
           return (
             <li key={suggestion.field_key} className="flex items-center justify-between gap-3 text-sm">
               <span className="min-w-0 break-words">
-                <span className="text-app-muted">{labels[suggestion.field_key] || suggestion.field_key}: </span>
-                <span className="font-medium text-app-primary">{suggestion.label}</span>
+                <span className="text-app-muted">{fieldLabel(dictionary, suggestion.field_key)}: </span>
+                <span className="font-medium text-app-primary">{valueLabel(dictionary, suggestion)}</span>
                 {failed && <span className="ml-2 text-xs text-red-300">{status}</span>}
               </span>
               <button

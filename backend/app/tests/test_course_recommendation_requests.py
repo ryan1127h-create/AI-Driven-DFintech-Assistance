@@ -145,3 +145,24 @@ def test_exclusions_and_unavailable_requests_are_explained():
     assert "IT5006 is a mandatory core course" in notes
     assert "FT5005 can't be recommended: you've already completed it." in notes
     assert "XX9999 isn't in the programme's course catalogue." in notes
+
+
+def test_ad_hoc_ranks_by_the_request_before_role_fit():
+    # A course tagged for the target role but barely matching the request
+    # must not lead one that matches the request better.
+    catalog = _request()["course_catalog"] + [
+        {"code": "IS4261", "title": "AI Business", "units": 4, "can_recommend": True, "vertical": [V1],
+         "description": "Business innovation.", "role_tags": [{"tag": "data_analytics", "name": "Data Analytics"}],
+         "skills": ["ai_ml"]},
+        {"code": "CS5242", "title": "Neural Networks", "units": 4, "can_recommend": True, "vertical": [V2],
+         "description": "Deep learning methods.", "skills": ["ai_ml"]},
+    ]
+    result = interface.recommend_courses({
+        "course_catalog": catalog, "mode": "ad_hoc",
+        "goals": {"target_role": "Data Analytics"},
+        "role_profile": {"role_id": "data_analytics", "role_title": "Data Analytics", "required_skills": ["data_analytics"]},
+        "constraints": {"keywords": ["deep learning"], "preferred_skills": ["ai_ml"]},
+    })
+    codes = [r["course_code"] for r in result["groups"][0]["recommendations"]]
+    assert codes.index("CS5242") < codes.index("IS4261")
+    assert not any("organised by Vertical" in note for note in result["notes"])

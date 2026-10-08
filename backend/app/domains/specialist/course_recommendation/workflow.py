@@ -190,12 +190,15 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
             cs.TRACK_VERTICALS.get(request.student.track_chosen),
         ),
     )
+    mode = _mode_for(request, notes, diagnostics)
     if slots:
-        notes.append(
-            "Elective groups are organised by Vertical to show each track clearly — the "
-            "programme itself only requires the total elective units to be met, however "
-            "they are split across Verticals."
-        )
+        # Only the overview shows the electives grouped by Vertical.
+        if mode == "degree_overview" and any(s.slot_type == "elective" for s in slots):
+            notes.append(
+                "Elective groups are organised by Vertical to show each track clearly — the "
+                "programme itself only requires the total elective units to be met, however "
+                "they are split across Verticals."
+            )
         note = _level4000_note(slots, {c.code: c for c in courses}, progress)
         if note:
             notes.append(note)
@@ -227,7 +230,6 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         },
     )
 
-    mode = _mode_for(request, notes, diagnostics)
     groups = _process_slots(
         request,
         mode,

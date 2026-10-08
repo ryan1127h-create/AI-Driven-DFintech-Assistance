@@ -67,7 +67,8 @@ class ToolAnswer:
     card: dict | None = None
     # Facts the user stated this turn that differ from their profile,
     # offered under the reply for the user to save: [{"field_key",
-    # "value", "label"}]. Never written without the user's confirmation.
+    # "value"}] — the client labels them from its field definitions. Never
+    # written without the user's confirmation.
     save_suggestions: list[dict] = field(default_factory=list)
 
 

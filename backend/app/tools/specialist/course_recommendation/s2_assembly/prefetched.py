@@ -39,6 +39,8 @@ class Prefetched:
     readiness_notes: tuple[str, ...]
     graduation_notes: tuple[str, ...]
     role_tag: str | None
+    # The role tag the message itself named, when it named a known one.
+    stated_role_tag: str | None
     role_profile: dict | None
     courses: list[dict]
     curriculum_rules: list[dict]
