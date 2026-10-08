@@ -11,7 +11,7 @@ from app.domains.specialist.course_recommendation.errors import (
 )
 
 # Which degree requirement a course would count towards. Computed by
-# pipeline/catalog.py — never supplied by the upstream report, since that
+# stages/s3_constraints/catalog.py — never supplied by the upstream report, since that
 # would require the report assembler to know NUS curriculum policy, which
 # is exactly what this domain is meant to encapsulate.
 RequirementRole = Literal[
@@ -115,7 +115,7 @@ class Course:
     data_quality: Literal["clean", "needs_review"] = "clean"
     vertical: tuple[str, ...] = field(default_factory=tuple)
     corequisite_text: str = ""
-    # Populated by pipeline/catalog.py during STAGE 2 — never read before
+    # Populated by stages/s3_constraints/catalog.py during STAGE 2 — never read before
     # that stage runs, so default to the safe "not yet classified" values.
     requirement_role: RequirementRole = "unclassified"
     level: int | None = None
@@ -134,7 +134,7 @@ class CurriculumRule:
 
 @dataclass(frozen=True)
 class CandidatePool:
-    """Output of STAGE 2's hard eligibility rules (pipeline/eligibility.py):
+    """Output of STAGE 2's hard eligibility rules (stages/s3_constraints/eligibility.py):
     every course a requirement slot is ALLOWED to draw from, plus the hard
     facts computed along the way. No ranking implied by `eligible` order."""
 
@@ -147,7 +147,7 @@ class CandidatePool:
     excluded_courses: tuple[ExcludedCourse, ...] = field(default_factory=tuple)
     # Courses that stayed eligible but whose prerequisite text names a code
     # not found among the student's completed courses — a caution, never an
-    # exclusion (see pipeline/eligibility.py's module docstring for why).
+    # exclusion (see stages/s3_constraints/eligibility.py's module docstring for why).
     prerequisite_cautions: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -211,7 +211,7 @@ class ScoredCourse:
 
 @dataclass(frozen=True)
 class RecommendationResult:
-    """What service.recommend_courses() returns to api.py / interface.py."""
+    """What workflow.recommend_courses() returns to api.py / interface.py."""
 
     request_id: str
     target_role: str | None

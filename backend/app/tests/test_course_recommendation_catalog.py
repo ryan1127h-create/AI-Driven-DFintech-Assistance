@@ -1,4 +1,4 @@
-"""Exercises pipeline/catalog.py: STAGE 2's course classification.
+"""Exercises stages/s3_constraints/catalog.py: STAGE 2's course classification.
 
 The IT5003/IT5004/IT5005/IT5008 case is a real one, not hypothetical — see
 knowledge.course_electives: these 4 codes are simultaneously tagged as a
@@ -11,7 +11,7 @@ before replacement-candidate status.
 
 from __future__ import annotations
 
-from app.domains.specialist.course_recommendation.pipeline import catalog
+from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog
 
 
 def test_capstone_classified_before_anything_else():

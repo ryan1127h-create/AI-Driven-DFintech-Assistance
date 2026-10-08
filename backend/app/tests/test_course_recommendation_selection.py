@@ -1,11 +1,11 @@
-"""Exercises pipeline/selection.py: STAGE 5's LLM proposal, its bounded
+"""Exercises stages/s5_scoring/llm_selection.py: STAGE 5's LLM proposal, its bounded
 self-correction loop, and the deterministic fallback. The LLM call itself
 (`llm.complete`) is always monkeypatched — these tests never hit a real
 model.
 
 Every slot now asks for `display_count` candidates (required_pick_count +
 2, capped by how many are eligible) so the student gets real choice —
-service.py, not this module, marks the first `required_pick_count` of the
+workflow.py, not this module, marks the first `required_pick_count` of the
 returned order as the actual recommendation."""
 
 from __future__ import annotations
@@ -14,10 +14,9 @@ import json
 
 from app.domains.specialist.course_recommendation.errors import ErrorCode
 from app.domains.specialist.course_recommendation.models import Course, RequirementSlot
-from app.domains.specialist.course_recommendation.pipeline import scoring, selection
-from app.domains.specialist.course_recommendation.pipeline.requirement_slots import (
-    EXTRA_DISPLAY_OPTIONS,
-)
+from app.domains.specialist.course_recommendation.policy.tuning import EXTRA_DISPLAY_OPTIONS
+from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection as selection
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer as scoring
 
 
 def _course(code: str, skills: tuple[str, ...] = ()) -> Course:

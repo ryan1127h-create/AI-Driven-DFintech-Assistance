@@ -17,17 +17,8 @@ Pure function, no I/O.
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import Course, ScoredCourse
+from app.domains.specialist.course_recommendation.policy import tuning
 
-W_GAP_SKILL = 2.0
-W_ROLE_SKILL = 1.0
-W_PREFERENCE = 1.5
-W_CURATED_ROLE = 1.0
-PROJECT_HEAVY_PENALTY = -1.0
-
-# How many top-scored candidates are considered when picking the best PAIR
-# for a 2-pick slot — the eligible pool per slot is always small (a
-# handful of courses), so this stays cheap.
-PAIR_CANDIDATE_WINDOW = 4
 
 
 def _preference_matches(course: Course, preferences: list[str]) -> tuple[str, ...]:
@@ -50,7 +41,7 @@ def score_slot_candidates(
     project_averse: bool,
 ) -> list[ScoredCourse]:
     """Scores and sorts (best first) every candidate in one requirement
-    slot. Never raises on empty input — the caller (service.py) already
+    slot. Never raises on empty input — the caller (workflow.py) already
     knows to skip a slot with zero candidates before reaching here."""
     skill_gap_set = set(skill_gaps)
     curated_set = set(curated_role_courses)
@@ -65,15 +56,15 @@ def score_slot_candidates(
         curated_match = course.code in curated_set
 
         score = (
-            W_GAP_SKILL * len(matched_gap)
-            + W_ROLE_SKILL * len(matched_role)
-            + W_PREFERENCE * len(matched_prefs)
-            + (W_CURATED_ROLE if curated_match else 0.0)
+            tuning.W_GAP_SKILL * len(matched_gap)
+            + tuning.W_ROLE_SKILL * len(matched_role)
+            + tuning.W_PREFERENCE * len(matched_prefs)
+            + (tuning.W_CURATED_ROLE if curated_match else 0.0)
         )
 
         workload_note: str | None = None
         if project_averse and course.workload_shape == "project_heavy":
-            score += PROJECT_HEAVY_PENALTY
+            score += tuning.PROJECT_HEAVY_PENALTY
             workload_note = "This course is primarily independent project work."
 
         scored.append(
@@ -98,7 +89,7 @@ def best_pair(scored: list[ScoredCourse]) -> tuple[ScoredCourse, ScoredCourse] |
     merely individually highest-scored — avoids recommending two courses
     that teach the same thing when the slot needs two picks. None if
     fewer than 2 candidates are available."""
-    window = scored[:PAIR_CANDIDATE_WINDOW]
+    window = scored[:tuning.PAIR_CANDIDATE_WINDOW]
     if len(window) < 2:
         return None
 

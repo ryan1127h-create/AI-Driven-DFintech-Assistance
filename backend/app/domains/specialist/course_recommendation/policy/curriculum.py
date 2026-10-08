@@ -67,22 +67,3 @@ ELECTIVE_UNITS_BASE = 12  # +12 more (24 total) once the elective-alternative pa
 # shortfall into an approximate course COUNT for a recommendation slot's
 # required_pick_count. Never used to validate an actual unit total.
 TYPICAL_ELECTIVE_UNITS = 4
-
-# STAGE 5 scoring: free-text keyword hints that a student wants to avoid
-# heavy independent-project coursework (see pipeline/scoring.py). Not
-# exhaustive — a keyword table, not an NLP model.
-PROJECT_AVERSE_KEYWORDS = (
-    "少项目",
-    "不想太多project",
-    "不想要太多project",
-    "少做项目",
-    "偏好课堂",
-    "偏好讲授",
-    "discussion-based",
-    "discussion based",
-    "less project",
-    "fewer project",
-    "lecture-based",
-    "lecture based",
-    "avoid project",
-)

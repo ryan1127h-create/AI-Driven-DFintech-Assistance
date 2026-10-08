@@ -1,10 +1,10 @@
-"""Exercises pipeline/eligibility.py: STAGE 2's hard exclusion rules and the
+"""Exercises stages/s3_constraints/eligibility.py: STAGE 2's hard exclusion rules and the
 prerequisite soft-caution signal (never an exclusion)."""
 
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import Course
-from app.domains.specialist.course_recommendation.pipeline import eligibility
+from app.domains.specialist.course_recommendation.stages.s3_constraints import eligibility
 
 
 def _course(code: str, **overrides) -> Course:

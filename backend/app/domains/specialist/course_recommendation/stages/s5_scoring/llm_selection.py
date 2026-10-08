@@ -11,7 +11,7 @@ best-first — more than the `slot.required_pick_count` actually needed
 instead of one pre-made decision. Code then validates the answer — wrong
 count, a code outside the slot, or a hallucinated code all get a
 specific, human-readable rejection reason fed straight back to the model
-for one more try (see MAX_RETRIES). service.py marks the first
+for one more try (see MAX_RETRIES). workflow.py marks the first
 `required_pick_count` of the returned order as the actual recommendation
 and the rest as browsable alternatives — this module only produces the
 ordered list. Structurally, a cross-slot duplicate cannot occur here:
@@ -32,7 +32,7 @@ from app.domains.specialist.course_recommendation.models import (
     ScoredCourse,
     SelectionPick,
 )
-from app.domains.specialist.course_recommendation.pipeline import scoring
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer as scoring
 
 logger = get_logger(__name__)
 
@@ -166,7 +166,7 @@ def validate_picks(
     (never a partial list) unless the exact display count survives
     validation — a partial slot is treated the same as a failed one so the
     retry loop or fallback can produce a complete answer instead. Order is
-    preserved: service.py marks the first `required_pick_count` entries of
+    preserved: workflow.py marks the first `required_pick_count` entries of
     the returned list as the actual recommendation."""
     picks: list[SelectionPick] = []
     seen: set[str] = set()
@@ -196,7 +196,7 @@ def select_for_slot(
 ) -> SlotSelectionOutcome:
     """Runs the bounded self-correction loop for one requirement slot.
     Never raises — every failure path returns a typed outcome the caller
-    (service.py) uses to fall back to scoring.py's deterministic order."""
+    (workflow.py) uses to fall back to scoring.py's deterministic order."""
     eligible_codes = {sc.course.code for sc in scored}
     rejection_reason: str | None = None
 
@@ -285,7 +285,7 @@ def select_for_slot(
 def fallback_for_slot(slot: RequirementSlot, scored: list[ScoredCourse]) -> list[SelectionPick]:
     """Deterministic selection used when the LLM path failed for this
     slot — same dict shape (and same best-first order) as its validated
-    picks, so service.py's "first required_pick_count = recommended"
+    picks, so workflow.py's "first required_pick_count = recommended"
     split applies identically regardless of which path produced it."""
     chosen = scoring.rank_for_slot(scored, slot.required_pick_count, slot.display_count)
 

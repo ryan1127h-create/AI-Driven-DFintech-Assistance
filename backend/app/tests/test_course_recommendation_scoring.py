@@ -1,10 +1,10 @@
-"""Exercises pipeline/scoring.py: STAGE 5's per-slot multi-signal scoring
+"""Exercises stages/s5_scoring/scorer.py: STAGE 5's per-slot multi-signal scoring
 and the 2-pick complementarity re-rank."""
 
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import Course
-from app.domains.specialist.course_recommendation.pipeline import scoring
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer as scoring
 
 
 def _course(code: str, skills: tuple[str, ...] = (), workload_shape=None, title: str = "", section: str = "", description: str = "") -> Course:

@@ -55,7 +55,7 @@ TOPIC_BOOST_FACTOR = 1.3
 # equally between both regardless of which cohort is actually current,
 # risking a stale-rules answer for the prospective/current-intake students
 # who are the overwhelming majority of callers. _CURRENT_INTAKE mirrors
-# course_recommendation/service.py's own hardcoded _CURRENT_INTAKE constant
+# course_recommendation/policy/curriculum.py's own hardcoded CURRENT_INTAKE constant
 # (same underlying assumption, kept in sync manually since the two domains
 # don't share this value). Deliberately a soft down-weight (never a filter/
 # exclusion) applied to the non-current cohort's course_rules hits — a

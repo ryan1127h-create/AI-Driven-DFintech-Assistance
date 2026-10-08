@@ -20,13 +20,13 @@ from dataclasses import asdict
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.logging import get_logger
-from app.domains.specialist.course_recommendation import service
+from app.domains.specialist.course_recommendation import workflow
 from app.domains.specialist.course_recommendation.contracts import CourseRecommendationInput
 from app.domains.specialist.course_recommendation.errors import (
     ErrorCode,
     input_validation_error,
 )
-from app.domains.specialist.course_recommendation.pipeline import catalog
+from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog
 from app.domains.specialist.course_recommendation.schemas import response_from_result
 
 logger = get_logger(__name__)
@@ -62,7 +62,7 @@ def recommend_courses(
             errors=exc.errors(),
         ) from exc
 
-    result = service.recommend_courses(validated)
+    result = workflow.recommend_courses(validated)
     return response_from_result(result).model_dump(mode="json")
 
 
@@ -70,7 +70,7 @@ def compute_degree_progress(catalogue: list[dict], completed_codes: list[str]) -
     """Degree progress for the completed course codes against the current
     curriculum: core mandatory / core choice / elective units / capstone
     path / total units. `catalogue` is [{code, units, vertical}]."""
-    return asdict(service.compute_degree_progress(catalogue, completed_codes))
+    return asdict(workflow.compute_degree_progress(catalogue, completed_codes))
 
 
 def requirement_role(code: str, vertical: list[str]) -> str:

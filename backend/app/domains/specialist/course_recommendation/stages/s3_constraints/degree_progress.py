@@ -6,7 +6,7 @@ core courses are done, how many of the 11-choose-3 core electives, how
 many elective units, how many of those sit at the 4000 level, and where
 the student stands on the Capstone-vs-three-more-electives decision.
 
-Pure function, no I/O. Depends only on pipeline/curriculum_structure.py's
+Pure function, no I/O. Depends only on policy/curriculum.py's
 constants and the Course facts STAGE 2 already classified.
 """
 
@@ -17,7 +17,7 @@ from app.domains.specialist.course_recommendation.models import (
     Course,
     DegreeProgress,
 )
-from app.domains.specialist.course_recommendation.pipeline import curriculum_structure as cs
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
 
 # rule:cur_replacement_policy names these two specifically — BMD5302 and
 # IT5006 have no approved-replacement path.

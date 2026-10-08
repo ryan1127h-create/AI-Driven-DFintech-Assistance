@@ -1,11 +1,12 @@
-"""Exercises pipeline/requirement_slots.py: STAGE 4's slot derivation and
+"""Exercises stages/s4_slots.py: STAGE 4's slot derivation and
 cross-slot conflict resolution."""
 
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import CandidatePool, Course
-from app.domains.specialist.course_recommendation.pipeline import curriculum_structure as cs
-from app.domains.specialist.course_recommendation.pipeline import degree_progress, requirement_slots
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
+from app.domains.specialist.course_recommendation.stages import s4_slots as requirement_slots
+from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress
 
 
 def _course(

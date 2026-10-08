@@ -8,7 +8,7 @@ fill it. A slot for a fully-satisfied requirement is never created — an
 advanced student simply sees fewer, different slots than a fresh one.
 
 Every slot shows more candidates than it strictly requires (`display_count`
-= `required_pick_count` + EXTRA_DISPLAY_OPTIONS, capped by how many
+= `required_pick_count` + tuning.EXTRA_DISPLAY_OPTIONS, capped by how many
 eligible candidates exist) so STAGE 5 hands the student real choice
 instead of one pre-made decision.
 
@@ -43,14 +43,10 @@ from app.domains.specialist.course_recommendation.models import (
     DegreeProgress,
     RequirementSlot,
 )
-from app.domains.specialist.course_recommendation.pipeline import curriculum_structure as cs
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
+from app.domains.specialist.course_recommendation.policy import tuning
 
 _SLOT_PRIORITY = {"core_mandatory": 0, "core_choice": 1, "elective": 2, "capstone": 2}
-
-# How many more candidates to show beyond what's strictly required, so the
-# student gets real choice instead of one pre-made decision (confirmed
-# design: fixed +2, capped by how many eligible candidates actually exist).
-EXTRA_DISPLAY_OPTIONS = 2
 
 # Vertical labels are long (e.g. "Vertical #3. Digital Financial
 # Transactions and Risk Management") — a short display label per slot
@@ -76,7 +72,7 @@ def _remaining_course_count(remaining_units: int) -> int:
 
 
 def _display_count(required_pick_count: int, candidate_count: int) -> int:
-    return min(required_pick_count + EXTRA_DISPLAY_OPTIONS, candidate_count)
+    return min(required_pick_count + tuning.EXTRA_DISPLAY_OPTIONS, candidate_count)
 
 
 def _make_slot(slot_id: str, slot_type, label: str, required_pick_count: int, candidates: tuple[str, ...]) -> RequirementSlot:
@@ -119,7 +115,7 @@ def derive_slots(
             slots.append(
                 _make_slot(
                     "core_mandatory", "core_mandatory", "Mandatory core courses",
-                    min(2, len(candidates)), candidates,
+                    min(tuning.MAX_PICKS_PER_SLOT, len(candidates)), candidates,
                 )
             )
 
@@ -129,7 +125,7 @@ def derive_slots(
             slots.append(
                 _make_slot(
                     "core_choice", "core_choice", "Core course choice (3 of 11 FT50xx)",
-                    min(2, progress.core_choice_remaining_count, len(candidates)), candidates,
+                    min(tuning.MAX_PICKS_PER_SLOT, progress.core_choice_remaining_count, len(candidates)), candidates,
                 )
             )
 
@@ -145,7 +141,7 @@ def derive_slots(
             for vertical in course.vertical:
                 by_vertical.setdefault(vertical, []).append(course.code)
         if by_vertical:
-            pick_count = min(2, _remaining_course_count(remaining_elective_units))
+            pick_count = min(tuning.MAX_PICKS_PER_SLOT, _remaining_course_count(remaining_elective_units))
             primary = _primary_vertical(by_vertical, by_code, pool.skill_gaps)
             for vertical in sorted(by_vertical):
                 is_primary = vertical == primary

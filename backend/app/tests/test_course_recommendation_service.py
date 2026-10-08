@@ -7,7 +7,7 @@ grouped response shape without depending on a live model."""
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation import interface
-from app.domains.specialist.course_recommendation.pipeline import selection
+from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection as selection
 
 
 def _request() -> dict:

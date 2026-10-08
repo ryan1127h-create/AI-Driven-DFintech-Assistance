@@ -5,13 +5,12 @@ role skills, the complete course catalogue, curriculum rules, and provenance
 must all be supplied by the upstream agent. This module must never retrieve
 missing data from a profile store, repository, or knowledge database.
 
-Runs the 6-STAGE workflow confirmed in the workflow diagrams, delegating
-each STAGE's concrete logic to pipeline/: STAGE 2 (catalog.py + eligibility.py),
-STAGE 3 (degree_progress.py), STAGE 4 (requirement_slots.py), STAGE 5
-(scoring.py + selection.py). This module is the conductor — it never
-implements a rule itself, only sequences the pipeline and turns failures
-into the same "never crash, only degrade" diagnostics the rest of the app
-already uses (see errors.py).
+The domain's half of the v3 workflow (S1, S2 and S7 live in the tools
+layer): S3 constraints (stages/s3_constraints/), S4 requirement slots
+(stages/s4_slots.py), S5 scoring and selection (stages/s5_scoring/). This
+module is the conductor — it never implements a rule itself, only
+sequences the stages and turns failures into the same "never crash, only
+degrade" diagnostics the rest of the app already uses (see errors.py).
 """
 
 from __future__ import annotations
@@ -39,14 +38,10 @@ from app.domains.specialist.course_recommendation.models import (
     RecommendationResult,
     RequirementSlot,
 )
-from app.domains.specialist.course_recommendation.pipeline import (
-    catalog,
-    degree_progress as degree_progress_pipeline,
-    eligibility,
-    requirement_slots,
-    scoring,
-    selection,
-)
+from app.domains.specialist.course_recommendation.stages import s4_slots
+from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
+from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
+from app.domains.specialist.course_recommendation.stages.s5_scoring import llm_selection, scorer
 
 logger = get_logger(__name__)
 T = TypeVar("T")
@@ -154,7 +149,7 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         message="Degree progress could not be computed from the supplied report.",
         retryable=False,
         stage_results=stage_results,
-        operation=lambda: degree_progress_pipeline.compute(
+        operation=lambda: degree_progress_stage.compute(
             courses, pool.completed_recognized, pool.completed_units
         ),
     )
@@ -180,7 +175,7 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         message="Requirement groups could not be derived from degree progress.",
         retryable=False,
         stage_results=stage_results,
-        operation=lambda: requirement_slots.derive_slots(courses, pool, progress),
+        operation=lambda: s4_slots.derive_slots(courses, pool, progress),
     )
     if slots:
         notes.append(
@@ -272,7 +267,7 @@ def _process_slots(
             groups.append(_empty_group(slot, message))
             continue
 
-        scored = scoring.score_slot_candidates(
+        scored = scorer.score_slot_candidates(
             candidates, role_skills, pool.skill_gaps, preferences,
             request.curated_role_courses, project_averse,
         )
@@ -297,7 +292,7 @@ def _select_slot_group(
     stage_results: list[WorkflowStageResult],
 ) -> Group:
     try:
-        outcome = selection.select_for_slot(
+        outcome = llm_selection.select_for_slot(
             slot, scored, role_title, student_context, request_id=request.request_id
         )
     except Exception:
@@ -306,7 +301,7 @@ def _select_slot_group(
             request.request_id,
             slot.slot_id,
         )
-        outcome = selection.SlotSelectionOutcome(
+        outcome = llm_selection.SlotSelectionOutcome(
             picks=None,
             error_code=ErrorCode.SLOT_LLM_SELECTION_FAILED,
             error_message="The course-selection stage failed unexpectedly for this group.",
@@ -338,7 +333,7 @@ def _select_slot_group(
             message=outcome.error_message or "The model selector could not fill this group.",
             retryable=outcome.retryable,
         )
-        picks = selection.fallback_for_slot(slot, scored)
+        picks = llm_selection.fallback_for_slot(slot, scored)
         _record_stage(
             stage_results,
             diagnostics,
@@ -376,9 +371,9 @@ def _select_slot_group(
     ]
     if slot.slot_type == "elective" and slot.required_pick_count == 0:
         slot_note = (
-            f"{slot_note} {requirement_slots.SECONDARY_VERTICAL_NOTE}"
+            f"{slot_note} {s4_slots.SECONDARY_VERTICAL_NOTE}"
             if slot_note
-            else requirement_slots.SECONDARY_VERTICAL_NOTE
+            else s4_slots.SECONDARY_VERTICAL_NOTE
         )
     return {
         "slot_id": slot.slot_id,
@@ -425,7 +420,7 @@ def _build_recommendation(
         "offered_terms": list(course.offered_terms),
         "course_time": course.course_time,
         "workload": list(course.workload) if course.workload is not None else None,
-        "matched_skills": scoring.matched_skills_of(course, role_skills),
+        "matched_skills": scorer.matched_skills_of(course, role_skills),
         "reason": reason,
         "recommended": recommended,
         "caution": " | ".join(cautions) or None,
@@ -815,7 +810,7 @@ def compute_degree_progress(catalogue: list[dict], completed_codes: list[str]) -
     ])
     units_by_code = {c.code: c.units for c in courses}
     recognized = tuple(code for code in dict.fromkeys(completed_codes) if code in units_by_code)
-    return degree_progress_pipeline.compute(courses, recognized, sum(units_by_code[c] for c in recognized))
+    return degree_progress_stage.compute(courses, recognized, sum(units_by_code[c] for c in recognized))
 
 
 def _classify_courses(courses: list[Course]) -> list[Course]:

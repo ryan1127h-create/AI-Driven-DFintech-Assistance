@@ -1,4 +1,4 @@
-"""Exercises pipeline/degree_progress.py: STAGE 3's numeric ground truth.
+"""Exercises stages/s3_constraints/degree_progress.py: STAGE 3's numeric ground truth.
 
 Courses here are constructed already-classified (requirement_role/level
 set directly) since this module consumes STAGE 2's output — it never
@@ -8,8 +8,8 @@ classifies anything itself.
 from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import Course
-from app.domains.specialist.course_recommendation.pipeline import curriculum_structure as cs
-from app.domains.specialist.course_recommendation.pipeline import degree_progress
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
+from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress
 
 
 def _course(code: str, requirement_role: str, units: int = 4, level: int | None = 5000) -> Course:
