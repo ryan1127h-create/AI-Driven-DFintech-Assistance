@@ -100,6 +100,11 @@ class Tool:
     # ToolAnswer.needs_clarification already follows: a tool should know
     # this more cheaply and reliably than asking an LLM to re-guess it).
     required_input: Callable[[Any], tuple[MissingInputField, ...]] | None = None
+    # Skips the orchestrator's post-answer evaluation (see
+    # orchestrator/dispatch/evaluation.py) for a tool whose answer is
+    # deterministic — a "retry" verdict would only reproduce the same
+    # answer — and that checks its own reply against its result.
+    skip_evaluation: bool = False
 
 
 class ToolNotFoundError(Exception):

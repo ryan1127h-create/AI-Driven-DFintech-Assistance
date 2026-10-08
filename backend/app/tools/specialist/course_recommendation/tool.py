@@ -53,4 +53,7 @@ COURSE_RECOMMENDATION_TOOL = Tool(
     handler=_handler,
     fallback=_fallback,
     trigger_intents=frozenset({"course_recommendation"}),
+    # The selection is deterministic and renderer.py checks the reply
+    # against the result, so evaluation would only add a model call.
+    skip_evaluation=True,
 )

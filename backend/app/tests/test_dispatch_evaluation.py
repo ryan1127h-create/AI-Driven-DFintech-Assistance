@@ -82,3 +82,29 @@ def test_the_intent_placeholder_is_filled_into_the_prompt(monkeypatch):
     monkeypatch.setattr(ebt.llm, "complete", _fake_complete)
     ebt.evaluate_branch(_input(intent="career"))
     assert '"career"' in seen["system_prompt"]
+
+
+def test_a_tool_that_skips_evaluation_gets_no_llm_call(monkeypatch):
+    from langchain_core.messages import HumanMessage
+
+    from app.tools import contracts
+    from app.tools.contracts import Tool, ToolAnswer, ToolRegistry
+    from app.tools.turn_context import ChatToolInput, TurnState
+
+    registry = ToolRegistry()
+    registry.register(Tool(name="deterministic", description="", input_model=ChatToolInput,
+                           handler=lambda state, on_event=None: None, skip_evaluation=True))
+    monkeypatch.setattr(contracts, "registry", registry)
+    calls = []
+    monkeypatch.setattr(ebt.llm, "complete", lambda *a, **k: calls.append(1) or '{"action": "retry", "note": "x"}')
+    draft = ToolAnswer(text="Take IT5006.", agent_used="deterministic")
+    state = TurnState(messages=[HumanMessage("courses?")], user_id="u1")
+
+    assert ebt.evaluate_and_fix("deterministic", state, "courses?", draft, None) is draft
+    assert calls == []
+
+
+def test_course_recommendation_skips_evaluation():
+    from app.tools.specialist.course_recommendation import COURSE_RECOMMENDATION_TOOL
+
+    assert COURSE_RECOMMENDATION_TOOL.skip_evaluation

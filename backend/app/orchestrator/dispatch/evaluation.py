@@ -110,6 +110,13 @@ def evaluate_branch(inp: EvaluateBranchInput, on_event: OnEvent | None = None) -
         return BranchVerdict()
 
 
+def _skips_evaluation(tool_name: str) -> bool:
+    try:
+        return contracts.registry.get(tool_name).skip_evaluation
+    except contracts.ToolNotFoundError:
+        return False
+
+
 def evaluate_and_fix(
     tool_name: str, state: TurnState, user_message: str, draft: ToolAnswer, on_event: OnEvent | None,
 ) -> ToolAnswer:
@@ -126,8 +133,13 @@ def evaluate_and_fix(
     Skipped entirely (no LLM call) when the draft already came back with
     needs_clarification=True — a tool that already knows, deterministically,
     that it's short of what it needs (see app/tools/contracts.py::
-    ToolAnswer.needs_clarification) — or when the setting is off."""
-    if draft.needs_clarification or not settings.enable_answer_evaluation:
+    ToolAnswer.needs_clarification) — when the tool opted out with
+    skip_evaluation, or when the setting is off."""
+    if (
+        draft.needs_clarification
+        or not settings.enable_answer_evaluation
+        or _skips_evaluation(tool_name)
+    ):
         return draft
 
     try:
