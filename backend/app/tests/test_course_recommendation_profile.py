@@ -71,7 +71,7 @@ def test_main_role_then_first_family():
 
 def test_request_is_built_from_profile_facts():
     request = builder.build_request(prefetch.prefetch("u1", None))
-    assert request["goals"] == {"target_role": "Data Analytics", "target_industry": None}
+    assert request["goals"] == {"target_role": "Data Analytics"}
     assert request["role_profile"]["role_id"] == "data_analytics"
     background = request["background"]
     assert background["academic_background"] == (
@@ -139,3 +139,23 @@ def test_unreadable_catalogue_fails_the_turn(monkeypatch):
     monkeypatch.setattr(prefetch, "list_courses", _fail)
     with pytest.raises(RuntimeError, match="knowledge db down"):
         prefetch.prefetch("u1", None)
+
+
+def test_the_request_carries_what_the_message_asked_for(monkeypatch):
+    facts = {**FACTS, "track_interest": ["computing_technologies"], "track_chosen": "financial_data_analytics_intelligence",
+             "capstone_intent": "capstone_research"}
+    monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: facts)
+    parsed = ParsedRequest(
+        mode="ad_hoc", include_codes=["FT5011"], exclude_codes=["FT5003"], keywords=["deep learning"],
+        workload_style="lecture", capstone_intent="electives_instead",
+    )
+    request = builder.build_request(prefetch.prefetch("u1", None), parsed)
+    assert request["mode"] == "ad_hoc"
+    assert request["student"] == {
+        "capstone_intent": "electives_instead",  # stated in the message, wins over the profile
+        "track_interest": ["computing_technologies"],
+        "track_chosen": "financial_data_analytics_intelligence",
+    }
+    assert request["constraints"]["include_codes"] == ["FT5011"]
+    assert request["constraints"]["exclude_codes"] == ["FT5003"]
+    assert request["constraints"]["workload_style"] == "lecture"

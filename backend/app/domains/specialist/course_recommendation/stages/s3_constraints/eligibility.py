@@ -73,6 +73,7 @@ def build_candidate_pool(
     courses: list[Course],
     completed_codes: list[str],
     role_skills: list[str],
+    excluded_codes: list[str] = (),
 ) -> CandidatePool:
     """
     Applies the HARD rules only:
@@ -86,6 +87,9 @@ def build_candidate_pool(
          that is not among the student's completed courses. Free-text
          prerequisites with no checkable course code (e.g. "instructor's
          consent") never trigger this — there is nothing to verify.
+      5. Courses the student asked to leave out are excluded — except a
+         mandatory core course, which the degree requires: it stays, and
+         is reported in kept_mandatory.
     No ranking happens here — the pool goes to S4 as-is.
     """
     completed, non_codes = normalize_codes(completed_codes)
@@ -101,6 +105,8 @@ def build_candidate_pool(
     covered_skills = {s for c in completed_recognized for s in by_code[c].skills}
     skill_gaps = tuple(s for s in role_skills if s not in covered_skills)
 
+    student_excluded = set(excluded_codes)
+    kept_mandatory: list[str] = []
     eligible: list[Course] = []
     excluded_courses: list[ExcludedCourse] = []
     preclusion_exclusions: list[tuple[str, str]] = []
@@ -116,6 +122,14 @@ def build_candidate_pool(
                 {"course_code": course.code, "reason": "not_recommendable"}
             )
             continue
+        if course.code in student_excluded:
+            if course.requirement_role == "core_mandatory":
+                kept_mandatory.append(course.code)
+            else:
+                excluded_courses.append(
+                    {"course_code": course.code, "reason": "excluded_by_student"}
+                )
+                continue
         if course.level is not None and course.level >= cs.NON_COUNTABLE_LEVEL:
             excluded_courses.append(
                 {"course_code": course.code, "reason": "level_not_countable"}
@@ -166,4 +180,5 @@ def build_candidate_pool(
         notes=tuple(notes),
         excluded_courses=tuple(excluded_courses),
         prerequisite_cautions=tuple(prerequisite_cautions),
+        kept_mandatory=tuple(kept_mandatory),
     )

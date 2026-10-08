@@ -34,23 +34,26 @@ from app.domains.specialist.course_recommendation.models import (
     CurriculumRule,
     DegreeProgress,
     Group,
+    ModeInput,
     RecommendationResult,
     RequirementSlot,
     SlotPicks,
 )
 from app.domains.specialist.course_recommendation.policy import curriculum as cs
+from app.domains.specialist.course_recommendation.policy import tuning
 from app.domains.specialist.course_recommendation.stages import s4_slots
 from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
 from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
 from app.domains.specialist.course_recommendation.stages.s5_scoring import evidence, scorer, selection, signals
+from app.domains.specialist.course_recommendation.stages.s6_modes.ad_hoc import AdHoc
 from app.domains.specialist.course_recommendation.stages.s6_modes.base import ModeStrategy
 from app.domains.specialist.course_recommendation.stages.s6_modes.degree_overview import DegreeOverview
 
 logger = get_logger(__name__)
 T = TypeVar("T")
 
-# S6 output modes by name; P1 always runs degree_overview.
-MODES: dict[str, ModeStrategy] = {"degree_overview": DegreeOverview()}
+# S6 output modes by name; semester_plan isn't available yet (see _mode_for).
+MODES: dict[str, ModeStrategy] = {"degree_overview": DegreeOverview(), "ad_hoc": AdHoc()}
 
 
 def recommend_courses(request: CourseRecommendationInput) -> RecommendationResult:
@@ -68,7 +71,7 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
             "course_count": len(request.course_catalog),
             "curriculum_rule_count": len(request.curriculum_rules),
             "completed_course_count": len(request.background.completed_courses),
-            "max_recommendations": request.constraints.max_recommendations,
+            "mode": request.mode,
         },
     )
 
@@ -156,7 +159,7 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         retryable=False,
         stage_results=stage_results,
         operation=lambda: degree_progress_stage.compute(
-            courses, pool.completed_recognized, pool.completed_units
+            courses, pool.completed_recognized, pool.completed_units, request.student.capstone_intent,
         ),
     )
     _record_stage(
@@ -184,6 +187,7 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         operation=lambda: s4_slots.derive_slots(
             courses, pool, progress,
             request.role_profile.role_id if request.role_profile else None,
+            cs.TRACK_VERTICALS.get(request.student.track_chosen),
         ),
     )
     if slots:
@@ -223,49 +227,100 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         },
     )
 
+    mode = _mode_for(request, notes, diagnostics)
     groups = _process_slots(
         request,
+        mode,
         slots,
         {c.code: c for c in courses},
         pool,
         role_skills,
+        notes,
         diagnostics,
         stage_results,
     )
 
     return _assemble_result(
-        request, role_title, courses, pool, progress, groups, notes, diagnostics, stage_results
+        request, mode, role_title, courses, pool, progress, groups, notes, diagnostics, stage_results
     )
+
+
+def _mode_for(request: CourseRecommendationInput, notes: list[str], diagnostics: list[WorkflowDiagnostic]) -> str:
+    """The mode to run: the requested one when it's available."""
+    if request.mode in MODES:
+        return request.mode
+    message = (
+        "Planning a single semester isn't available yet, so this is the overall "
+        "recommendation for the rest of the degree."
+    )
+    notes.append(message)
+    _add_diagnostic(
+        diagnostics,
+        request_id=request.request_id,
+        stage="slot_selection",
+        code=ErrorCode.MODE_NOT_AVAILABLE,
+        message=message,
+        retryable=False,
+    )
+    return "degree_overview"
 
 
 def _process_slots(
     request: CourseRecommendationInput,
+    mode: str,
     slots: tuple[RequirementSlot, ...],
     courses_by_code: dict[str, Course],
     pool: CandidatePool,
     role_skills: list[str],
+    notes: list[str],
     diagnostics: list[WorkflowDiagnostic],
     stage_results: list[WorkflowStageResult],
 ) -> list[Group]:
-    """S5 per slot (score, then select), then the S6 mode assembles the
-    groups from every slot's picks."""
-    preferences = _preference_keywords(request)
-    project_averse = catalog.is_project_averse(request.preferences.acceptable_workload)
+    """S5 (score, then select) and the S6 mode that shapes the result:
+    per slot for degree_overview, across all eligible courses for ad_hoc."""
     role = request.role_profile
+    wanted = request.constraints
     skill_share = signals.skill_shares(list(courses_by_code.values()))
     scoring_ctx = signals.ScoringContext(
         target_role_tag=role.role_id if role else None,
         role_skills=tuple(role_skills),
         skill_gaps=frozenset(pool.skill_gaps),
         skill_share=skill_share,
-        preferences=tuple(preferences),
-        project_averse=project_averse,
+        preferences=tuple(wanted.keywords),
+        project_averse=wanted.workload_style == "less_project",
+        requested_codes=frozenset(wanted.include_codes),
+        preferred_skills=tuple(wanted.preferred_skills),
+        interest_verticals=frozenset(
+            cs.TRACK_VERTICALS[t]
+            for t in {*wanted.vertical_preference, *request.student.track_interest}
+        ),
+        prefers_lecture=wanted.workload_style == "lecture",
     )
     evidence_ctx = evidence.EvidenceContext(
         target_role=(role.role_id, role.role_title) if role else None,
         skill_share=skill_share,
         prerequisite_cautions=frozenset(pool.prerequisite_cautions),
     )
+    _note_unavailable_requests(wanted.include_codes, pool, courses_by_code, notes)
+
+    if mode == "ad_hoc":
+        slot_by_code = {code: slot for slot in slots for code in slot.eligible_candidates}
+        scored = scorer.score_slot_candidates(pool.eligible, scoring_ctx)
+        top, matched = selection.select_top(scored, slot_by_code, tuning.AD_HOC_TOP_N, evidence_ctx)
+        _record_stage(
+            stage_results,
+            diagnostics,
+            stage="slot_selection",
+            status="success",
+            summary="Scored selection picked the best matches across all eligible courses.",
+            output={
+                "picked": [pick.scored.course.code for pick in top],
+                "matches_request": matched,
+            },
+            diagnostic_codes=(),
+        )
+        return MODES[mode].assemble(ModeInput(top_picks=tuple(top), top_matches_request=matched), pool)
+
     slot_picks: list[SlotPicks] = []
 
     for slot in slots:
@@ -310,7 +365,30 @@ def _process_slots(
         )
         slot_picks.append(SlotPicks(slot=slot, picks=picks))
 
-    return MODES["degree_overview"].assemble(slot_picks, pool)
+    return MODES[mode].assemble(ModeInput(slot_picks=tuple(slot_picks)), pool)
+
+
+def _note_unavailable_requests(
+    requested: list[str], pool: CandidatePool, courses_by_code: dict[str, Course], notes: list[str],
+) -> None:
+    """Says why a course the student asked for can't be recommended."""
+    eligible = {c.code for c in pool.eligible}
+    reasons = {item["course_code"]: item["reason"] for item in pool.excluded_courses}
+    wording = {
+        "already_completed": "you've already completed it",
+        "not_recommendable": "it isn't currently offered in the programme",
+        "needs_review": "its course details are still being checked",
+        "precluded_by_completed_course": "a course you've completed precludes it",
+        "level_not_countable": "its level doesn't count toward the degree",
+    }
+    for code in requested:
+        if code in eligible:
+            continue
+        if code not in courses_by_code:
+            notes.append(f"{code} isn't in the programme's course catalogue.")
+        else:
+            why = wording.get(reasons.get(code, ""), "it isn't open to you right now")
+            notes.append(f"{code} can't be recommended: {why}.")
 
 
 def _build_scoped_pool(
@@ -331,6 +409,7 @@ def _build_scoped_pool(
         stage_results=stage_results,
         operation=lambda: eligibility.build_candidate_pool(
             courses, request.background.completed_courses, role_skills,
+            request.constraints.exclude_codes,
         ),
     )
     _record_pool_diagnostics(pool, notes, diagnostics, request.request_id)
@@ -360,7 +439,6 @@ def _build_scoped_pool(
             request.request_id,
         ),
     )
-    _note_unsupported_filters(request, notes, diagnostics, request.request_id)
 
     if not pool.eligible:
         _add_diagnostic(
@@ -394,6 +472,20 @@ def _record_pool_diagnostics(
     request_id: str,
 ) -> None:
     notes.extend(pool.notes)
+    for code in pool.kept_mandatory:
+        message = (
+            f"{code} is a mandatory core course, so it stays in the recommendation "
+            "even though you asked to leave it out."
+        )
+        notes.append(message)
+        _add_diagnostic(
+            diagnostics,
+            request_id=request_id,
+            stage="candidate_pool_building",
+            code=ErrorCode.EXCLUDE_MANDATORY,
+            message=message,
+            retryable=False,
+        )
     if not pool.completed_unrecognized:
         return
     _add_diagnostic(
@@ -409,6 +501,7 @@ def _record_pool_diagnostics(
 
 def _assemble_result(
     request: CourseRecommendationInput,
+    mode: str,
     role_title: str | None,
     courses: list[Course],
     pool: CandidatePool,
@@ -455,6 +548,7 @@ def _assemble_result(
         notes=tuple(notes),
         sources=sources,
         workflow_status="degraded" if diagnostics else "ok",
+        mode=mode,
         diagnostics=tuple(diagnostics),
         stage_results=tuple(stage_results),
     )
@@ -564,19 +658,6 @@ def _level4000_note(
     )
 
 
-def _preference_keywords(request: CourseRecommendationInput) -> list[str]:
-    """Preference text used by S5 scoring."""
-    values = [*request.preferences.course_styles, *request.preferences.other_preferences]
-    result: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        key = value.casefold()
-        if key not in seen:
-            seen.add(key)
-            result.append(value)
-    return result
-
-
 def _apply_candidate_scope(
     pool: CandidatePool,
     requested_codes: list[str] | None,
@@ -611,29 +692,6 @@ def _apply_candidate_scope(
         pool,
         eligible=tuple(course for course in pool.eligible if course.code in allowed),
     )
-
-
-def _note_unsupported_filters(
-    request: CourseRecommendationInput,
-    notes: list[str],
-    diagnostics: list[WorkflowDiagnostic],
-    request_id: str,
-) -> None:
-    """Make unsupported constraints visible instead of pretending they ran."""
-    if request.constraints.target_term is not None:
-        message = (
-            "A target term was supplied, but offered-term data is optional display "
-            "metadata and may be incomplete, so it was not used as a hard filter."
-        )
-        notes.append(message)
-        _add_diagnostic(
-            diagnostics,
-            request_id=request_id,
-            stage="candidate_scope_applying",
-            code=ErrorCode.TARGET_TERM_UNSUPPORTED,
-            message=message,
-            retryable=False,
-        )
 
 
 def _resolve_role_profile(

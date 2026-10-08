@@ -15,6 +15,11 @@ W_PREFERENCE = 1.5
 # the tag is the direct course-to-role link, skills only a derivation.
 W_ROLE_TAG_MATCH = 3.0
 PROJECT_HEAVY_PENALTY = -1.0
+# What the student asks for this turn: a course they name, a Vertical
+# they're interested in, a lecture-based style when they prefer one.
+W_REQUESTED = 2.0
+W_VERTICAL_INTEREST = 1.0
+W_WORKLOAD_FIT = 1.0
 
 # How many top-scored candidates are considered when picking the best PAIR
 # for a 2-pick slot — the eligible pool per slot is always small (a
@@ -29,25 +34,6 @@ MAX_PICKS_PER_SLOT = 2
 # decision (fixed +2, capped by how many eligible candidates exist).
 EXTRA_DISPLAY_OPTIONS = 2
 
-# S5 scoring: free-text keyword hints that a student wants to avoid
-# heavy independent-project coursework (see stages/s3_constraints/catalog.py
-# is_project_averse()). Not exhaustive — a keyword table, not an NLP model.
-PROJECT_AVERSE_KEYWORDS = (
-    "少项目",
-    "不想太多project",
-    "不想要太多project",
-    "少做项目",
-    "偏好课堂",
-    "偏好讲授",
-    "discussion-based",
-    "discussion based",
-    "less project",
-    "fewer project",
-    "lecture-based",
-    "lecture based",
-    "avoid project",
-)
-
 # S5 recommendation evidence (stages/s5_scoring/evidence.py): a skill is
 # only named as a reason when at most this share of the recommendable
 # catalogue carries it — "programming" (on ~90% of courses) says nothing
@@ -57,3 +43,6 @@ DISTINCTIVE_SKILL_MAX_SHARE = 0.5
 # Longest course synopsis (the description's opening sentences) handed to
 # the reply as the only source for what a course teaches.
 SYNOPSIS_MAX_CHARS = 280
+
+# S6 ad_hoc mode: how many matching courses to list.
+AD_HOC_TOP_N = 5

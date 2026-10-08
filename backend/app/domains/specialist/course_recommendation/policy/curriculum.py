@@ -58,6 +58,15 @@ MAX_LEVEL_4000_ELECTIVES = 2
 MIN_COUNTABLE_ELECTIVE_LEVEL = 4000
 NON_COUNTABLE_LEVEL = 6000  # this level and above never counts toward the degree
 
+# The elective Verticals by the profile's track keys (profile fields
+# track_interest / track_chosen) -> their names in the catalogue
+# (knowledge.course_electives).
+TRACK_VERTICALS = {
+    "computing_technologies": "Vertical #1. Computing Technologies",
+    "financial_data_analytics_intelligence": "Vertical #2. Financial Data Analytics and Intelligence",
+    "digital_financial_transactions_risk": "Vertical #3. Digital Financial Transactions and Risk Management",
+}
+
 # rule:cur_degree_structure
 TOTAL_PROGRAMME_UNITS = 52
 CORE_UNITS = 28

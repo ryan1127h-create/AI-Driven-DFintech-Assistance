@@ -62,7 +62,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     user_message = last_human_message(state.messages)
     parsed, prefetched = _understand_and_gather(state, user_message)
 
-    result = recommend_courses(build_request(prefetched))
+    result = recommend_courses(build_request(prefetched, parsed))
     # Graduation risks aren't a recommendation input; they ride along so the
     # reply can point them out, as do any limits met while gathering data.
     result["notes"].extend(prefetched.graduation_notes)

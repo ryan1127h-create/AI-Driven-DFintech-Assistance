@@ -23,12 +23,18 @@ from app.domains.specialist.course_recommendation.policy import curriculum as cs
 # IT5006 have no approved-replacement path.
 _REPLACEABLE_MANDATORY = frozenset({"BMD5301", "IT5001X"})
 
+_INTENTS = frozenset({"capstone_research", "capstone_internship", "electives_instead"})
+
 
 def compute(
     courses: list[Course],
     completed_recognized: tuple[str, ...],
     completed_units: int,
+    capstone_intent: str | None = None,
 ) -> DegreeProgress:
+    """capstone_intent (the student's stated plan: "capstone_research",
+    "capstone_internship" or "electives_instead") decides the Capstone
+    path when given; without it the path is inferred from units done."""
     by_code = {c.code: c for c in courses}
     completed_set = set(completed_recognized)
 
@@ -76,8 +82,17 @@ def compute(
     capstone_done = cs.CAPSTONE_CODE in completed_set
 
     capstone_path: CapstonePath
+    from_intent = capstone_intent in _INTENTS and not capstone_done
     if capstone_done:
         capstone_path = "direct_completed"
+        elective_units_target = cs.ELECTIVE_UNITS_BASE
+    elif from_intent and capstone_intent == "electives_instead":
+        complete = elective_units_done >= alternative_target
+        capstone_path = "elective_alternative_complete" if complete else "elective_alternative_in_progress"
+        elective_units_target = alternative_target
+    elif from_intent:
+        ready = core_fully_done and elective_units_done >= cs.ELECTIVE_UNITS_BASE
+        capstone_path = "direct_in_progress" if ready else "direct_planned"
         elective_units_target = cs.ELECTIVE_UNITS_BASE
     elif elective_units_done >= alternative_target:
         # Structurally satisfied both the base 12 and the 3-more-elective
@@ -111,4 +126,5 @@ def compute(
         elective_level4000_cap_reached=elective_level4000_cap_reached,
         total_units_done=completed_units,
         total_units_target=cs.TOTAL_PROGRAMME_UNITS,
+        capstone_from_intent=from_intent,
     )

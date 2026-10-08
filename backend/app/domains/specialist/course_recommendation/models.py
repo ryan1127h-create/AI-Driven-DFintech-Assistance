@@ -27,11 +27,16 @@ RequirementRole = Literal[
 # workload 5-tuple. None when workload data is unavailable.
 WorkloadShape = Literal["lecture_heavy", "project_heavy", "balanced"]
 
-# The four kinds of recommendation group S4 can open.
-SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone"]
+# The four kinds of recommendation group S4 can open, plus the single
+# list the ad_hoc mode returns.
+SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone", "ad_hoc"]
+
+Mode = Literal["degree_overview", "ad_hoc", "semester_plan"]
 
 CapstonePath = Literal[
     "undecided",
+    # The student intends to do the Capstone but isn't ready for it yet.
+    "direct_planned",
     "direct_in_progress",
     "direct_completed",
     "elective_alternative_in_progress",
@@ -71,6 +76,10 @@ class Recommendation(TypedDict):
     # checkable facts for why it fits — see stages/s5_scoring/evidence.py.
     synopsis: str
     evidence: list[str]
+    # The requirement group the course counts toward (ad_hoc mode only:
+    # there the list isn't grouped by requirement); None when it counts
+    # toward none still open.
+    counts_toward: str | None
 
 
 class Group(TypedDict):
@@ -96,6 +105,7 @@ class ExcludedCourse(TypedDict, total=False):
         "precluded_by_completed_course",
         "needs_review",
         "level_not_countable",
+        "excluded_by_student",
     ]
     related_course_code: str
 
@@ -157,6 +167,9 @@ class CandidatePool:
     # not found among the student's completed courses — a caution, never an
     # exclusion (see stages/s3_constraints/eligibility.py's module docstring for why).
     prerequisite_cautions: tuple[str, ...] = field(default_factory=tuple)
+    # Mandatory courses the student asked to leave out, kept because the
+    # degree requires them.
+    kept_mandatory: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -178,6 +191,9 @@ class DegreeProgress:
     elective_level4000_cap_reached: bool
     total_units_done: int
     total_units_target: int
+    # True when capstone_path follows the student's stated intent rather
+    # than being inferred from completed units.
+    capstone_from_intent: bool = False
 
 
 @dataclass(frozen=True)
@@ -246,6 +262,9 @@ class Pick:
     reason: str
     synopsis: str = ""
     evidence: tuple[str, ...] = field(default_factory=tuple)
+    # The slot the course counts toward, when the picks aren't drawn from
+    # one slot (ad_hoc mode).
+    slot: "RequirementSlot | None" = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +275,18 @@ class SlotPicks:
     slot: RequirementSlot
     picks: tuple[Pick, ...]
     note: str | None = None
+
+
+@dataclass(frozen=True)
+class ModeInput:
+    """What S5 selected, handed to the S6 mode: each open slot with its
+    picks (degree_overview), and the top picks across all slots with
+    whether they match what the student asked for (ad_hoc). A workflow
+    fills only what the chosen mode reads."""
+
+    slot_picks: tuple[SlotPicks, ...] = ()
+    top_picks: tuple[Pick, ...] = ()
+    top_matches_request: bool = True
 
 
 @dataclass(frozen=True)
@@ -273,5 +304,6 @@ class RecommendationResult:
     notes: tuple[str, ...]
     sources: tuple[str, ...]
     workflow_status: Literal["ok", "degraded"] = "ok"
+    mode: Mode = "degree_overview"
     diagnostics: tuple[WorkflowDiagnostic, ...] = field(default_factory=tuple)
     stage_results: tuple[WorkflowStageResult, ...] = field(default_factory=tuple)

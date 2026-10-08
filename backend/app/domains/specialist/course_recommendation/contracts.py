@@ -13,13 +13,19 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-InputSource = Literal[
-    "user_message",
-    "profile_db",
-    "upstream_agent_inference",
-    "default",
+SchemaVersion = Literal["3.0"]
+# The kind of advice asked for: grouped by degree requirement, courses
+# matching something specific, or a plan for one semester.
+Mode = Literal["degree_overview", "ad_hoc", "semester_plan"]
+# The elective Verticals, by the profile's track keys (see
+# policy/curriculum.TRACK_VERTICALS for their catalogue names).
+TrackId = Literal[
+    "computing_technologies",
+    "financial_data_analytics_intelligence",
+    "digital_financial_transactions_risk",
 ]
-SchemaVersion = Literal["2.0"]
+WorkloadStyle = Literal["less_project", "lecture"]
+CapstoneIntent = Literal["capstone_research", "capstone_internship", "electives_instead"]
 # The skill vocabulary of the knowledge base's role tags
 # (knowledge.tags_definition.required_skills).
 SkillId = Literal[
@@ -37,7 +43,6 @@ SkillId = Literal[
 
 ShortText = Annotated[str, Field(max_length=100)]
 LongText = Annotated[str, Field(max_length=300)]
-FieldPath = Annotated[str, Field(max_length=200)]
 EvidenceSource = Annotated[str, Field(max_length=2048)]
 
 _COURSE_CODE = re.compile(r"^[A-Z]{2,4}\d{4}[A-Z]?$")
@@ -88,14 +93,11 @@ def _deduplicate_skills(values: list[SkillId]) -> list[SkillId]:
 
 class GoalInput(_StrictInputModel):
     target_role: LongText | None = None
-    target_industry: LongText | None = None
 
 
 class BackgroundInput(_StrictInputModel):
     academic_background: LongText | None = None
     tech_level: LongText | None = None
-    school_tier: ShortText | None = None
-    work_years: int | None = Field(default=None, ge=0, le=80)
     # An empty list explicitly means that no completed course was reported.
     # The recommendation domain never fills this field from another source.
     completed_courses: list[LongText] = Field(default_factory=list, max_length=50)
@@ -106,31 +108,49 @@ class BackgroundInput(_StrictInputModel):
         return _normalize_completed_courses(value)
 
 
-class PreferenceInput(_StrictInputModel):
-    # Free text (e.g. "prefer discussion-based courses, not much independent
-    # project work"). Used by the domain's S5 scoring as a soft,
-    # best-effort keyword signal against each course's workload shape —
-    # never a hard filter, since free text can't be safely parsed as a
-    # guarantee.
-    acceptable_workload: ShortText | None = None
-    course_styles: list[ShortText] = Field(default_factory=list, max_length=10)
-    other_preferences: list[ShortText] = Field(default_factory=list, max_length=10)
+class StudentInput(_StrictInputModel):
+    """Study-plan facts about the student (profile, or stated this turn)."""
 
-    @field_validator("course_styles", "other_preferences")
-    @classmethod
-    def clean_lists(cls, value: list[str]) -> list[str]:
-        return _deduplicate_text(value)
+    capstone_intent: CapstoneIntent | None = None
+    track_interest: list[TrackId] = Field(default_factory=list, max_length=3)
+    # The Vertical the student has declared (school records).
+    track_chosen: TrackId | None = None
 
 
 class RecommendationConstraints(_StrictInputModel):
-    target_term: ShortText | None = None
+    """What this request asks for. Everything here but exclude_codes and
+    candidate_course_codes only steers scoring — never a hard filter."""
+
+    # Restricts the candidates to these courses (a caller-supplied scope).
     candidate_course_codes: list[ShortText] | None = Field(default=None, max_length=100)
-    max_recommendations: int = Field(default=8, ge=1, le=10)
+    # Courses the student asked for / asked not to take. An excluded course
+    # is never recommended, except a mandatory one, which stays with a note.
+    include_codes: list[ShortText] = Field(default_factory=list, max_length=10)
+    exclude_codes: list[ShortText] = Field(default_factory=list, max_length=10)
+    preferred_skills: list[SkillId] = Field(default_factory=list, max_length=10)
+    keywords: list[ShortText] = Field(default_factory=list, max_length=10)
+    vertical_preference: list[TrackId] = Field(default_factory=list, max_length=3)
+    workload_style: WorkloadStyle | None = None
 
     @field_validator("candidate_course_codes")
     @classmethod
     def normalize_candidate_codes(cls, value: list[str] | None) -> list[str] | None:
         return None if value is None else _normalize_candidate_codes(value)
+
+    @field_validator("include_codes", "exclude_codes")
+    @classmethod
+    def normalize_codes(cls, value: list[str]) -> list[str]:
+        return _normalize_candidate_codes(value)
+
+    @field_validator("preferred_skills")
+    @classmethod
+    def deduplicate_skills(cls, value: list[SkillId]) -> list[SkillId]:
+        return _deduplicate_skills(value)
+
+    @field_validator("keywords")
+    @classmethod
+    def clean_keywords(cls, value: list[str]) -> list[str]:
+        return _deduplicate_text(value)
 
 
 class RoleProfileInput(_StrictInputModel):
@@ -224,26 +244,25 @@ class CurriculumRuleInput(_StrictInputModel):
 class CourseRecommendationInput(_StrictInputModel):
     """The only object the course-recommendation domain may consume."""
 
-    schema_version: SchemaVersion = "2.0"
+    schema_version: SchemaVersion = "3.0"
     request_id: str = Field(
         default_factory=lambda: uuid4().hex, min_length=1, max_length=100
     )
     # Correlation metadata only. The recommendation domain must never use it
     # to retrieve profile or course data.
     user_id: str | None = Field(default=None, min_length=1, max_length=100)
+    mode: Mode = "degree_overview"
     goals: GoalInput = Field(default_factory=GoalInput)
     background: BackgroundInput = Field(default_factory=BackgroundInput)
-    preferences: PreferenceInput = Field(default_factory=PreferenceInput)
+    student: StudentInput = Field(default_factory=StudentInput)
     constraints: RecommendationConstraints = Field(
         default_factory=RecommendationConstraints
     )
     role_profile: RoleProfileInput | None = None
     course_catalog: list[CourseCatalogItemInput] = Field(min_length=1, max_length=500)
-    curriculum_rules: list[CurriculumRuleInput] = Field(min_length=1, max_length=100)
+    # Reference only: the rules the domain enforces are policy/curriculum.py.
+    curriculum_rules: list[CurriculumRuleInput] = Field(default_factory=list, max_length=100)
     evidence_sources: list[EvidenceSource] = Field(default_factory=list, max_length=100)
-    field_sources: dict[FieldPath, InputSource] = Field(
-        default_factory=dict, max_length=50
-    )
 
     @model_validator(mode="after")
     def validate_report_consistency(self) -> "CourseRecommendationInput":
