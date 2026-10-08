@@ -114,12 +114,13 @@ forbidden_modules =
     app.domains.specialist.course_recommendation.workflow
 
 ; In the course recommendation tool only s2_assembly/prefetch.py reads the
-; profile or the knowledge base; the builder and the presentation work
-; from what it gathered.
+; profile or the knowledge base; understanding works from the message alone,
+; the builder and the presentation from what prefetch gathered.
 [importlinter:contract:course-rec-tool-io-boundary]
 name = course recommendation tool reads data only in prefetch
 type = forbidden
 source_modules =
+    app.tools.specialist.course_recommendation.s1_understanding
     app.tools.specialist.course_recommendation.s2_assembly.builder
     app.tools.specialist.course_recommendation.s2_assembly.mappers
     app.tools.specialist.course_recommendation.s2_assembly.prefetched

@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.tools.specialist.course_recommendation import tool
+from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly import builder, prefetch
 from app.tools.specialist.course_recommendation.s7_presentation import renderer
 
@@ -54,6 +55,7 @@ def stubs(monkeypatch):
     monkeypatch.setattr(prefetch, "list_curriculum_rules", lambda: [])
     monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: FACTS)
     monkeypatch.setattr(prefetch, "derived_course_notes", lambda uid: NO_DERIVED)
+    monkeypatch.setattr(tool.parser, "parse", lambda message, mode: ParsedRequest())
 
 
 def test_role_named_in_the_message_wins():
