@@ -11,7 +11,9 @@ from __future__ import annotations
 W_GAP_SKILL = 2.0
 W_ROLE_SKILL = 1.0
 W_PREFERENCE = 1.5
-W_CURATED_ROLE = 1.0
+# A course tagged for the target role outweighs any single skill match:
+# the tag is the direct course-to-role link, skills only a derivation.
+W_ROLE_TAG_MATCH = 3.0
 PROJECT_HEAVY_PENALTY = -1.0
 
 # How many top-scored candidates are considered when picking the best PAIR

@@ -238,10 +238,6 @@ class CourseRecommendationInput(_StrictInputModel):
         default_factory=RecommendationConstraints
     )
     role_profile: RoleProfileInput | None = None
-    # Courses tagged with the resolved role (knowledge.course_tags), used
-    # as a soft scoring bonus in S5 — never a restriction, and in no
-    # particular order. Empty when no role resolved.
-    curated_role_courses: list[ShortText] = Field(default_factory=list, max_length=20)
     course_catalog: list[CourseCatalogItemInput] = Field(min_length=1, max_length=500)
     curriculum_rules: list[CurriculumRuleInput] = Field(min_length=1, max_length=100)
     evidence_sources: list[EvidenceSource] = Field(default_factory=list, max_length=100)

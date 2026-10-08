@@ -23,7 +23,9 @@ _PROGRESS_FIELDS = (
 
 # `synopsis` and `evidence` are what the reply explains a course with;
 # `reason` (their plain-text summary) and `matched_skills` (derived from
-# role tags, too coarse to explain anything) stay out.
+# role tags, too coarse to explain anything) stay out, as do
+# `offered_terms` — the evidence already says when a course runs in only
+# one semester, and listing every course's terms only lengthens the reply.
 _COURSE_FIELDS = (
     "course_code",
     "course_title",
@@ -32,7 +34,6 @@ _COURSE_FIELDS = (
     "synopsis",
     "evidence",
     "caution",
-    "offered_terms",
 )
 
 

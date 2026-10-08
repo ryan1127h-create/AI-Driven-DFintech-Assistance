@@ -10,21 +10,26 @@ from __future__ import annotations
 
 from app.domains.specialist.course_recommendation.models import Course, RequirementSlot
 from app.domains.specialist.course_recommendation.policy.tuning import EXTRA_DISPLAY_OPTIONS
-from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer, selection
+from app.domains.specialist.course_recommendation.stages.s5_scoring import scorer, selection, signals
 from app.domains.specialist.course_recommendation.stages.s5_scoring.evidence import EvidenceContext
 
 CTX = EvidenceContext(target_role=None, skill_share={}, prerequisite_cautions=frozenset())
 
 
-def _course(code: str, skills: tuple[str, ...] = ()) -> Course:
+def _course(code: str, skills: tuple[str, ...] = (), roles: tuple[str, ...] = ()) -> Course:
     return Course(
         code=code, title=code, units=4, section="", skills=skills, description="",
         prerequisite_text="", preclusion_text="", can_recommend=True, source_url="",
+        role_tags=tuple((role, role) for role in roles),
     )
 
 
 def _scored(courses: list[Course], skill_gaps: tuple[str, ...] = ()):
-    return scorer.score_slot_candidates(tuple(courses), [], skill_gaps, [], [], project_averse=False)
+    ctx = signals.ScoringContext(
+        target_role_tag=None, role_skills=(), skill_gaps=frozenset(skill_gaps),
+        skill_share={s: 0.3 for c in courses for s in c.skills}, preferences=(), project_averse=False,
+    )
+    return scorer.score_slot_candidates(tuple(courses), ctx)
 
 
 def _slot(pick_count: int, codes: list[str]) -> RequirementSlot:
@@ -48,14 +53,26 @@ def test_select_shows_more_than_required_best_first():
     assert [p.scored.course.code for p in picks] == ["B", "A", "C"]  # best first, then by code
 
 
-def test_two_pick_slot_leads_with_the_skill_diverse_pair():
-    a = _course("A", skills=("data_analytics",))
-    b = _course("B", skills=("data_analytics",))
-    c = _course("C", skills=("security",))
-    scored = _scored([a, b, c], skill_gaps=("data_analytics", "security"))
+def test_two_pick_slot_breaks_a_score_tie_with_the_complementary_pair():
+    # All three score the same; A and B are aimed at the same role, C at another.
+    a = _course("A", skills=("finance",), roles=("quant",))
+    b = _course("B", skills=("finance",), roles=("quant",))
+    c = _course("C", skills=("finance",), roles=("risk",))
+    scored = _scored([a, b, c], skill_gaps=("finance",))
     picks = selection.select_for_slot(_slot(2, ["A", "B", "C"]), scored, CTX)
     assert len(picks) == 3
     assert "C" in {picks[0].scored.course.code, picks[1].scored.course.code}
+
+
+def test_complementarity_never_displaces_a_better_scoring_course():
+    # The CS5231 case: a zero-score course spanning other roles must not
+    # take a pick from a course that actually scored.
+    a = _course("A", skills=("finance",), roles=("quant",))
+    b = _course("B", skills=("finance",), roles=("quant",))
+    c = _course("C", roles=("security",))
+    scored = _scored([a, b, c], skill_gaps=("finance",))
+    picks = selection.select_for_slot(_slot(2, ["A", "B", "C"]), scored, CTX)
+    assert [p.scored.course.code for p in picks[:2]] == ["A", "B"]
 
 
 def test_best_pair_none_with_fewer_than_two_candidates():

@@ -23,7 +23,7 @@ def _course(code: str, **overrides) -> Course:
 
 def _scored(course: Course, gaps: tuple[str, ...] = (), role: tuple[str, ...] = ()) -> ScoredCourse:
     return ScoredCourse(course=course, score=0.0, matched_gap_skills=gaps, matched_role_skills=role,
-                        matched_preferences=(), curated_match=False)
+                        matched_preferences=(), role_tag_match=False)
 
 
 def _slot(slot_type: str = "elective", pick_count: int = 1, candidates: tuple[str, ...] = ("A",), label: str = "Vertical #1") -> RequirementSlot:
@@ -96,11 +96,6 @@ def test_optional_and_unscheduled_courses():
     course = _course("B", offered_terms=())
     facts = evidence.evidence_for(_scored(course), _slot(pick_count=0, label="Vertical #2"), _ctx())
     assert facts == ("an optional elective in Vertical #2", "not on this academic year's timetable")
-
-
-def test_skill_shares_count_only_recommendable_courses():
-    courses = [_course("A", skills=("finance",)), _course("B"), _course("C", skills=("finance",), can_recommend=False)]
-    assert evidence.skill_shares(courses) == {"finance": 0.5}
 
 
 def test_a_mandatory_course_off_the_target_role_gets_no_role_remark():

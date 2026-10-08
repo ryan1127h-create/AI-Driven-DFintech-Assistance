@@ -224,7 +224,7 @@ class ScoredCourse:
     matched_gap_skills: tuple[str, ...]
     matched_role_skills: tuple[str, ...]
     matched_preferences: tuple[str, ...]
-    curated_match: bool
+    role_tag_match: bool
     workload_note: str | None = None
     breakdown: tuple[ScoreItem, ...] = field(default_factory=tuple)
 

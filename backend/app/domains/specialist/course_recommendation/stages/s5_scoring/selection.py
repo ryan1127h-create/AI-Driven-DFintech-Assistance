@@ -28,22 +28,25 @@ from app.domains.specialist.course_recommendation.stages.s5_scoring.evidence imp
 
 
 def best_pair(scored: list[ScoredCourse]) -> tuple[ScoredCourse, ScoredCourse] | None:
-    """For a 2-pick slot: among the top-scored candidates, prefer the pair
-    that jointly covers the most distinct skills over the pair that is
-    merely individually highest-scored — avoids recommending two courses
-    that teach the same thing when the slot needs two picks. None if
-    fewer than 2 candidates are available."""
+    """For a 2-pick slot: the highest-scoring pair among the top-scored
+    candidates, and among equally scored pairs the one spanning the most
+    distinct role tags — so two equally good courses aimed at the same
+    roles don't crowd out a complementary one. Fit comes first: a
+    complementary course never displaces a better-scoring one. (Derived
+    skills aren't used to judge complementarity: they're too coarse — most
+    courses share "programming" and "data analytics".) None if fewer than
+    2 candidates are available."""
     window = scored[:tuning.PAIR_CANDIDATE_WINDOW]
     if len(window) < 2:
         return None
 
     best: tuple[ScoredCourse, ScoredCourse] | None = None
-    best_key: tuple[int, float] | None = None
+    best_key: tuple[float, int] | None = None
     for i in range(len(window)):
         for j in range(i + 1, len(window)):
             first, second = window[i], window[j]
-            union_size = len(set(first.course.skills) | set(second.course.skills))
-            key = (union_size, first.score + second.score)
+            role_union = len(set(first.course.role_tags) | set(second.course.role_tags))
+            key = (first.score + second.score, role_union)
             if best_key is None or key > best_key:
                 best_key = key
                 best = (first, second)

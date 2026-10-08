@@ -16,25 +16,10 @@ from app.domains.specialist.course_recommendation.models import Course, ScoredCo
 from app.domains.specialist.course_recommendation.stages.s5_scoring import signals
 
 
-def score_slot_candidates(
-    candidates: tuple[Course, ...],
-    role_skills: list[str],
-    skill_gaps: tuple[str, ...],
-    preferences: list[str],
-    curated_role_courses: list[str],
-    project_averse: bool,
-) -> list[ScoredCourse]:
+def score_slot_candidates(candidates: tuple[Course, ...], ctx: signals.ScoringContext) -> list[ScoredCourse]:
     """Scores and sorts (best first, ties by course code) every candidate
     in one requirement slot. Never raises on empty input — the caller
     (workflow.py) already skips a slot with zero candidates."""
-    ctx = signals.ScoringContext(
-        role_skills=tuple(role_skills),
-        skill_gaps=frozenset(skill_gaps),
-        preferences=tuple(preferences),
-        curated_courses=frozenset(curated_role_courses),
-        project_averse=project_averse,
-    )
-
     scored: list[ScoredCourse] = []
     for course in candidates:
         breakdown = tuple(item for signal in signals.SIGNALS if (item := signal(course, ctx)) is not None)
@@ -45,7 +30,7 @@ def score_slot_candidates(
                 matched_gap_skills=signals.gap_skills(course, ctx),
                 matched_role_skills=signals.role_skills(course, ctx),
                 matched_preferences=signals.preference_matches(course, ctx),
-                curated_match=course.code in ctx.curated_courses,
+                role_tag_match=signals.is_tagged_for_target(course, ctx),
                 workload_note=next(
                     (item.evidence for item in breakdown if item.signal == "project_heavy"), None
                 ),

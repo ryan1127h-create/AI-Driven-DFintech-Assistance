@@ -1,13 +1,11 @@
 """
 S2 — assembles the complete report the course_recommendation domain
 consumes from what prefetch.py gathered: the user's profile facts, the
-resolved role profile and its curated course shortlist, and the knowledge
-base's catalogue and current-intake curriculum rules.
+resolved role profile, and the knowledge base's catalogue (each course with
+its role tags) and current-intake curriculum rules.
 
 Pure function: no profile or knowledge-base access (everything arrives in
-Prefetched). The courses tagged with the target role are passed as
-`curated_role_courses` — a soft scoring bonus, never a restriction.
-Current courses count as completed: the plan is for the semesters after
+Prefetched). Current courses count as completed: the plan is for the semesters after
 them. `preferences` (workload/style text) is not populated yet: nothing
 upstream extracts it from the chat turn, so the domain runs with its safe
 "no preference signal" default.
@@ -22,8 +20,6 @@ from app.tools.specialist.course_recommendation.s2_assembly.mappers import (
 )
 from app.tools.specialist.course_recommendation.s2_assembly.prefetched import LEVEL_FIELDS, Prefetched
 
-# The contract caps the curated shortlist.
-_MAX_CURATED_COURSES = 20
 _MAX_TEXT = 300  # the report's LongText limit
 
 
@@ -76,12 +72,6 @@ def build_request(prefetched: Prefetched) -> dict:
     # or both absent.
     target_role = role_profile["role_title"] if role_profile else None
 
-    curated_role_courses: list[str] = []
-    if role_profile is not None:
-        curated_role_courses = sorted(
-            code for code, tags in prefetched.course_tags.items() if role_profile["role_id"] in tags
-        )[:_MAX_CURATED_COURSES]
-
     skills = course_skills(prefetched.course_tags, prefetched.role_tags)
     role_names = {row["tag"]: row["name_en"] for row in prefetched.role_tags}
     return {
@@ -97,7 +87,6 @@ def build_request(prefetched: Prefetched) -> dict:
             "completed_courses": _done_course_codes(prefetched.facts),
         },
         "role_profile": role_profile,
-        "curated_role_courses": curated_role_courses,
         "course_catalog": [
             map_course(row, skills, prefetched.course_electives, prefetched.course_tags, role_names)
             for row in prefetched.courses

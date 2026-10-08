@@ -42,7 +42,7 @@ from app.domains.specialist.course_recommendation.policy import curriculum as cs
 from app.domains.specialist.course_recommendation.stages import s4_slots
 from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
 from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
-from app.domains.specialist.course_recommendation.stages.s5_scoring import evidence, scorer, selection
+from app.domains.specialist.course_recommendation.stages.s5_scoring import evidence, scorer, selection, signals
 from app.domains.specialist.course_recommendation.stages.s6_modes.base import ModeStrategy
 from app.domains.specialist.course_recommendation.stages.s6_modes.degree_overview import DegreeOverview
 
@@ -181,7 +181,10 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         message="Requirement groups could not be derived from degree progress.",
         retryable=False,
         stage_results=stage_results,
-        operation=lambda: s4_slots.derive_slots(courses, pool, progress),
+        operation=lambda: s4_slots.derive_slots(
+            courses, pool, progress,
+            request.role_profile.role_id if request.role_profile else None,
+        ),
     )
     if slots:
         notes.append(
@@ -249,9 +252,18 @@ def _process_slots(
     preferences = _preference_keywords(request)
     project_averse = catalog.is_project_averse(request.preferences.acceptable_workload)
     role = request.role_profile
+    skill_share = signals.skill_shares(list(courses_by_code.values()))
+    scoring_ctx = signals.ScoringContext(
+        target_role_tag=role.role_id if role else None,
+        role_skills=tuple(role_skills),
+        skill_gaps=frozenset(pool.skill_gaps),
+        skill_share=skill_share,
+        preferences=tuple(preferences),
+        project_averse=project_averse,
+    )
     evidence_ctx = evidence.EvidenceContext(
         target_role=(role.role_id, role.role_title) if role else None,
-        skill_share=evidence.skill_shares(list(courses_by_code.values())),
+        skill_share=skill_share,
         prerequisite_cautions=frozenset(pool.prerequisite_cautions),
     )
     slot_picks: list[SlotPicks] = []
@@ -281,10 +293,7 @@ def _process_slots(
             slot_picks.append(SlotPicks(slot=slot, picks=(), note=message))
             continue
 
-        scored = scorer.score_slot_candidates(
-            candidates, role_skills, pool.skill_gaps, preferences,
-            request.curated_role_courses, project_averse,
-        )
+        scored = scorer.score_slot_candidates(candidates, scoring_ctx)
         picks = tuple(selection.select_for_slot(slot, scored, evidence_ctx))
         _record_stage(
             stage_results,

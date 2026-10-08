@@ -71,7 +71,6 @@ def test_request_is_built_from_profile_facts():
     request = builder.build_request(prefetch.prefetch("u1", None))
     assert request["goals"] == {"target_role": "Data Analytics", "target_industry": None}
     assert request["role_profile"]["role_id"] == "data_analytics"
-    assert request["curated_role_courses"] == ["FT5005"]
     background = request["background"]
     assert background["academic_background"] == (
         "Computer science / software engineering; prior coursework: Programming, Databases")

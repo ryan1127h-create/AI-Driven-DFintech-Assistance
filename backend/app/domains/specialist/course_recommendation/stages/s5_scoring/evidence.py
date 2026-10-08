@@ -9,8 +9,8 @@ S5 — what a recommendation is explained with. For each picked course:
 
 Skills are only named when they are distinctive: course skills are
 derived from role tags and very common ones ("programming" is on ~90% of
-courses) explain nothing, so a skill carried by more than
-tuning.DISTINCTIVE_SKILL_MAX_SHARE of the catalogue is left out. The role
+courses) explain nothing, so only distinctive skills are named (the
+same rule the skill signals score by, see signals.distinctive()). The role
 relation uses the course's own role tags, never those derived skills.
 
 Pure functions, no I/O.
@@ -27,6 +27,7 @@ from app.domains.specialist.course_recommendation.models import (
     ScoredCourse,
 )
 from app.domains.specialist.course_recommendation.policy import tuning
+from app.domains.specialist.course_recommendation.stages.s5_scoring.signals import distinctive
 
 # Display text for the knowledge base's skill vocabulary (contracts.SkillId).
 SKILL_LABELS = {
@@ -55,18 +56,6 @@ class EvidenceContext:
     prerequisite_cautions: frozenset[str]
 
 
-def skill_shares(courses: list[Course]) -> dict[str, float]:
-    """skill -> share of the recommendable courses that carry it."""
-    recommendable = [c for c in courses if c.can_recommend]
-    if not recommendable:
-        return {}
-    counts: dict[str, int] = {}
-    for course in recommendable:
-        for skill in set(course.skills):
-            counts[skill] = counts.get(skill, 0) + 1
-    return {skill: count / len(recommendable) for skill, count in counts.items()}
-
-
 def synopsis(description: str) -> str:
     """The description's opening sentences, up to tuning.SYNOPSIS_MAX_CHARS;
     a first sentence longer than that is cut at a word boundary."""
@@ -85,7 +74,7 @@ def synopsis(description: str) -> str:
     return cut.rstrip(",;:") + "…"
 
 
-def _skills_text(skills: list[str]) -> str:
+def _skills_text(skills: tuple[str, ...]) -> str:
     return ", ".join(SKILL_LABELS.get(s, s) for s in skills)
 
 
@@ -123,14 +112,11 @@ def _role_relation(course: Course, slot: RequirementSlot, target_role: tuple[str
 
 
 def _skill_facts(scored: ScoredCourse, skill_share: dict[str, float]) -> list[str]:
-    def distinctive(skills: tuple[str, ...]) -> list[str]:
-        return [s for s in skills if skill_share.get(s, 1.0) <= tuning.DISTINCTIVE_SKILL_MAX_SHARE]
-
     facts = []
-    gaps = distinctive(scored.matched_gap_skills)
+    gaps = distinctive(scored.matched_gap_skills, skill_share)
     if gaps:
         facts.append(f"builds {_skills_text(gaps)}, a gap for your target role")
-    role = distinctive(scored.matched_role_skills)
+    role = distinctive(scored.matched_role_skills, skill_share)
     if role:
         facts.append(f"covers {_skills_text(role)}, which your target role uses")
     return facts

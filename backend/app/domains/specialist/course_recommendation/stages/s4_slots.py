@@ -16,7 +16,7 @@ Vertical electives share ONE quota, not one each: the programme only
 requires the total elective units to be met, however they are split
 across the 3 Verticals — showing three independent "pick N" groups would
 overstate the real remaining need three-fold. Only the Vertical that best
-covers the student's skill gaps carries the real `required_pick_count`
+fits the student's target role carries the real `required_pick_count`
 ("primary"); the other Verticals with eligible candidates still get a
 slot (so the student can see every track), but with required_pick_count=0
 — every course shown there is an optional, non-binding alternative.
@@ -80,17 +80,28 @@ def _make_slot(slot_id: str, slot_type, label: str, required_pick_count: int, ca
     )
 
 
-def _primary_vertical(by_vertical: dict[str, list[str]], courses_by_code: dict[str, Course], skill_gaps: tuple[str, ...]) -> str:
-    """Which Vertical best covers the student's skill gaps — a lightweight
-    proxy available from S3 output alone (no full S5 scoring
-    needed just to rank Verticals against each other). Ties break on more
-    eligible candidates, then alphabetically for full determinism."""
+def _primary_vertical(
+    by_vertical: dict[str, list[str]],
+    courses_by_code: dict[str, Course],
+    skill_gaps: tuple[str, ...],
+    target_role_tag: str | None,
+) -> str:
+    """Which Vertical best fits the student — a lightweight proxy available
+    from S3 output alone (no full S5 scoring needed just to rank Verticals
+    against each other): most eligible courses tagged for the target role
+    first (the direct course-to-role link), then most skill gaps covered,
+    then most eligible candidates, then alphabetically for full
+    determinism."""
     gap_set = set(skill_gaps)
 
-    def _priority(vertical: str) -> tuple[int, int]:
+    def _priority(vertical: str) -> tuple[int, int, int]:
         codes = by_vertical[vertical]
+        tagged = sum(
+            1 for code in codes
+            if any(tag == target_role_tag for tag, _ in courses_by_code[code].role_tags)
+        )
         covered = {s for code in codes for s in courses_by_code[code].skills if s in gap_set}
-        return (len(covered), len(codes))
+        return (tagged, len(covered), len(codes))
 
     return max(sorted(by_vertical), key=_priority)
 
@@ -99,6 +110,7 @@ def derive_slots(
     courses: list[Course],
     pool: CandidatePool,
     progress: DegreeProgress,
+    target_role_tag: str | None = None,
 ) -> tuple[RequirementSlot, ...]:
     by_code = {c.code: c for c in pool.eligible}
     slots: list[RequirementSlot] = []
@@ -140,7 +152,7 @@ def derive_slots(
                 by_vertical.setdefault(vertical, []).append(course.code)
         if by_vertical:
             pick_count = min(tuning.MAX_PICKS_PER_SLOT, _remaining_course_count(remaining_elective_units))
-            primary = _primary_vertical(by_vertical, by_code, pool.skill_gaps)
+            primary = _primary_vertical(by_vertical, by_code, pool.skill_gaps, target_role_tag)
             for vertical in sorted(by_vertical):
                 is_primary = vertical == primary
                 candidates = tuple(by_vertical[vertical])

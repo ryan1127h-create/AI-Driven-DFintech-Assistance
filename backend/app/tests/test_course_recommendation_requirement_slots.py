@@ -11,7 +11,7 @@ from app.domains.specialist.course_recommendation.stages.s3_constraints import d
 
 def _course(
     code: str, requirement_role: str, vertical: tuple[str, ...] = (), units: int = 4,
-    skills: tuple[str, ...] = (), level: int | None = None,
+    skills: tuple[str, ...] = (), level: int | None = None, roles: tuple[str, ...] = (),
 ) -> Course:
     return Course(
         code=code,
@@ -27,6 +27,7 @@ def _course(
         vertical=vertical,
         requirement_role=requirement_role,  # type: ignore[arg-type]
         level=level,
+        role_tags=tuple((role, role) for role in roles),
     )
 
 
@@ -177,3 +178,16 @@ def test_4000_level_electives_stay_while_the_cap_has_room():
     progress = degree_progress.compute([open_4000], (), 0)
     slots = requirement_slots.derive_slots([open_4000], _pool([open_4000]), progress)
     assert [s.eligible_candidates for s in slots if s.slot_type == "elective"] == [("IS4301",)]
+
+
+def test_the_vertical_with_most_target_role_courses_carries_the_quota():
+    """Role tags outrank derived-skill coverage: V1 covers the gap through
+    a derived skill, but V2's courses are the ones tagged for the role."""
+    v1, v2 = "Vertical #1. Computing Technologies", "Vertical #2. Financial Data Analytics and Intelligence"
+    v1_course = _course("CS5224", "elective", vertical=(v1,), skills=("data_analytics",), roles=("data_engineering",))
+    v2_courses = [_course(c, "elective", vertical=(v2,), roles=("data_analytics",)) for c in ("CS5246", "CS5340")]
+    courses = [v1_course, *v2_courses]
+    progress = degree_progress.compute(courses, (), 0)
+    slots = requirement_slots.derive_slots(courses, _pool(courses, skill_gaps=("data_analytics",)), progress, "data_analytics")
+    primary = next(s for s in slots if s.slot_type == "elective" and s.required_pick_count > 0)
+    assert "Vertical #2" in primary.label
