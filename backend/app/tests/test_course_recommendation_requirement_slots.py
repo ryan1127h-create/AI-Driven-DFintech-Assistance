@@ -1,4 +1,4 @@
-"""Exercises stages/s4_slots.py: STAGE 4's slot derivation and
+"""Exercises stages/s4_slots.py: S4's slot derivation and
 cross-slot conflict resolution."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from app.domains.specialist.course_recommendation.stages.s3_constraints import d
 
 def _course(
     code: str, requirement_role: str, vertical: tuple[str, ...] = (), units: int = 4,
-    skills: tuple[str, ...] = (),
+    skills: tuple[str, ...] = (), level: int | None = None,
 ) -> Course:
     return Course(
         code=code,
@@ -26,6 +26,7 @@ def _course(
         source_url="",
         vertical=vertical,
         requirement_role=requirement_role,  # type: ignore[arg-type]
+        level=level,
     )
 
 
@@ -154,3 +155,25 @@ def test_dual_vertical_course_is_kept_in_only_one_elective_slot():
     slots = requirement_slots.derive_slots([dual], pool, progress)
     total_appearances = sum(1 for s in slots if "XX9999" in s.eligible_candidates)
     assert total_appearances == 1
+
+
+def test_4000_level_electives_drop_out_once_the_cap_is_reached():
+    v1 = "Vertical #1. Computing Technologies"
+    done = [_course(c, "elective", vertical=(v1,), level=4000) for c in ("IS4261", "IS4262")]
+    open_4000 = _course("IS4301", "elective", vertical=(v1,), level=4000)
+    open_5000 = _course("CS5228", "elective", vertical=(v1,), level=5000)
+    courses = done + [open_4000, open_5000]
+    progress = degree_progress.compute(courses, ("IS4261", "IS4262"), 8)
+    assert progress.elective_level4000_cap_reached
+
+    slots = requirement_slots.derive_slots(courses, _pool([open_4000, open_5000]), progress)
+    [elective] = [s for s in slots if s.slot_type == "elective"]
+    assert elective.eligible_candidates == ("CS5228",)
+
+
+def test_4000_level_electives_stay_while_the_cap_has_room():
+    v1 = "Vertical #1. Computing Technologies"
+    open_4000 = _course("IS4301", "elective", vertical=(v1,), level=4000)
+    progress = degree_progress.compute([open_4000], (), 0)
+    slots = requirement_slots.derive_slots([open_4000], _pool([open_4000]), progress)
+    assert [s.eligible_candidates for s in slots if s.slot_type == "elective"] == [("IS4301",)]

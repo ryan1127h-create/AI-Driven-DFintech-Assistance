@@ -56,6 +56,7 @@ CAPSTONE_ALTERNATIVE_ELECTIVE_COUNT = 3  # 3 extra electives (12 units) replace 
 # rule:cur_elective_rules — level 6000+ never counts; excess 4000-level don't count
 MAX_LEVEL_4000_ELECTIVES = 2
 MIN_COUNTABLE_ELECTIVE_LEVEL = 4000
+NON_COUNTABLE_LEVEL = 6000  # this level and above never counts toward the degree
 
 # rule:cur_degree_structure
 TOTAL_PROGRAMME_UNITS = 52

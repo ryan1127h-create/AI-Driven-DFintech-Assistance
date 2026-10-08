@@ -38,6 +38,7 @@ from app.domains.specialist.course_recommendation.models import (
     RequirementSlot,
     SlotPicks,
 )
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
 from app.domains.specialist.course_recommendation.stages import s4_slots
 from app.domains.specialist.course_recommendation.stages.s3_constraints import catalog, eligibility
 from app.domains.specialist.course_recommendation.stages.s3_constraints import degree_progress as degree_progress_stage
@@ -188,6 +189,9 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
             "programme itself only requires the total elective units to be met, however "
             "they are split across Verticals."
         )
+        note = _level4000_note(slots, {c.code: c for c in courses}, progress)
+        if note:
+            notes.append(note)
     else:
         message = (
             "Core and elective requirements appear satisfied based on the supplied "
@@ -523,6 +527,25 @@ def _add_diagnostic(
         request_id,
         stage,
         code,
+    )
+
+
+def _level4000_note(
+    slots: tuple[RequirementSlot, ...], courses_by_code: dict[str, Course], progress: DegreeProgress
+) -> str | None:
+    """Points out the 4000-level elective cap when 4000-level courses are
+    among the elective candidates (once the cap is reached S4 leaves them
+    out, so this only fires while there is room left)."""
+    has_level4000 = any(
+        courses_by_code[code].level == cs.MIN_COUNTABLE_ELECTIVE_LEVEL
+        for slot in slots if slot.slot_type == "elective"
+        for code in slot.eligible_candidates if code in courses_by_code
+    )
+    if not has_level4000:
+        return None
+    return (
+        f"At most {cs.MAX_LEVEL_4000_ELECTIVES} 4000-level electives count toward the degree "
+        f"({progress.elective_level4000_used} already used)."
     )
 
 

@@ -91,6 +91,7 @@ class ExcludedCourse(TypedDict, total=False):
         "not_recommendable",
         "precluded_by_completed_course",
         "needs_review",
+        "level_not_countable",
     ]
     related_course_code: str
 

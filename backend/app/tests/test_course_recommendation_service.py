@@ -83,6 +83,8 @@ def test_full_workflow_produces_grouped_recommendations():
     slot_selection_stages = [s for s in result["stage_results"] if s["stage"] == "slot_selection"]
     assert slot_selection_stages and all(s["status"] == "success" for s in slot_selection_stages)
     assert all("score_breakdown" in r for g in result["groups"] for r in g["recommendations"])
+    # CS4221 is a 4000-level elective candidate, so the cap is pointed out.
+    assert "At most 2 4000-level electives count toward the degree (0 already used)." in result["notes"]
 
 
 def test_scoping_to_specific_codes_restricts_recommendations():

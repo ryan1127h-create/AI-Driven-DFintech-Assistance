@@ -1,4 +1,4 @@
-"""Exercises stages/s3_constraints/eligibility.py: STAGE 2's hard exclusion rules and the
+"""Exercises stages/s3_constraints/eligibility.py: S3's hard exclusion rules and the
 prerequisite soft-caution signal (never an exclusion)."""
 
 from __future__ import annotations
@@ -94,3 +94,10 @@ def test_unrecognized_completed_course_is_reported_not_dropped():
     pool = eligibility.build_candidate_pool(courses, ["Machine Learning", "ZZ9999"], [])
     assert "Machine Learning" in pool.completed_unrecognized
     assert "ZZ9999" in pool.completed_unrecognized
+
+
+def test_6000_level_course_is_excluded_since_it_never_counts():
+    courses = [_course("CS6216", level=6000), _course("CS5228", level=5000)]
+    pool = eligibility.build_candidate_pool(courses, [], [])
+    assert [c.code for c in pool.eligible] == ["CS5228"]
+    assert pool.excluded_courses == ({"course_code": "CS6216", "reason": "level_not_countable"},)

@@ -3,7 +3,7 @@ S3 (second part) — hard eligibility rules. Pure code, no LLM, no I/O.
 
 Division of labour: this file decides WHO IS ALLOWED into the candidate
 pool (exclude completed courses, preclusion conflicts, non-recommendable
-courses, data still under review) and computes hard facts (completed
+courses, 6000-level courses that never count, data still under review) and computes hard facts (completed
 units, skill gaps, prerequisite/corequisite cautions). WHICH courses end
 up recommended is S4/S5's job (s4_slots.py, s5_scoring/),
 working strictly from the pool this module produces.
@@ -21,6 +21,7 @@ from app.domains.specialist.course_recommendation.models import (
     Course,
     ExcludedCourse,
 )
+from app.domains.specialist.course_recommendation.policy import curriculum as cs
 
 _COURSE_CODE = re.compile(r"^[A-Z]{2,4}\d{4}[A-Z]?$")
 
@@ -113,6 +114,11 @@ def build_candidate_pool(
         if not course.can_recommend:
             excluded_courses.append(
                 {"course_code": course.code, "reason": "not_recommendable"}
+            )
+            continue
+        if course.level is not None and course.level >= cs.NON_COUNTABLE_LEVEL:
+            excluded_courses.append(
+                {"course_code": course.code, "reason": "level_not_countable"}
             )
             continue
         if course.data_quality == "needs_review":

@@ -132,6 +132,10 @@ def derive_slots(
         for course in pool.eligible:
             if course.requirement_role != "elective":
                 continue
+            # rule:cur_elective_rules — 4000-level electives beyond the cap
+            # don't count, so once it's reached they can't fill this need.
+            if progress.elective_level4000_cap_reached and course.level == cs.MIN_COUNTABLE_ELECTIVE_LEVEL:
+                continue
             for vertical in course.vertical:
                 by_vertical.setdefault(vertical, []).append(course.code)
         if by_vertical:
