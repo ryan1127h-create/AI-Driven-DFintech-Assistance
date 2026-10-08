@@ -76,3 +76,57 @@ modules =
     app.domains.specialist.cv_extraction
     app.domains.specialist.knowledge_qa
     app.domains.specialist.program_comparison
+
+; course_recommendation's internal structure (see its workflow.py and
+; stages/__init__.py). The domain is pure computation: no adapter at all,
+; not even the LLM - selection is deterministic.
+[importlinter:contract:course-rec-domain-pure]
+name = course recommendation domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.course_recommendation
+forbidden_modules =
+    app.adapters
+
+; Each stage takes the previous stage's output (models) and reads rules
+; from policy; only workflow.py sequences them.
+[importlinter:contract:course-rec-stages-independent]
+name = course recommendation stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.course_recommendation.stages.s3_constraints
+    app.domains.specialist.course_recommendation.stages.s4_slots
+    app.domains.specialist.course_recommendation.stages.s5_scoring
+    app.domains.specialist.course_recommendation.stages.s6_modes
+
+[importlinter:contract:course-rec-policy-leaf]
+name = course recommendation policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.course_recommendation.policy
+forbidden_modules =
+    app.domains.specialist.course_recommendation.contracts
+    app.domains.specialist.course_recommendation.errors
+    app.domains.specialist.course_recommendation.interface
+    app.domains.specialist.course_recommendation.models
+    app.domains.specialist.course_recommendation.schemas
+    app.domains.specialist.course_recommendation.stages
+    app.domains.specialist.course_recommendation.workflow
+
+; In the course recommendation tool only s2_assembly/prefetch.py reads the
+; profile or the knowledge base; the builder and the presentation work
+; from what it gathered.
+[importlinter:contract:course-rec-tool-io-boundary]
+name = course recommendation tool reads data only in prefetch
+type = forbidden
+source_modules =
+    app.tools.specialist.course_recommendation.s2_assembly.builder
+    app.tools.specialist.course_recommendation.s2_assembly.mappers
+    app.tools.specialist.course_recommendation.s2_assembly.prefetched
+    app.tools.specialist.course_recommendation.s7_presentation
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.knowledge_db_adapter
