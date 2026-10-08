@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.domains.knowledge_retrieval import service
-from app.tools.specialist import course_recommendation_tool as tool
+from app.tools.specialist.course_recommendation.s2_assembly import mappers
 
 
 def _course(code, *, section="Core Courses", active=True, prereq=None, preclusion=(), workload=None):
@@ -96,7 +96,7 @@ def test_role_tag_chunks_are_career_topic():
 
 
 def test_course_skills_are_the_union_of_their_tags_skills():
-    skills = tool._course_skills(
+    skills = mappers.course_skills(
         {"FT5005": ["data_analytics", "machine_learning_ai"], "IT5006": ["blockchain"]}, ROLE_TAGS)
     assert skills == {
         "FT5005": ["data_analytics", "programming", "finance", "ai_ml"],

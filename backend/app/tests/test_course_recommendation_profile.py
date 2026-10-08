@@ -1,4 +1,4 @@
-"""course_recommendation_tool builds its report from the profile's "course"
+"""The course_recommendation tool builds its report from the profile's "course"
 facts: role resolution (message > main_target_role > first family),
 background texts, completed + current courses — and notes the other listed
 roles. Knowledge and profile lookups are stubbed; no database, no LLM."""
@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.tools.specialist import course_recommendation_tool as tool
+from app.tools.specialist.course_recommendation import tool
+from app.tools.specialist.course_recommendation.s2_assembly import builder
 
 _LABELS = {
     "degree_discipline_category": {"cs_se": "Computer science / software engineering"},
@@ -27,15 +28,15 @@ def _describe(key, value):
 
 @pytest.fixture(autouse=True)
 def stubs(monkeypatch):
-    monkeypatch.setattr(tool, "describe_value", _describe)
-    monkeypatch.setattr(tool, "match_role_tag", lambda text: "blockchain" if "blockchain" in text.lower() else None)
-    monkeypatch.setattr(tool, "get_role_profile", lambda tag: {
+    monkeypatch.setattr(builder, "describe_value", _describe)
+    monkeypatch.setattr(builder, "match_role_tag", lambda text: "blockchain" if "blockchain" in text.lower() else None)
+    monkeypatch.setattr(builder, "get_role_profile", lambda tag: {
         "role_id": tag, "role_title": _LABELS["target_role_families"][tag], "required_skills": ["programming"]})
-    monkeypatch.setattr(tool, "list_course_tags", lambda: {"FT5005": ["data_analytics"], "FT5004": ["blockchain"]})
-    monkeypatch.setattr(tool, "list_role_tags", lambda: [])
-    monkeypatch.setattr(tool, "list_course_electives", lambda: {})
-    monkeypatch.setattr(tool, "list_courses", lambda: [])
-    monkeypatch.setattr(tool, "list_curriculum_rules", lambda: [])
+    monkeypatch.setattr(builder, "list_course_tags", lambda: {"FT5005": ["data_analytics"], "FT5004": ["blockchain"]})
+    monkeypatch.setattr(builder, "list_role_tags", lambda: [])
+    monkeypatch.setattr(builder, "list_course_electives", lambda: {})
+    monkeypatch.setattr(builder, "list_courses", lambda: [])
+    monkeypatch.setattr(builder, "list_curriculum_rules", lambda: [])
     monkeypatch.setattr(tool, "derived_course_notes", lambda uid: {"readiness": [], "graduation": []})
 
 
@@ -52,18 +53,18 @@ FACTS = {
 
 
 def test_role_named_in_the_message_wins():
-    assert tool._resolve_role_tag(FACTS, "I want a blockchain job") == "blockchain"
+    assert builder.resolve_role_tag(FACTS, "I want a blockchain job") == "blockchain"
 
 
 def test_main_role_then_first_family():
-    assert tool._resolve_role_tag({**FACTS, "main_target_role": "machine_learning_ai"}, None) == "machine_learning_ai"
-    assert tool._resolve_role_tag({**FACTS, "main_target_role": "machine_learning_ai"}, "quant trader") == "machine_learning_ai"
-    assert tool._resolve_role_tag(FACTS, None) == "data_analytics"
-    assert tool._resolve_role_tag({}, None) is None
+    assert builder.resolve_role_tag({**FACTS, "main_target_role": "machine_learning_ai"}, None) == "machine_learning_ai"
+    assert builder.resolve_role_tag({**FACTS, "main_target_role": "machine_learning_ai"}, "quant trader") == "machine_learning_ai"
+    assert builder.resolve_role_tag(FACTS, None) == "data_analytics"
+    assert builder.resolve_role_tag({}, None) is None
 
 
 def test_request_is_built_from_profile_facts():
-    request = tool.build_request(FACTS, "data_analytics")
+    request = builder.build_request(FACTS, "data_analytics")
     assert request["goals"] == {"target_role": "Data Analytics", "target_industry": None}
     assert request["role_profile"]["role_id"] == "data_analytics"
     assert request["curated_role_courses"] == ["FT5005"]
@@ -76,7 +77,7 @@ def test_request_is_built_from_profile_facts():
 
 
 def test_no_profile_means_an_unpersonalised_request():
-    request = tool.build_request({}, None)
+    request = builder.build_request({}, None)
     assert request["goals"]["target_role"] is None and request["role_profile"] is None
     assert request["background"]["academic_background"] is None
     assert request["background"]["completed_courses"] == []

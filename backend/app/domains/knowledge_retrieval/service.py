@@ -395,7 +395,7 @@ def cited_sources(hits: list[Hit]) -> list[str]:
 # The three functions below are deterministic reads, not retrieval — for a
 # caller that needs "every row of X", not "the most relevant chunks for this
 # query". course_recommendation's chat adapter (see
-# app/tools/specialist/course_recommendation_tool.py) is the current
+# app/tools/specialist/course_recommendation/s2_assembly/) is the current
 # consumer of all three.
 
 # course_requirements.prerequisite keeps corequisites in the same text, as

@@ -17,7 +17,7 @@ import pytest
 
 from app.domains.knowledge_retrieval import service
 from app.domains.specialist.course_recommendation.interface import recommend_courses
-from app.tools.specialist.course_recommendation_tool import build_request
+from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_LIVE_DB_TESTS") != "1", reason="set RUN_LIVE_DB_TESTS=1 to run against the live database"

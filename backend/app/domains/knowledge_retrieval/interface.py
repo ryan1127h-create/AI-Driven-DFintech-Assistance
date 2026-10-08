@@ -7,7 +7,7 @@ Current consumers:
       (filter_topics={"career"}) for its plan narrative.
     - knowledge_qa and assessment both cite ADMISSIONS_OFFICIAL_SOURCES in
       their own prompts.
-    - app/tools/specialist/course_recommendation_tool.py uses
+    - app/tools/specialist/course_recommendation/s2_assembly/ uses
       list_courses()/list_curriculum_rules()/list_course_electives()/
       list_course_tags()/list_role_tags()/get_role_profile()/
       match_role_tag() to assemble the report course_recommendation's own
