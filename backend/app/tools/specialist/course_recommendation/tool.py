@@ -20,10 +20,7 @@ from app.tools.specialist.course_recommendation.s2_assembly.builder import (
     other_roles_note,
     resolve_role_tag,
 )
-from app.tools.specialist.course_recommendation.s7_presentation.prompts import (
-    COURSE_RECOMMENDATION_STYLE_PROMPT,
-)
-from app.tools.structured_reply import render_structured_reply
+from app.tools.specialist.course_recommendation.s7_presentation import renderer
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
 _FALLBACK_REPLY = (
@@ -45,9 +42,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     if note:
         result["notes"].append(note)
     user_message = last_human_message(state.messages)
-    answer, sources = render_structured_reply(
-        result, user_message, COURSE_RECOMMENDATION_STYLE_PROMPT, on_event=on_event, depth=state.answer_depth,
-    )
+    answer, sources = renderer.render(result, user_message, on_event=on_event, depth=state.answer_depth)
     return ToolAnswer(text=answer, sources=sources, agent_used="course_recommendation_agent")
 
 

@@ -9,6 +9,7 @@ import pytest
 
 from app.tools.specialist.course_recommendation import tool
 from app.tools.specialist.course_recommendation.s2_assembly import builder
+from app.tools.specialist.course_recommendation.s7_presentation import renderer
 
 _LABELS = {
     "degree_discipline_category": {"cs_se": "Computer science / software engineering"},
@@ -91,8 +92,8 @@ def test_other_listed_roles_are_noted(monkeypatch):
     captured = {}
     monkeypatch.setattr(tool, "get_profile_for_purpose", lambda uid, purpose: captured.setdefault("facts", FACTS))
     monkeypatch.setattr(tool, "recommend_courses", lambda request: {"notes": [], "request": request})
-    monkeypatch.setattr(tool, "render_structured_reply",
-                        lambda result, msg, prompt, on_event=None, depth=None: (result["notes"][-1], []))
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, msg, prompt, on_event=None, depth=None: (view["notes"][-1], []))
     answer = tool._handler(TurnState(messages=[HumanMessage("courses?")], user_id="u1"))
     assert answer.text == ("Planned around the main target role; the profile also lists: "
                            "Blockchain, Machine Learning & AI.")
@@ -110,7 +111,7 @@ def test_derived_notes_extend_the_tech_level_and_the_reply_notes(monkeypatch):
     })
     captured = {}
     monkeypatch.setattr(tool, "recommend_courses", lambda request: captured.setdefault("result", {"notes": [], "request": request}))
-    monkeypatch.setattr(tool, "render_structured_reply", lambda result, msg, prompt, on_event=None, depth=None: ("ok", []))
+    monkeypatch.setattr(renderer, "render_structured_reply", lambda view, msg, prompt, on_event=None, depth=None: ("ok", []))
     tool._handler(TurnState(messages=[HumanMessage("courses?")], user_id="u1"))
 
     result = captured["result"]

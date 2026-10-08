@@ -86,7 +86,7 @@ def _render_draft_block(result: dict) -> str:
     return "\n\n".join(sections)
 
 
-def _template_fallback(result: dict) -> str:
+def render_template(result: dict) -> str:
     """Deterministic fallback used only if the render LLM call fails or
     returns something unusable — walks the structured result into a plain
     bulleted block. Less natural than the LLM path, but never invents or
@@ -108,7 +108,7 @@ def render_structured_reply(
     """
     Renders a program-comparison-shaped result dict into one
     chat reply. Never raises — any failure falls back to
-    _template_fallback(). Returns (reply_text, sources) where `sources` is
+    render_template(). Returns (reply_text, sources) where `sources` is
     result.get("sources", []) verbatim.
     """
     sources = list(result.get("sources") or [])
@@ -127,4 +127,4 @@ def render_structured_reply(
     except Exception as exc:
         print(f"[structured_reply] Warning: render LLM call failed, using template fallback — {exc}")
 
-    return _template_fallback(result), sources
+    return render_template(result), sources
