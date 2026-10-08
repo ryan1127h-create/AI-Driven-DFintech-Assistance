@@ -33,6 +33,9 @@ class ChatTurnResult:
     agent_used: str
     user_message: str
     intents: list[str] = field(default_factory=list)
+    # See ToolAnswer.card / .save_suggestions.
+    card: dict | None = None
+    save_suggestions: list[dict] = field(default_factory=list)
 
 
 def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
@@ -102,7 +105,9 @@ def run_turn(
 
     conversation.record_turn(session_id, state, new_message, ai_message, intents, agent_used)
 
+    extra = ai_message.additional_kwargs or {}
     return ChatTurnResult(
         session_id=session_id, reply=reply, agent_used=agent_used,
         user_message=message, intents=intents,
+        card=extra.get("card"), save_suggestions=list(extra.get("save_suggestions") or []),
     )

@@ -22,6 +22,11 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     agent_used: str
+    # A quick-fill card asking for missing profile fields (see
+    # app/tools/contracts.py ToolAnswer.card), and facts from this turn the
+    # user may save to their profile.
+    card: Optional[dict] = None
+    save_suggestions: list[dict] = Field(default_factory=list)
 
 
 class ConversationSummary(BaseModel):

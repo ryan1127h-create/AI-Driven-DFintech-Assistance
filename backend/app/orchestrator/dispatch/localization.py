@@ -37,7 +37,7 @@ orchestration-internal stages are plain functions instead.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.adapters.deepseek_adapter import llm
 from app.core.config import settings
@@ -92,10 +92,7 @@ def localize(inp: LocalizeInput, on_event: OnEvent | None = None) -> ToolAnswer:
         rewritten = llm.complete(system_prompt, payload, temperature=0, max_tokens=4096).strip()
         if not rewritten:
             return inp.answer
-        return ToolAnswer(
-            text=rewritten, sources=inp.answer.sources, agent_used=inp.answer.agent_used,
-            needs_clarification=inp.answer.needs_clarification,
-        )
+        return replace(inp.answer, text=rewritten)
     except Exception as exc:
         print(f"[localization] Warning: reply-language conversion to {language!r} failed, "
               f"returning the English answer — {exc}")

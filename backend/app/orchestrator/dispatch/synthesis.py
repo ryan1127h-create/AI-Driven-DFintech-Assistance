@@ -78,4 +78,5 @@ def synthesize(inp: SynthesizeInput, on_event: OnEvent | None = None) -> ToolAns
                 sources.append(s)
 
     agent_used = "+".join(answer.agent_used or name for name, answer in inp.partials)
-    return ToolAnswer(text=reply, sources=sources, agent_used=agent_used)
+    suggestions = [s for _, answer in inp.partials for s in answer.save_suggestions]
+    return ToolAnswer(text=reply, sources=sources, agent_used=agent_used, save_suggestions=suggestions)

@@ -58,6 +58,17 @@ class ToolAnswer:
     # more cheaply and more reliably than a second LLM call re-guessing it
     # would.
     needs_clarification: bool = False
+    # A quick-fill card for the client to render in place of (and as well
+    # as) a clarifying question: {"kind": "quick_fill", "reason": str,
+    # "fields": [{"slot", "field_key", "prompt"}]} — each field_key a
+    # profile field the client fills from its own field definitions and
+    # saves through PATCH /profile before re-sending the user's message.
+    # Set by orchestrator/dispatch/requirements.py; None otherwise.
+    card: dict | None = None
+    # Facts the user stated this turn that differ from their profile,
+    # offered under the reply for the user to save: [{"field_key",
+    # "value", "label"}]. Never written without the user's confirmation.
+    save_suggestions: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +83,11 @@ class MissingInputField:
 
     slot: str
     prompt: str
+    # The profile field that answers this slot, when one does — the
+    # requirement then becomes a quick-fill card field the user can answer
+    # in place. None for a slot no profile field captures (e.g. a free-text
+    # background description), which stays a plain question.
+    field_key: str | None = None
 
 
 @dataclass(frozen=True)

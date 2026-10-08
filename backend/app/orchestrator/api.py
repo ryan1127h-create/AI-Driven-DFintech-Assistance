@@ -96,7 +96,10 @@ def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str =
 
     _schedule_freeze_if_needed(background_tasks, result.session_id, user_id)
 
-    return ChatResponse(session_id=result.session_id, reply=result.reply, agent_used=result.agent_used)
+    return ChatResponse(
+        session_id=result.session_id, reply=result.reply, agent_used=result.agent_used,
+        card=result.card, save_suggestions=result.save_suggestions,
+    )
 
 
 def _sse(event_type: str, data: dict) -> str:
@@ -115,7 +118,8 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
     Same request shape as POST /chat. Response is `text/event-stream`:
       event: step   — {"type":"step","stage":..., ...}      (progress/path)
       event: token  — {"type":"token","text":"..."}          (answer text, in order)
-      event: done   — {"session_id":..., "reply":..., "agent_used":...}
+      event: done   — {"session_id":..., "reply":..., "agent_used":...,
+                       "card":..., "save_suggestions":[...]}  (see ChatResponse)
       event: error  — {"detail":"..."}                       (mid-turn failure)
 
     The 409/423 lock checks happen up front, before the stream opens, exactly
@@ -187,6 +191,8 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
                 "session_id": result.session_id,
                 "reply": result.reply,
                 "agent_used": result.agent_used,
+                "card": result.card,
+                "save_suggestions": result.save_suggestions,
             })
         finally:
             if is_existing_session and not lock_released:

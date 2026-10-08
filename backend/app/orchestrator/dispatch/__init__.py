@@ -141,7 +141,15 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
     except Exception as exc:
         print(f"[dispatch] Warning: localize call failed, returning the answer as-is — {exc}")
 
-    # The sources ride on the message (not in its text, which is what later
-    # turns see as history) so the conversation log can keep them per turn.
-    extra = {"sources": list(answer.sources)} if answer.sources else {}
+    # The sources, a quick-fill card and save suggestions ride on the message
+    # (not in its text, which is what later turns see as history): the
+    # conversation log keeps the sources per turn, and turn_service hands
+    # the card and suggestions to the client.
+    extra: dict = {}
+    if answer.sources:
+        extra["sources"] = list(answer.sources)
+    if answer.card:
+        extra["card"] = answer.card
+    if answer.save_suggestions:
+        extra["save_suggestions"] = list(answer.save_suggestions)
     return AIMessage(content=answer.text, additional_kwargs=extra), _reply_with_sources(answer), answer.agent_used

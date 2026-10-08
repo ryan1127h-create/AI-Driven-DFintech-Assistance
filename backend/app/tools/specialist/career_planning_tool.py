@@ -79,7 +79,7 @@ def _has_known_target_role(state: TurnState) -> bool:
 def _required_input(state: TurnState) -> tuple[MissingInputField, ...]:
     if _has_known_target_role(state):
         return ()
-    return (MissingInputField(slot="target_role", prompt=_NEEDS_ROLE_REPLY),)
+    return (MissingInputField(slot="target_role", prompt=_NEEDS_ROLE_REPLY, field_key="main_target_role"),)
 
 
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:

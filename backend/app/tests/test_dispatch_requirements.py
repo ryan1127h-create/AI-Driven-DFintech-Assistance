@@ -168,3 +168,49 @@ def test_answer_turn_runs_execution_normally_when_gate_is_ready(monkeypatch):
     assert called == [["financial"]]
     assert agent_used == "financial_agent"
     assert ai_message.content == "Tuition is S$74,120."
+
+
+# ---- quick-fill cards ---------------------------------------------------------
+
+def test_a_missing_profile_field_comes_back_as_a_quick_fill_card():
+    result = requirements.RequirementsResult(
+        ready=False,
+        missing=(
+            MissingInputField(slot="target_role", prompt="Which role?", field_key="main_target_role"),
+            MissingInputField(slot="background", prompt="Tell me about yourself."),
+        ),
+    )
+    answer = requirements.build_need_input_answer(result)
+    assert answer.card == {
+        "kind": "quick_fill",
+        "reason": answer.text,
+        "fields": [{"slot": "target_role", "field_key": "main_target_role", "prompt": "Which role?"}],
+    }
+
+
+def test_no_card_when_no_missing_field_is_a_profile_field():
+    result = requirements.RequirementsResult(
+        ready=False, missing=(MissingInputField(slot="background", prompt="Tell me about yourself."),),
+    )
+    assert requirements.build_need_input_answer(result).card is None
+
+
+def test_the_card_rides_on_the_ai_message_to_the_client(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("career", required_input=lambda state: (
+        MissingInputField(slot="target_role", prompt="Which role?", field_key="main_target_role"),
+    )))
+    monkeypatch.setattr(contracts, "registry", reg)
+
+    ai_message, reply, agent_used = dispatch.answer_turn(_state(), ["career"], None)
+
+    assert ai_message.content == "Which role?"
+    assert ai_message.additional_kwargs["card"]["fields"][0]["field_key"] == "main_target_role"
+
+
+def test_career_planning_asks_for_the_main_target_role_field(monkeypatch):
+    from app.tools.specialist import career_planning_tool
+
+    monkeypatch.setattr(career_planning_tool, "_has_known_target_role", lambda state: False)
+    [missing] = career_planning_tool.CAREER_TOOL.required_input(_state())
+    assert missing.field_key == "main_target_role"

@@ -66,11 +66,19 @@ def build_need_input_answer(result: RequirementsResult) -> ToolAnswer:
     domain/agent call has run yet, so there is nothing to evaluate or
     synthesize. A single missing field reuses that tool's own prompt text
     verbatim (byte-identical to the old single-tool clarify wording); 2+
-    missing fields are listed as short bullet points."""
+    missing fields are listed as short bullet points. The missing fields a
+    profile field can answer also come back as a quick-fill card (see
+    ToolAnswer.card); the text stays as the reply either way, for the
+    conversation history and for a client that shows no card."""
     if len(result.missing) == 1:
         text = result.missing[0].prompt
     else:
         text = "Before I can help with that, I need a bit more information:\n" + "\n".join(
             f"- {item.prompt}" for item in result.missing
         )
-    return ToolAnswer(text=text, agent_used="orchestrator_need_input", needs_clarification=True)
+    card_fields = [
+        {"slot": item.slot, "field_key": item.field_key, "prompt": item.prompt}
+        for item in result.missing if item.field_key
+    ]
+    card = {"kind": "quick_fill", "reason": text, "fields": card_fields} if card_fields else None
+    return ToolAnswer(text=text, agent_used="orchestrator_need_input", needs_clarification=True, card=card)
