@@ -31,6 +31,8 @@ import {
 import { cn } from "../../utils/cn";
 import { formatTime } from "../../utils/format";
 import OnboardingFlow from "./onboarding/OnboardingFlow";
+import QuickFillCard from "./chat/QuickFillCard";
+import SaveSuggestions from "./chat/SaveSuggestions";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -240,6 +242,8 @@ function ChatView({ user, profileDone, onOpenProfile }) {
               // see agents/supervisor.py/rag_agent.py).
               content: data.reply,
               streaming: false,
+              card: data.card || null,
+              saveSuggestions: data.save_suggestions || [],
               intent: classified?.intents?.join(", ") || "AI chat",
               source: data.agent_used || "AI Assistant",
               agent,
@@ -308,6 +312,8 @@ function ChatView({ user, profileDone, onOpenProfile }) {
                   rollbackTurns={rollbackEligibility.get(i)}
                   rollbackPrefill={messages[i - 1]?.content}
                   onRollback={handleRollback}
+                  cardActive={i === messages.length - 1 && !isStreaming}
+                  onCardAnswered={() => sendMessage(messages[i - 1]?.content)}
                 />
               ),
             )}
@@ -411,7 +417,7 @@ function UserMessage({ msg }) {
   );
 }
 
-function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
+function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, onCardAnswered }) {
   const [copied, setCopied] = useState(false);
   // A live reply carries its sources inside its text; one loaded from
   // history has them alongside.
@@ -494,6 +500,13 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
               {msg.streaming && <span className="inline-block w-1.5 h-4 bg-brand-300 ml-0.5 align-middle animate-pulseDot" />}
             </div>
           )}
+
+          {/* A question the reply needs answered, answerable in place */}
+          {msg.card?.kind === "quick_fill" && (
+            <QuickFillCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} />
+          )}
+
+          {msg.saveSuggestions?.length > 0 && <SaveSuggestions suggestions={msg.saveSuggestions} />}
 
           {/* Metadata — only meaningful once the reply has fully resolved */}
           {!msg.streaming && (
