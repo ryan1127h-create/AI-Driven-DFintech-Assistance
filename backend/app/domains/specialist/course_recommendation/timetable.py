@@ -58,6 +58,16 @@ def clash(a: Course, b: Course, term: Term) -> tuple[Session, Session] | None:
     return None
 
 
+def describe(course: Course, term: Term) -> list[str]:
+    """When the course meets in `term`, one line per lesson type:
+    "Lecture: Monday 18:30–20:30"; a choice of classes joined by "or"."""
+    lines = []
+    for lesson, classes in sorted(lesson_options(course, term).items()):
+        options = [", ".join(f"{s.day} {s.start}–{s.end}" for s in slots) for slots in classes]
+        lines.append(f"{lesson}: {' or '.join(dict.fromkeys(options))}")
+    return lines
+
+
 def _in_windows(slot: Session, windows: tuple[tuple[str, str], ...], days: frozenset[str]) -> bool:
     return slot.day in days or any(slot.start < end and start < slot.end for start, end in windows)
 

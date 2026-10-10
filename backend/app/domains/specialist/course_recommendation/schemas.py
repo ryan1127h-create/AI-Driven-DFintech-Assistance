@@ -49,6 +49,8 @@ class RecommendedCourse(BaseModel):
     synopsis: str
     evidence: list[str]
     counts_toward: str | None = None
+    class_times: list[str] = []
+    course_units: int | None = None
 
 
 class RecommendationGroup(BaseModel):

@@ -91,3 +91,12 @@ def test_most_courses_in_avoided_times_is_said():
     assert any("3 of the 3 courses open to you meet at times you want kept free" in n for n in result["notes"])
     evidence = [e for g in result["groups"] for r in g["recommendations"] for e in r["evidence"]]
     assert "meets at a time you want kept free (Monday 18:30–21:30)" in evidence
+
+
+
+def test_class_times_read_as_lines_with_choices_joined():
+    assert timetable.describe(CHOICE, S2) == [
+        "Lecture: Monday 09:00–11:00",
+        "Tutorial: Monday 20:30–21:30 or Tuesday 10:00–11:00",
+    ]
+    assert timetable.describe(CHOICE, S1) == []

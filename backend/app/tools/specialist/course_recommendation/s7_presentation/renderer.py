@@ -18,7 +18,10 @@ from app.tools.specialist.course_recommendation.s7_presentation.payload import t
 from app.tools.specialist.course_recommendation.s7_presentation.prompts import (
     AD_HOC_STYLE_PROMPT,
     COURSE_RECOMMENDATION_STYLE_PROMPT,
+    SEMESTER_PLAN_STYLE_PROMPT,
 )
+
+_STYLES = {"ad_hoc": AD_HOC_STYLE_PROMPT, "semester_plan": SEMESTER_PLAN_STYLE_PROMPT}
 from app.tools.structured_reply import render_structured_reply, render_template
 
 logger = get_logger(__name__)
@@ -33,7 +36,7 @@ def render(
     result: dict, user_message: str, on_event: OnEvent | None = None, depth: str | None = None,
 ) -> tuple[str, list[str]]:
     view = to_render_view(result)
-    style = AD_HOC_STYLE_PROMPT if view["mode"] == "ad_hoc" else COURSE_RECOMMENDATION_STYLE_PROMPT
+    style = _STYLES.get(view["mode"], COURSE_RECOMMENDATION_STYLE_PROMPT)
     reply, sources = render_structured_reply(view, user_message, style, on_event=on_event, depth=depth)
     violations = guardrail.check(reply, view, user_message)
     if not violations:

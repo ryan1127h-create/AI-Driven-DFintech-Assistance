@@ -35,7 +35,11 @@ _COURSE_FIELDS = (
     "evidence",
     "caution",
     "counts_toward",
+    "class_times",
+    "course_units",
 )
+
+_PLAN_FIELDS = ("term", "study_mode", "unit_budget", "budget_source", "units", "clashes", "projected_progress")
 
 
 def to_render_view(result: dict) -> dict:
@@ -49,7 +53,7 @@ def to_render_view(result: dict) -> dict:
                 "required_pick_count": group["required_pick_count"],
                 "note": group.get("note"),
                 "courses": [
-                    {key: rec.get(key) for key in _COURSE_FIELDS}
+                    {key: rec[key] for key in _COURSE_FIELDS if key in rec}
                     for rec in group.get("recommendations", [])
                 ],
             }
@@ -58,16 +62,23 @@ def to_render_view(result: dict) -> dict:
         "degree_progress": (
             {key: progress[key] for key in _PROGRESS_FIELDS if key in progress} if progress else None
         ),
+        # A semester plan's summary; None in the other modes.
+        "plan": {key: result["plan"][key] for key in _PLAN_FIELDS} if result.get("plan") else None,
         "skill_gaps": result.get("skill_gaps", []),
         "notes": result.get("notes", []),
         "sources": result.get("sources", []),
     }
 
 
-def course_units(view: dict) -> dict[str, int]:
-    """course_code -> units for every course the view recommends."""
-    return {
-        course["course_code"]: course["units"]
-        for group in view["groups"]
-        for course in group["courses"]
-    }
+def course_units(view: dict) -> dict[str, set[int]]:
+    """course_code -> the unit counts the reply may give each course the
+    view recommends: its units, and its full units when it counts fewer
+    this semester (the Capstone)."""
+    units: dict[str, set[int]] = {}
+    for group in view["groups"]:
+        for course in group["courses"]:
+            allowed = units.setdefault(course["course_code"], set())
+            allowed.add(course["units"])
+            if course.get("course_units"):
+                allowed.add(course["course_units"])
+    return units

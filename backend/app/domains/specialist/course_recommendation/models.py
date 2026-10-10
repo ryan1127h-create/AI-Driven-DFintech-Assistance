@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from app.domains.specialist.course_recommendation.errors import (
     WorkflowDiagnostic,
@@ -80,6 +80,11 @@ class Recommendation(TypedDict):
     # there the list isn't grouped by requirement); None when it counts
     # toward none still open.
     counts_toward: str | None
+    # semester_plan only: when the course meets that semester, and — for a
+    # course counting fewer units this semester than it has (the
+    # Capstone) — its full units.
+    class_times: NotRequired[list[str]]
+    course_units: NotRequired[int]
 
 
 class Group(TypedDict):
