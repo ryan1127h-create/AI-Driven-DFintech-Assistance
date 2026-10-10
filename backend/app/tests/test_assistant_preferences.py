@@ -73,7 +73,7 @@ def test_preferences_default_when_settings_cannot_be_read(monkeypatch):
 
 
 def test_a_turn_uses_the_saved_preferences(monkeypatch):
-    state = SimpleNamespace(history_summaries=[], raw_tail=[])
+    state = SimpleNamespace(history_summaries=[], raw_tail=[], declined_fields=[])
     conv = turn_service.conversation
     monkeypatch.setattr(conv, "new_session_id", lambda: "s1")
     monkeypatch.setattr(conv, "get_state", lambda sid, uid: state)

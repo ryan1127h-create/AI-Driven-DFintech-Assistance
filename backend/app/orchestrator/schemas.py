@@ -16,6 +16,10 @@ class ChatRequest(BaseModel):
     # a cryptic Postgres error surfacing as a 500 later.
     session_id: Optional[UUID] = None
     message: str
+    # Input fields the user just skipped or dismissed in a card (see
+    # app/tools/contracts.py ToolAnswer.card); not asked for again this
+    # conversation.
+    declined_fields: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):
@@ -26,6 +30,7 @@ class ChatResponse(BaseModel):
     # app/tools/contracts.py ToolAnswer.card), and facts from this turn the
     # user may save to their profile.
     card: Optional[dict] = None
+    supplement_card: Optional[dict] = None
     save_suggestions: list[dict] = Field(default_factory=list)
 
 

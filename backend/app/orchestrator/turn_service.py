@@ -33,8 +33,9 @@ class ChatTurnResult:
     agent_used: str
     user_message: str
     intents: list[str] = field(default_factory=list)
-    # See ToolAnswer.card / .save_suggestions.
+    # See ToolAnswer.card / .supplement_card / .save_suggestions.
     card: dict | None = None
+    supplement_card: dict | None = None
     save_suggestions: list[dict] = field(default_factory=list)
 
 
@@ -47,7 +48,7 @@ def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
 
 def run_turn(
     session_id: str | None, message: str, user_id: str,
-    on_event: OnEvent | None = None,
+    on_event: OnEvent | None = None, declined_fields: list[str] | None = None,
 ) -> ChatTurnResult:
     """
     - Creates a new session_id if one is not provided.
@@ -77,6 +78,9 @@ def run_turn(
     """
     session_id = session_id or conversation.new_session_id()
     state = conversation.get_state(session_id, user_id)
+    # Fields the user skipped or dismissed in this reply's card join the
+    # session's declined set (saved with the turn by record_turn).
+    state.declined_fields = sorted({*state.declined_fields, *(declined_fields or [])})
 
     new_message = HumanMessage(content=message)
 
@@ -99,6 +103,7 @@ def run_turn(
         messages=llm_messages, user_id=user_id,
         target_role_hint=target_role_hint, program_hints=program_hints,
         course_mode_hint=course_mode_hint,
+        declined_fields=frozenset(state.declined_fields),
         reply_language=resolve_reply_language(detected_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
     )
@@ -110,5 +115,6 @@ def run_turn(
     return ChatTurnResult(
         session_id=session_id, reply=reply, agent_used=agent_used,
         user_message=message, intents=intents,
-        card=extra.get("card"), save_suggestions=list(extra.get("save_suggestions") or []),
+        card=extra.get("card"), supplement_card=extra.get("supplement_card"),
+        save_suggestions=list(extra.get("save_suggestions") or []),
     )

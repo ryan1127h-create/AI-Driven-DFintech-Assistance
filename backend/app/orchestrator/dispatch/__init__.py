@@ -38,6 +38,8 @@ orchestrator/turn_service.py).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from langchain_core.messages import AIMessage
 
 from app.core.resilience import run_with_timeout
@@ -117,6 +119,10 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
             # tool or several) funnels through.
             try:
                 answer = execution.run_tools(tool_names, state, on_event)
+                # Offered under a real answer only — not under an error or
+                # a clarifying question.
+                if not answer.needs_clarification:
+                    answer = replace(answer, supplement_card=requirements.build_supplement_card(gate))
             except Exception as exc:
                 print(f"[dispatch] Warning: turn failed entirely (tools={tool_names}) — {exc}")
                 answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
@@ -150,6 +156,8 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
         extra["sources"] = list(answer.sources)
     if answer.card:
         extra["card"] = answer.card
+    if answer.supplement_card:
+        extra["supplement_card"] = answer.supplement_card
     if answer.save_suggestions:
         extra["save_suggestions"] = list(answer.save_suggestions)
     return AIMessage(content=answer.text, additional_kwargs=extra), _reply_with_sources(answer), answer.agent_used

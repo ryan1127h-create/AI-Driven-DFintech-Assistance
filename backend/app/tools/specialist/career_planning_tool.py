@@ -16,6 +16,7 @@ from app.domains.profile.interface import describe_facts, describe_value, get_pr
 from app.domains.specialist.career_planning.interface import create_career_plan
 from app.tools.knowledge_context import retrieve_context
 from app.tools.contracts import MissingInputField, OnEvent, Tool, ToolAnswer
+from app.tools.input_needs import profile_field_need
 from app.tools.structured_reply import render_structured_reply
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
@@ -76,15 +77,23 @@ def _has_known_target_role(state: TurnState) -> bool:
     return bool(_target_role(state, _career_facts(state)))
 
 
-def _required_input(state: TurnState) -> tuple[MissingInputField, ...]:
-    if _has_known_target_role(state):
+def _input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
+    """The target role is required: there's no career plan without one.
+    Without the consent the career purpose needs, the profile's role
+    can't be read even once given, so that consent is asked for instead
+    (see app/tools/input_needs.py)."""
+    if state.target_role_hint:
         return ()
-    return (MissingInputField(slot="target_role", prompt=_NEEDS_ROLE_REPLY, field_key="main_target_role"),)
+    facts = _career_facts(state)
+    if _target_role(state, facts):
+        return ()
+    need = profile_field_need(state, "career", facts, "main_target_role", "required", _NEEDS_ROLE_REPLY)
+    return (need,) if need else ()
 
 
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     # Defense-in-depth only: orchestrator/dispatch/requirements.py already
-    # checks _required_input() for every matched tool before any of them
+    # checks _input_needs() for every matched tool before any of them
     # is invoked, so this branch is unreachable via the normal dispatch
     # path — kept so a direct/bypassing caller (e.g. registry.invoke_typed()
     # from a test, or a future caller outside dispatch) still degrades to a
@@ -132,5 +141,5 @@ CAREER_TOOL = Tool(
     handler=_handler,
     fallback=_fallback,
     trigger_intents=frozenset({"career"}),
-    required_input=_required_input,
+    input_needs=_input_needs,
 )

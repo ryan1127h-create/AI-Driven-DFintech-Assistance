@@ -86,7 +86,7 @@ def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str =
         _try_lock_or_raise(session_id, user_id)
 
     try:
-        result = turn_service.run_turn(session_id, request.message, user_id)
+        result = turn_service.run_turn(session_id, request.message, user_id, declined_fields=request.declined_fields)
     finally:
         # Always release the processing lock we took above, success or
         # failure, so a crashed turn can't wedge the session past the
@@ -98,7 +98,7 @@ def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str =
 
     return ChatResponse(
         session_id=result.session_id, reply=result.reply, agent_used=result.agent_used,
-        card=result.card, save_suggestions=result.save_suggestions,
+        card=result.card, supplement_card=result.supplement_card, save_suggestions=result.save_suggestions,
     )
 
 
@@ -119,7 +119,8 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
       event: step   — {"type":"step","stage":..., ...}      (progress/path)
       event: token  — {"type":"token","text":"..."}          (answer text, in order)
       event: done   — {"session_id":..., "reply":..., "agent_used":...,
-                       "card":..., "save_suggestions":[...]}  (see ChatResponse)
+                       "card":..., "supplement_card":..., "save_suggestions":[...]}
+                                                           (see ChatResponse)
       event: error  — {"detail":"..."}                       (mid-turn failure)
 
     The 409/423 lock checks happen up front, before the stream opens, exactly
@@ -140,7 +141,9 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
 
         def worker():
             try:
-                outcome["result"] = turn_service.run_turn(session_id, request.message, user_id, on_event=q.put)
+                outcome["result"] = turn_service.run_turn(
+                    session_id, request.message, user_id, on_event=q.put, declined_fields=request.declined_fields,
+                )
             except Exception as exc:  # noqa: BLE001 — reported to the client as an `error` event below
                 outcome["error"] = exc
             finally:
@@ -192,6 +195,7 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
                 "reply": result.reply,
                 "agent_used": result.agent_used,
                 "card": result.card,
+                "supplement_card": result.supplement_card,
                 "save_suggestions": result.save_suggestions,
             })
         finally:

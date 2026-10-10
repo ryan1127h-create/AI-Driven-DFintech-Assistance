@@ -42,6 +42,10 @@ class TurnState:
     # kind of advice is wanted — "degree_overview", "ad_hoc" or
     # "semester_plan" (see classification.COURSE_MODES); None otherwise.
     course_mode_hint: str | None = None
+    # Input fields the user skipped or dismissed earlier in this
+    # conversation (see orchestrator/dispatch/requirements.py): an optional
+    # or supplementary field here isn't asked for again this session.
+    declined_fields: frozenset[str] = frozenset()
     # Also set by the intent classifier (see orchestrator/classification.py)
     # — the language the FINAL reply should end up in. Every generation
     # prompt in this app (RAG, assessment, general chat, evaluation)

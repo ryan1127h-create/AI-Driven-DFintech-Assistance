@@ -349,6 +349,13 @@ def has_consent(user_id: str, consent_key: str) -> bool:
     return bool(row and row[0])
 
 
+def purpose_consent_key(purpose: str) -> str | None:
+    """The consent a purpose's facts need (profile.purpose_consents), or
+    None when the purpose needs none."""
+    row = profile_db.fetch_one("select consent_key from profile.purpose_consents where purpose = %s", (purpose,))
+    return row[0] if row else None
+
+
 def record_consent(
     user_id: str, consent_key: str, granted: bool, *, notice_version: str, options: dict | None = None
 ) -> None:
