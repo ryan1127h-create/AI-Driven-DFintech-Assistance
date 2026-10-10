@@ -20,6 +20,9 @@ PROJECT_HEAVY_PENALTY = -1.0
 W_REQUESTED = 2.0
 W_VERTICAL_INTEREST = 1.0
 W_WORKLOAD_FIT = 1.0
+# A course that can only be taken at a time or on a day the student wants
+# kept free: ranked lower, never left out.
+AVOID_TIME_PENALTY = -1.0
 
 # How many top-scored candidates are considered when picking the best PAIR
 # for a 2-pick slot — the eligible pool per slot is always small (a

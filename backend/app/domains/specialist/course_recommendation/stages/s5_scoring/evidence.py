@@ -29,6 +29,7 @@ from app.domains.specialist.course_recommendation.models import (
 )
 from app.domains.specialist.course_recommendation.policy import tuning
 from app.domains.specialist.course_recommendation.stages.s5_scoring.signals import (
+    REQUEST_PENALTIES,
     REQUEST_SIGNALS,
     SKILL_LABELS,
     distinctive,
@@ -146,7 +147,10 @@ def evidence_for(scored: ScoredCourse, slot: RequirementSlot | None, ctx: Eviden
     facts = [
         _requirement(slot),
         # What the student asked for this turn comes first after the requirement.
-        *(item.evidence for item in scored.breakdown if item.signal in REQUEST_SIGNALS),
+        *(
+            item.evidence for item in scored.breakdown
+            if item.signal in REQUEST_SIGNALS or item.signal in REQUEST_PENALTIES
+        ),
         _role_relation(course, slot, ctx.target_role),
         *_skill_facts(scored, ctx.skill_share),
         _workload(course),

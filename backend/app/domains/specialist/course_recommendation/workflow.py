@@ -249,6 +249,22 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
     )
 
 
+def _mostly_avoided_note(pool: CandidatePool, ctx: signals.ScoringContext) -> str | None:
+    """When most eligible courses can only be taken at times the student
+    wants kept free (most of the programme meets in the evening), says so:
+    avoiding them all would leave little, so they're ranked lower instead."""
+    if not pool.eligible or not (ctx.avoid_windows or ctx.avoid_days):
+        return None
+    hit = sum(1 for course in pool.eligible if signals.forced_avoided_slot(course, ctx))
+    if hit * 2 <= len(pool.eligible):
+        return None
+    return (
+        f"{hit} of the {len(pool.eligible)} courses open to you meet at times you want kept free "
+        "(much of the programme is taught in the evening), so avoiding them all would leave "
+        "few options — they're ranked lower rather than left out."
+    )
+
+
 def _plan_term(request: CourseRecommendationInput) -> PlanTerm | None:
     """The semester being planned, for a semester_plan request."""
     planning = request.planning
@@ -307,7 +323,13 @@ def _process_slots(
             for t in {*wanted.vertical_preference, *request.student.track_interest}
         ),
         prefers_lecture=wanted.workload_style == "lecture",
+        avoid_windows=tuple((w.start, w.end) for w in wanted.avoid_time_windows),
+        avoid_days=frozenset(wanted.avoid_days),
+        plan_term=(plan_term.ay, plan_term.semester) if (plan_term := _plan_term(request)) else None,
     )
+    note = _mostly_avoided_note(pool, scoring_ctx)
+    if note:
+        notes.append(note)
     evidence_ctx = evidence.EvidenceContext(
         target_role=(role.role_id, role.role_title) if role else None,
         skill_share=skill_share,
