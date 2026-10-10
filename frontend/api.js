@@ -320,3 +320,114 @@ export async function getLifecycle() {
 export function bindApplication(applicationNo) {
   return jsonRequest("POST", "/checklist/application", { application_no: applicationNo });
 }
+
+// ---------------------------------------------------------------------------
+// Admin escalation cases
+// ---------------------------------------------------------------------------
+// These functions define the frontend contract for the future staff API.
+// Expected backend routes:
+//   GET   /admin/escalations
+//   GET   /admin/escalations/{caseId}
+//   PATCH /admin/escalations/{caseId}
+// The list endpoint can return { items, total, page, page_size } or a plain
+// array; the page can normalize the response shape while the backend is built.
+
+export async function getAdminEscalationCases({
+  page = 1,
+  pageSize = 20,
+  search = "",
+  status = "",
+  priority = "",
+  category = "",
+  source = "",
+  specialist = "",
+  date = "",
+  sort = "newest",
+} = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    ...(search && { search }),
+    ...(status && status !== "All" && { status }),
+    ...(priority && priority !== "All" && { priority }),
+    ...(category && category !== "All Categories" && { category }),
+    ...(source && source !== "All Sources" && { source }),
+    ...(specialist && specialist !== "All Specialists" && { specialist }),
+    ...(date && date !== "All Time" && { date }),
+    ...(sort && { sort }),
+  });
+  const response = await fetch(buildUrl(`/admin/escalations?${params}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export async function getAdminEscalationCase(caseId) {
+  const response = await fetch(buildUrl(`/admin/escalations/${encodeURIComponent(caseId)}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export function updateAdminEscalationCase(caseId, updates) {
+  return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, updates);
+}
+
+export function resolveAdminEscalationCase(caseId, resolutionNotes) {
+  return updateAdminEscalationCase(caseId, {
+    status: "Resolved",
+    resolution_notes: resolutionNotes,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Alumni matching
+// ---------------------------------------------------------------------------
+// Expected backend routes:
+//   GET  /alumni/matches
+//   GET  /alumni/requests
+//   POST /alumni/requests
+//   PATCH /alumni/requests/{requestId}
+
+export async function getAlumniMatches({ search = "", expertise = [], page = 1, pageSize = 20 } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    ...(search && { search }),
+    ...(expertise.length > 0 && { expertise: expertise.join(",") }),
+  });
+  const response = await fetch(buildUrl(`/alumni/matches?${params}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export async function getAlumniRequests({ direction = "all", status = "pending" } = {}) {
+  const params = new URLSearchParams({ direction, status });
+  const response = await fetch(buildUrl(`/alumni/requests?${params}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export function createAlumniRequest({ recipientId, note = "" }) {
+  return jsonRequest("POST", "/alumni/requests", {
+    recipient_id: recipientId,
+    note,
+  });
+}
+
+export function updateAlumniRequest(requestId, { status, sharing = undefined } = {}) {
+  return jsonRequest("PATCH", `/alumni/requests/${encodeURIComponent(requestId)}`, {
+    ...(status && { status }),
+    ...(sharing && { sharing }),
+  });
+}
+
+export function acceptAlumniRequest(requestId, sharing) {
+  return updateAlumniRequest(requestId, { status: "accepted", sharing });
+}
+
+export function declineAlumniRequest(requestId) {
+  return updateAlumniRequest(requestId, { status: "declined" });
+}

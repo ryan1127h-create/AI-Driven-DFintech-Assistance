@@ -1598,6 +1598,76 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 /* Use the shared application theme. */
 .app-shell { background: var(--bg-base); color: var(--text-primary); }
 
+/* Shared premium treatment for the alumni workspace. */
+.alumni-match-page .main {
+  width: min(1180px, calc(100% - 48px));
+  padding-top: 42px;
+}
+
+.alumni-match-page .tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 24px;
+  border: 1px solid #dbe4f1;
+  border-radius: 16px;
+  background: #f1f5fb;
+}
+
+.alumni-match-page .tabs button {
+  padding: 10px 16px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  transition: 200ms ease;
+}
+
+.alumni-match-page .tabs button:hover {
+  background: #fff;
+  color: var(--blue);
+  transform: translateY(-1px);
+}
+
+.alumni-match-page .tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 7px 16px rgba(37, 99, 235, .2);
+}
+
+.alumni-match-page .alumni-card,
+.alumni-match-page .request-card,
+.alumni-match-page .sent-card,
+.alumni-match-page .privacy-card {
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.alumni-match-page .alumni-card:hover,
+.alumni-match-page .request-card:hover,
+.alumni-match-page .sent-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, .12);
+}
+
+[data-theme="dark"] .alumni-match-page .tabs {
+  border-color: #334155;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .alumni-match-page .tabs button:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .alumni-match-page .alumni-card,
+[data-theme="dark"] .alumni-match-page .request-card,
+[data-theme="dark"] .alumni-match-page .sent-card,
+[data-theme="dark"] .alumni-match-page .privacy-card {
+  border-color: #475569;
+  background: #1e293b;
+  box-shadow: 0 14px 35px rgba(2, 6, 23, .3), 0 0 0 1px rgba(96, 165, 250, .05);
+}
+
 /* Final escalation layout overrides: keep controls in one aligned row. */
 .admin-escalation-content .filters {
   display: flex;

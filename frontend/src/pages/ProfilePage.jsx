@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FileUp } from "lucide-react";
+import { FileUp, Sparkles } from "lucide-react";
 import {
   getConsents,
   getLatestCvImport,
@@ -26,35 +26,52 @@ import { OverviewPage, SectionPage, filledCount } from "../components/student/pr
 // in the URL (?page=skills).
 
 function ProfileHeader({ user, stage, subStage, keyDone, keyTotal, onUpdateFromCv }) {
+  const completion = keyTotal ? Math.round((keyDone / keyTotal) * 100) : 0;
+  const radius = 30;
+  const circumference = 2 * Math.PI * radius;
   return (
-    <div className="card mb-5 flex flex-wrap items-center gap-5 p-6">
-      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-brand-400/20 bg-gradient-to-br from-brand-500/20 to-royal-600/20 font-display text-xl font-bold text-brand-300">
-        {user?.avatar}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-xl font-bold text-app-primary">{user?.name}</h1>
-          {stage && <span className="chip bg-brand-500/10 text-brand-300">{STAGE_LABELS[stage] || stage}</span>}
-          {subStage && <span className="chip bg-app-hover text-app-muted">{subStage}</span>}
-        </div>
-        <p className="mt-0.5 truncate text-xs text-app-muted">{user?.email}</p>
-        {keyTotal > 0 && (
-          <div className="mt-3 flex items-center gap-3">
-            <ProgressBar value={keyDone} max={keyTotal} className="w-32 sm:w-44" />
-            <span className="whitespace-nowrap text-xs text-app-secondary">{keyDone} of {keyTotal} key details</span>
+    <section className="group relative mb-6 overflow-hidden rounded-[22px] border border-brand-400/15 bg-gradient-to-br from-white via-white to-brand-50/70 p-5 shadow-[0_14px_40px_rgba(37,99,235,0.08)] transition duration-300 hover:-translate-y-0.5 dark:from-slate-800 dark:via-slate-800 dark:to-indigo-950/60 dark:shadow-[0_16px_45px_rgba(37,99,235,0.16)] sm:p-7">
+      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-indigo-400/15 blur-3xl transition duration-500 group-hover:bg-indigo-400/25" />
+      <div className="pointer-events-none absolute -bottom-28 left-1/3 h-48 w-48 rounded-full bg-blue-400/10 blur-3xl" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
+        <div className="relative flex h-[76px] w-[76px] flex-shrink-0 items-center justify-center">
+          <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 76 76" aria-hidden="true">
+            <circle cx="38" cy="38" r={radius} fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-200 dark:text-slate-700" />
+            <circle cx="38" cy="38" r={radius} fill="none" stroke="url(#profile-ring)" strokeWidth="4" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (completion / 100) * circumference} className="transition-all duration-700" />
+            <defs><linearGradient id="profile-ring" x1="0" x2="1"><stop stopColor="#2563EB" /><stop offset="1" stopColor="#818CF8" /></linearGradient></defs>
+          </svg>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 font-display text-xl font-bold text-blue-600 dark:text-blue-300">
+            {user?.avatar}
           </div>
-        )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Your profile</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300"><Sparkles size={11} /> Personalised</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Welcome back, {user?.name}</h1>
+            {stage && <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">{STAGE_LABELS[stage] || stage}</span>}
+            {subStage && <span className="rounded-full bg-slate-500/10 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300">{subStage}</span>}
+          </div>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{user?.email}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="h-2 w-44 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-500 transition-all duration-700" style={{ width: `${completion}%` }} /></div>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{completion}% complete</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{keyDone} of {keyTotal} key details</span>
+          </div>
+        </div>
+        <button type="button" className="btn-outline self-start rounded-xl border-slate-300 bg-white/70 px-4 py-2.5 text-sm shadow-sm transition hover:-translate-y-0.5 dark:border-slate-600 dark:bg-slate-800/60" onClick={onUpdateFromCv}>
+          <FileUp size={15} /> Update from CV
+        </button>
       </div>
-      <button type="button" className="btn-outline" onClick={onUpdateFromCv}>
-        <FileUp size={15} /> Update from CV
-      </button>
-    </div>
+    </section>
   );
 }
 
 function PageTabs({ pages, current, counts, flagged, onSelect }) {
   return (
-    <div className="mb-6 flex flex-wrap gap-2">
+    <div className="mb-7 flex max-w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/70 p-1.5 dark:border-slate-700 dark:bg-slate-800/70">
       {pages.map((page) => {
         const Icon = page.icon;
         const active = page.key === current;
@@ -64,10 +81,10 @@ function PageTabs({ pages, current, counts, flagged, onSelect }) {
             type="button"
             onClick={() => onSelect(page.key)}
             className={cn(
-              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 py-2 text-sm font-medium transition duration-200 hover:-translate-y-0.5",
               active
-                ? "border-brand-400/40 bg-brand-500/15 text-brand-300"
-                : "border-app-subtle text-app-secondary hover:border-brand-400/30 hover:text-app-primary",
+                ? "border-blue-400/30 bg-gradient-to-r from-blue-600 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                : "border-transparent text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700 dark:hover:text-white",
             )}
           >
             <Icon size={14} />
@@ -193,7 +210,7 @@ export default function ProfilePage() {
     : null;
 
   return (
-    <div className="mx-auto max-w-4xl animate-fadeIn">
+    <div className="mx-auto max-w-7xl animate-fadeIn px-1 pb-8">
       <ProfileHeader user={user} stage={stage} subStage={subStage}
         keyDone={filledCount(keyFields, fields)} keyTotal={keyFields.length} onUpdateFromCv={updateFromCv} />
 

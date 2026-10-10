@@ -40,10 +40,15 @@ export function ProgressBar({ value, max = 100, color = "brand", className }) {
     emerald2: "bg-emerald2-500",
     amber: "bg-amber-500",
   };
+  const adaptiveColor = pct <= 30
+    ? "bg-gradient-to-r from-orange-500 to-red-500"
+    : pct <= 70
+      ? "bg-gradient-to-r from-amber-400 to-orange-500"
+      : "bg-gradient-to-r from-emerald-400 to-cyan-400";
   return (
-    <div className={cn("h-2 w-full rounded-full bg-app-hover overflow-hidden", className)}>
+    <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-app-hover", className)}>
       <div
-        className={cn("h-full rounded-full transition-all duration-500", colors[color])}
+        className={cn("h-full rounded-full transition-all duration-700 ease-out", color === "adaptive" ? adaptiveColor : colors[color])}
         style={{ width: `${pct}%` }}
       />
     </div>
