@@ -111,6 +111,19 @@ class ExcludedCourse(TypedDict, total=False):
 
 
 @dataclass(frozen=True)
+class Session:
+    """One timetable class slot (see contracts.SessionInput)."""
+
+    ay: str
+    semester: int
+    lesson_type: str
+    class_no: str
+    day: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
 class Course:
     """One catalogue course materialized from the upstream-Agent report,
     enriched in S3 with requirement_role/level/workload_shape."""
@@ -133,6 +146,11 @@ class Course:
     corequisite_text: str = ""
     # (tag, display name) of each role family the course is tagged for.
     role_tags: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    sessions: tuple[Session, ...] = field(default_factory=tuple)
+    # Structured requirements (see contracts.PrerequisitesInput).
+    prerequisite_groups: tuple[tuple[str, ...], ...] = field(default_factory=tuple)
+    corequisite_codes: tuple[str, ...] = field(default_factory=tuple)
+    prerequisite_unparsed: str | None = None
     # Populated by stages/s3_constraints/catalog.py during S3 — never read before
     # that stage runs, so default to the safe "not yet classified" values.
     requirement_role: RequirementRole = "unclassified"

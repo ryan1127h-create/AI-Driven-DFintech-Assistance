@@ -37,6 +37,7 @@ from app.domains.specialist.course_recommendation.models import (
     ModeInput,
     RecommendationResult,
     RequirementSlot,
+    Session,
     SlotPicks,
 )
 from app.domains.specialist.course_recommendation.policy import curriculum as cs
@@ -741,6 +742,10 @@ def _courses_from_report(request: CourseRecommendationInput) -> list[Course]:
             vertical=tuple(item.vertical),
             corequisite_text=item.corequisite_text,
             role_tags=tuple((role.tag, role.name) for role in item.role_tags),
+            sessions=tuple(Session(**session.model_dump()) for session in item.sessions),
+            prerequisite_groups=tuple(tuple(group) for group in item.prerequisites.all_of),
+            corequisite_codes=tuple(item.prerequisites.coreq_any_of),
+            prerequisite_unparsed=item.prerequisites.unparsed,
         )
         for item in request.course_catalog
     ]

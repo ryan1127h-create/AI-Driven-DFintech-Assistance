@@ -24,6 +24,7 @@ from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.interface import (
     get_role_profile,
     list_course_electives,
+    list_course_schedule,
     list_course_tags,
     list_courses,
     list_curriculum_rules,
@@ -70,6 +71,7 @@ def _knowledge() -> dict:
         "course_tags": list_course_tags(),
         "role_tags": list_role_tags(),
         "course_electives": list_course_electives(),
+        "course_schedule": list_course_schedule(),
     }
 
 

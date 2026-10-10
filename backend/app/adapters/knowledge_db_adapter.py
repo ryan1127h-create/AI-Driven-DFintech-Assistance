@@ -96,6 +96,16 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
             f"select course_code, vertical from {_APP_SCHEMA}.course_electives"
         ))
 
+    def fetch_course_schedule(self) -> list[dict]:
+        return self._cached("course_schedule", lambda: self._query(
+            f"""
+            select course_code, ay, semester, lesson_type, class_no, day, start_time, end_time
+              from {_APP_SCHEMA}.course_schedule
+             where semester ~ '^[0-9]+$'
+             order by course_code, ay, semester, lesson_type, class_no, day, start_time
+            """
+        ))
+
     def fetch_role_tags(self) -> list[dict]:
         return self._cached("role_tags", lambda: self._query(
             f"select tag, name_en, definition, required_skills from {_APP_SCHEMA}.tags_definition order by tag"

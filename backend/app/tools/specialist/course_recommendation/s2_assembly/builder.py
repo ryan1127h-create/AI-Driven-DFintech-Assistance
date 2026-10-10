@@ -112,7 +112,10 @@ def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None) -
         "constraints": _constraints(parsed),
         "role_profile": role_profile,
         "course_catalog": [
-            map_course(row, skills, prefetched.course_electives, prefetched.course_tags, role_names)
+            map_course(
+                row, skills, prefetched.course_electives, prefetched.course_tags, role_names,
+                prefetched.course_schedule,
+            )
             for row in prefetched.courses
         ],
         "curriculum_rules": [map_rule(chunk) for chunk in prefetched.curriculum_rules],

@@ -124,6 +124,8 @@ source_modules =
     app.tools.specialist.course_recommendation.s2_assembly.builder
     app.tools.specialist.course_recommendation.s2_assembly.mappers
     app.tools.specialist.course_recommendation.s2_assembly.prefetched
+    app.tools.specialist.course_recommendation.s2_assembly.prerequisites
+    app.tools.specialist.course_recommendation.s2_assembly.terms
     app.tools.specialist.course_recommendation.s7_presentation
 forbidden_modules =
     app.domains.knowledge_retrieval

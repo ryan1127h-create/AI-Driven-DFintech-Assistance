@@ -35,6 +35,12 @@ class KnowledgeBasePort(Protocol):
         course that's also a vertical elective) lives."""
         ...
 
+    def fetch_course_schedule(self) -> list[dict]:
+        """Returns every class slot on file (course_code, ay, semester,
+        lesson_type, class_no, day, start_time, end_time) for the regular
+        semesters, times as "HHMM"."""
+        ...
+
     def fetch_role_tags(self) -> list[dict]:
         """Returns every role tag (tag, name_en, definition,
         required_skills) — the 12 role families courses and profiles use."""

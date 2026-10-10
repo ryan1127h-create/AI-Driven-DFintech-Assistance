@@ -53,6 +53,7 @@ def stubs(monkeypatch):
     monkeypatch.setattr(prefetch, "list_course_electives", lambda: {})
     monkeypatch.setattr(prefetch, "list_courses", lambda: [])
     monkeypatch.setattr(prefetch, "list_curriculum_rules", lambda: [])
+    monkeypatch.setattr(prefetch, "list_course_schedule", lambda: {})
     monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: FACTS)
     monkeypatch.setattr(prefetch, "derived_course_notes", lambda uid: NO_DERIVED)
     monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: None)

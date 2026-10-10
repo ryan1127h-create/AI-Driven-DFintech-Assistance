@@ -176,6 +176,30 @@ class RoleTagInput(_StrictInputModel):
     name: LongText
 
 
+class SessionInput(_StrictInputModel):
+    """One class slot from the timetable. Slots of one lesson type with
+    different class numbers are alternatives; the student attends one."""
+
+    ay: ShortText
+    semester: int = Field(ge=1, le=4)
+    lesson_type: ShortText
+    class_no: ShortText
+    day: ShortText
+    start: ShortText
+    end: ShortText
+
+
+class PrerequisitesInput(_StrictInputModel):
+    """Requirement text as structure: every group in all_of must be met,
+    each by any one of its courses; one of coreq_any_of must be taken in
+    the same semester or already be done; unparsed is text that couldn't
+    be read as either."""
+
+    all_of: list[list[ShortText]] = Field(default_factory=list, max_length=10)
+    coreq_any_of: list[ShortText] = Field(default_factory=list, max_length=10)
+    unparsed: str | None = Field(default=None, max_length=3000)
+
+
 class CourseCatalogItemInput(_StrictInputModel):
     """One complete course record supplied by the upstream agent."""
 
@@ -212,6 +236,10 @@ class CourseCatalogItemInput(_StrictInputModel):
     # course-to-role link, used to explain a recommendation (unlike
     # `skills`, which are derived from these tags and much coarser).
     role_tags: list[RoleTagInput] = Field(default_factory=list, max_length=12)
+    # The timetable's class slots on file (for semester planning) and the
+    # structured form of prerequisite_text / corequisite_text.
+    sessions: list[SessionInput] = Field(default_factory=list, max_length=100)
+    prerequisites: PrerequisitesInput = Field(default_factory=PrerequisitesInput)
 
     @field_validator("code")
     @classmethod

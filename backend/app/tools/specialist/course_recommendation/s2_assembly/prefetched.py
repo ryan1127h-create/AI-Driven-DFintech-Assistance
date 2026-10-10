@@ -50,3 +50,6 @@ class Prefetched:
     # Limitations met while gathering (e.g. the profile couldn't be read),
     # passed on to the reply's notes.
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # course_code -> its timetable class slots (knowledge_retrieval
+    # list_course_schedule()).
+    course_schedule: dict[str, list[dict]] = field(default_factory=dict)

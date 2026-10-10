@@ -166,3 +166,18 @@ def test_ad_hoc_ranks_by_the_request_before_role_fit():
     codes = [r["course_code"] for r in result["groups"][0]["recommendations"]]
     assert codes.index("CS5242") < codes.index("IS4261")
     assert not any("organised by Vertical" in note for note in result["notes"])
+
+
+def test_sessions_and_structured_requirements_reach_the_domain():
+    from app.domains.specialist.course_recommendation import workflow
+    from app.domains.specialist.course_recommendation.contracts import CourseRecommendationInput
+
+    request = CourseRecommendationInput.model_validate({"course_catalog": [{
+        "code": "FT5007", "title": "Capstone", "units": 12, "can_recommend": True,
+        "sessions": [{"ay": "2026-2027", "semester": 2, "lesson_type": "Lecture", "class_no": "1",
+                      "day": "Monday", "start": "18:30", "end": "21:30"}],
+        "prerequisites": {"all_of": [["IT5001X"]], "coreq_any_of": ["IT5006"], "unparsed": None},
+    }]})
+    [course] = workflow._courses_from_report(request)
+    assert course.sessions[0].day == "Monday" and course.sessions[0].semester == 2
+    assert course.prerequisite_groups == (("IT5001X",),) and course.corequisite_codes == ("IT5006",)

@@ -428,6 +428,7 @@ def warm_cache() -> None:
     list_course_tags()
     list_role_tags()
     list_course_electives()
+    list_course_schedule()
 
 
 def list_courses() -> list[dict]:
@@ -467,6 +468,31 @@ def list_curriculum_rules() -> list[dict]:
         if c["source_table"] == "course_rules"
         and (c["metadata"] or {}).get("intake") == _CURRENT_INTAKE
     ]
+
+
+def _clock(hhmm: str) -> str:
+    """'1830' -> '18:30'."""
+    return f"{hhmm[:2]}:{hhmm[2:]}" if len(hhmm) == 4 else hhmm
+
+
+def list_course_schedule() -> dict[str, list[dict]]:
+    """Every course's class slots for the regular semesters on file,
+    grouped by course code: {ay, semester (int), lesson_type, class_no,
+    day, start, end} with times as "HH:MM". A lesson type with several
+    class numbers offers a choice of slot; one with a single number is
+    fixed."""
+    grouped: dict[str, list[dict]] = {}
+    for row in knowledge_db.fetch_course_schedule():
+        grouped.setdefault(row["course_code"], []).append({
+            "ay": row["ay"],
+            "semester": int(row["semester"]),
+            "lesson_type": row["lesson_type"],
+            "class_no": row["class_no"],
+            "day": row["day"],
+            "start": _clock(row["start_time"]),
+            "end": _clock(row["end_time"]),
+        })
+    return grouped
 
 
 def list_course_electives() -> dict[str, list[str]]:
