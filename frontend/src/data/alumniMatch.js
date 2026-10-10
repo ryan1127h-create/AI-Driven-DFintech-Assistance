@@ -1,3 +1,7 @@
+// TEMPORARY MOCK DATA
+// Used only while the Alumni Match database/API is unavailable.
+// Once VITE_USE_MOCK_DATA=false and the alumni endpoints are live, delete this
+// file and remove its import from frontend/api.js.
 export const alumniMatchPhotos = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=faces&fit=crop&w=320&h=320&q=85",
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=faces&fit=crop&w=320&h=320&q=85",

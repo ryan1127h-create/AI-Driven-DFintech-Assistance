@@ -1,3 +1,7 @@
+// TEMPORARY MOCK DATA
+// Used only while the admin escalation database/API is unavailable.
+// Once VITE_USE_MOCK_DATA=false and the admin endpoints are live, delete this
+// file and remove its import from frontend/api.js.
 export const adminEscalationCases = [
   {
     id: "a31f7c9b-44d2-4a7f-b602-9c88eb42a815",

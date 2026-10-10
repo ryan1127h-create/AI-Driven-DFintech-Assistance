@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle } from "lucide-react"
-import { adminEscalationCases } from "../data/adminEscalationCases"
+import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
-
-function getEscalationCases() {
-  return Promise.resolve(adminEscalationCases)
-}
-
-function resolveEscalationCase(id, updates) {
-  const caseItem = adminEscalationCases.find((item) => item.id === id)
-  return Promise.resolve({ ...caseItem, ...updates, status: "Resolved" })
-}
 
 function FeatureButton({ children, variant = "primary", className = "", ...props }) {
   return <button className={`feature-button feature-button-${variant} ${className}`.trim()} {...props}>{children}</button>
@@ -111,10 +102,6 @@ function Icon({ name, size = 18 }) {
     </svg>
   )
 }
-
-const cases = adminEscalationCases;
-
-
 
 function Badge({ children, tone = "neutral" }) {
   return <span className={`badge badge-${tone}`}>{children}</span>
@@ -421,7 +408,7 @@ export default function App() {
 
   useEffect(() => {
     let active = true
-    getEscalationCases().then((items) => {
+    getAdminEscalationCases().then(({ items }) => {
       if (!active) return
       setCaseData(items)
       setIsLoading(false)
@@ -468,7 +455,7 @@ export default function App() {
 
   const confirmResolve = () => {
     if (!selected) return
-    resolveEscalationCase(selected.id, { resolvedBy: "Jordan Davis" }).then((resolved) => {
+    resolveAdminEscalationCase(selected.id, "Resolved by admin").then((resolved) => {
       setCaseData((items) => items.map((item) => (item.id === resolved.id ? resolved : item)))
       setSelected(resolved)
       setResolveConfirm(false)
@@ -740,7 +727,6 @@ export default function App() {
     </div>
   )
 }
-
 
 
 

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
-import { alumniMatchData } from "../data/alumniMatch";
+import { getAlumniMatchData } from "../../api";
 import { PageHeader } from "../components/student/PageParts";
 
 function acceptAlumniRequest() {
@@ -33,8 +33,7 @@ function Icon({ name, size = 20 }) {
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
-const { alumni, currentUser, incomingRequest, sentRequests } = alumniMatchData;
-const photos = alumniMatchData.alumni.map((person) => person.photo);
+const photos = [];
 
 function Button({ children, variant = "primary", icon, onClick, disabled, className = "" }) {
   return <button className={`btn btn-${variant} ${className}`} onClick={onClick} disabled={disabled}>{icon && <Icon name={icon} size={17} />}<span>{children}</span></button>;
@@ -173,7 +172,7 @@ function OutlookModal({ shared, onClose, onSend }) {
   </ModalShell>;
 }
 
-function FriendRequests({ onAccept, onDecline, connected, declined, shared, onOutlook }) {
+function FriendRequests({ incomingRequest, onAccept, onDecline, connected, declined, shared, onOutlook }) {
   return <div className="requests-page">
     <div className="request-section-title"><div><h2>Incoming requests</h2><p>Graduating students who would like to connect with you</p></div><span>{connected || declined ? 0 : 1} pending</span></div>
     <div className="request-list">
@@ -186,17 +185,26 @@ function FriendRequests({ onAccept, onDecline, connected, declined, shared, onOu
   </div>;
 }
 
-function Connections({ connected }) {
+function Connections({ connected, incomingRequest }) {
   return <div className="empty-connections"><div className="empty-icon"><Icon name="link" size={30} /></div><h2>Your student connections</h2><p>Graduating students whose requests you accept will appear here. You can then continue the conversation or prepare a Coffee Chat invitation.</p>{connected ? <div className="connection-row"><div className="student-connection"><Avatar src={incomingRequest.photo} name={incomingRequest.name} size="sm" /><span><strong>{incomingRequest.name}</strong><small>{incomingRequest.position}</small></span><i><Icon name="check" size={13} />Connected</i></div></div> : <span className="no-connections">No accepted student connections yet</span>}</div>;
 }
 
 export default function App() {
+  const [matchData, setMatchData] = useState(null);
   const [tab, setTab] = useState("requests");
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState("");
   const [connected, setConnected] = useState(false);
   const [declined, setDeclined] = useState(false);
   const [shared, setShared] = useState(null);
+
+  useEffect(() => {
+    getAlumniMatchData().then(setMatchData).catch(() => setMatchData(null));
+  }, []);
+
+  if (!matchData) return <div className="alumni-match-page" />;
+  const { alumni, incomingRequest } = matchData;
+  const photos = alumni.map((person) => person.photo);
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
   const accept = (preferences) => {
@@ -221,8 +229,8 @@ export default function App() {
           <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>Friend Requests <span>{pendingCount}</span></button>
           <button className={tab === "connections" ? "active" : ""} onClick={() => setTab("connections")}>My Connections</button>
         </div>
-        {tab === "requests" && <FriendRequests connected={connected} declined={declined} shared={shared} onAccept={() => setModal("accept")} onDecline={decline} onOutlook={() => setModal("outlook")} />}
-        {tab === "connections" && <Connections connected={connected} />}
+        {tab === "requests" && <FriendRequests incomingRequest={incomingRequest} connected={connected} declined={declined} shared={shared} onAccept={() => setModal("accept")} onDecline={decline} onOutlook={() => setModal("outlook")} />}
+        {tab === "connections" && <Connections incomingRequest={incomingRequest} connected={connected} />}
       </main>
     </div>
     {modal === "accept" && <AcceptModal onClose={() => setModal(null)} onAccept={accept} />}
@@ -230,4 +238,3 @@ export default function App() {
     {toast && <div className="toast"><span><Icon name="check" size={16} /></span>{toast}<button onClick={() => setToast("")}><Icon name="close" size={15} /></button></div>}
   </div>;
 }
-
