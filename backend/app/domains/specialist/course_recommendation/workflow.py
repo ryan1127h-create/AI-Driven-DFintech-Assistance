@@ -705,8 +705,7 @@ def _resolve_role_profile(
     """Use only the role evidence already resolved in the input report."""
     if request.role_profile is None:
         message = (
-            "No target role profile was supplied by the upstream agent; "
-            "recommendations are not role-matched."
+            "No target role is set, so the courses aren't ranked by career direction."
         )
         notes.append(message)
         _add_diagnostic(

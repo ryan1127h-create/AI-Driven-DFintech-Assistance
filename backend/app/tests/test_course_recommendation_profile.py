@@ -55,6 +55,7 @@ def stubs(monkeypatch):
     monkeypatch.setattr(prefetch, "list_curriculum_rules", lambda: [])
     monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: FACTS)
     monkeypatch.setattr(prefetch, "derived_course_notes", lambda uid: NO_DERIVED)
+    monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: None)
     monkeypatch.setattr(tool.parser, "parse", lambda message, mode: ParsedRequest())
 
 
@@ -159,3 +160,9 @@ def test_the_request_carries_what_the_message_asked_for(monkeypatch):
     assert request["constraints"]["include_codes"] == ["FT5011"]
     assert request["constraints"]["exclude_codes"] == ["FT5003"]
     assert request["constraints"]["workload_style"] == "lecture"
+
+
+def test_consent_off_is_said_in_the_reply_notes(monkeypatch):
+    monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: "consent_personalized_rec")
+    monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: {})
+    assert any("Personalised recommendations are turned off" in note for note in prefetch.prefetch("u1", None).notes)

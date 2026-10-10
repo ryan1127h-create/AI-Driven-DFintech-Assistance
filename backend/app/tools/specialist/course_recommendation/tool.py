@@ -19,6 +19,7 @@ import concurrent.futures
 from app.domains.specialist.course_recommendation.interface import recommend_courses
 from app.core.logging import get_logger
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
+from app.tools.specialist.course_recommendation.gate import input_needs
 from app.tools.specialist.course_recommendation.s1_understanding import parser
 from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note
@@ -91,6 +92,7 @@ COURSE_RECOMMENDATION_TOOL = Tool(
     handler=_handler,
     fallback=_fallback,
     trigger_intents=frozenset({"course_recommendation"}),
+    input_needs=input_needs,
     # The selection is deterministic and renderer.py checks the reply
     # against the result, so evaluation would only add a model call.
     skip_evaluation=True,

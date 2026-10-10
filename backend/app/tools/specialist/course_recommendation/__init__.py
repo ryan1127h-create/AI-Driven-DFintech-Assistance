@@ -3,6 +3,8 @@ Course recommendation tool — the orchestrator adapter for the
 course_recommendation specialist domain. The packages follow the
 workflow's tool-side stages:
 
+    gate.py           what to ask the student for first (or alongside)
+    s1_understanding/ read the message into a structured request
     s2_assembly/      gather profile and knowledge-base data, build the report
     s7_presentation/  render the domain result into the chat reply and check it
 
