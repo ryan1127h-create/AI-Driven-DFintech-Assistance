@@ -106,8 +106,19 @@ class ExcludedCourse(TypedDict, total=False):
         "needs_review",
         "level_not_countable",
         "excluded_by_student",
+        "prerequisite_unmet",
+        "not_offered_in_term",
     ]
     related_course_code: str
+
+
+@dataclass(frozen=True)
+class PlanTerm:
+    """The semester a plan is for (see contracts.PlanningInput)."""
+
+    ay: str
+    semester: int
+    label: str
 
 
 @dataclass(frozen=True)

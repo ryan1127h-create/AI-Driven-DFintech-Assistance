@@ -20,8 +20,10 @@ from app.domains.specialist.course_recommendation.models import (
     CandidatePool,
     Course,
     ExcludedCourse,
+    PlanTerm,
 )
 from app.domains.specialist.course_recommendation.policy import curriculum as cs
+from app.domains.specialist.course_recommendation.stages.s3_constraints import prerequisites
 
 _COURSE_CODE = re.compile(r"^[A-Z]{2,4}\d{4}[A-Z]?$")
 
@@ -74,6 +76,7 @@ def build_candidate_pool(
     completed_codes: list[str],
     role_skills: list[str],
     excluded_codes: list[str] = (),
+    term: PlanTerm | None = None,
 ) -> CandidatePool:
     """
     Applies the HARD rules only:
@@ -82,11 +85,15 @@ def build_candidate_pool(
       3. Eligible candidates = can_recommend courses, minus completed, minus
          courses flagged needs_review, minus courses whose preclusion_codes
          name a completed course.
-      4. Prerequisite SOFT caution (does not exclude): a still-eligible
-         course whose prerequisite text names a real catalogue course code
-         that is not among the student's completed courses. Free-text
-         prerequisites with no checkable course code (e.g. "instructor's
-         consent") never trigger this — there is nothing to verify.
+      4. Prerequisites: a course whose structured prerequisites aren't met
+         by the completed courses is a SOFT caution — unless a semester is
+         being planned (`term`), when it can't be taken then and is
+         excluded. A course with only unstructured prerequisite text is a
+         caution when the text names a catalogue course not completed;
+         free text naming no course (e.g. "instructor's consent") never
+         is — there is nothing to verify.
+      4b. When planning a semester whose timetable is on file, a course
+         that doesn't run that semester is excluded.
       5. Courses the student asked to leave out are excluded — except a
          mandatory core course, which the degree requires: it stays, and
          is reported in kept_mandatory.
@@ -106,6 +113,8 @@ def build_candidate_pool(
     skill_gaps = tuple(s for s in role_skills if s not in covered_skills)
 
     student_excluded = set(excluded_codes)
+    done = set(completed_recognized)
+    check_timetable = term is not None and prerequisites.timetable_known(courses, term)
     kept_mandatory: list[str] = []
     eligible: list[Course] = []
     excluded_courses: list[ExcludedCourse] = []
@@ -152,12 +161,32 @@ def build_candidate_pool(
                 }
             )
             continue
-        named_prereq_codes = _catalogue_codes_in(course.prerequisite_text, catalogue_codes)
-        if named_prereq_codes and not _codes_in(course.prerequisite_text, completed_recognized):
-            prerequisite_cautions.append(course.code)
+        if check_timetable and not prerequisites.runs_in(course, term):
+            excluded_courses.append({"course_code": course.code, "reason": "not_offered_in_term"})
+            continue
+        if course.prerequisite_groups:
+            unmet = prerequisites.unmet_groups(course, done)
+            if unmet and term is not None:
+                excluded_courses.append({
+                    "course_code": course.code,
+                    "reason": "prerequisite_unmet",
+                    "related_course_code": prerequisites.describe_group(unmet[0]),
+                })
+                continue
+            if unmet:
+                prerequisite_cautions.append(course.code)
+        else:
+            named_prereq_codes = _catalogue_codes_in(course.prerequisite_text, catalogue_codes)
+            if named_prereq_codes and not _codes_in(course.prerequisite_text, completed_recognized):
+                prerequisite_cautions.append(course.code)
         eligible.append(course)
 
     notes: list[str] = []
+    if term is not None and not check_timetable:
+        notes.append(
+            f"The timetable for {term.label} isn't published yet, so the plan can't "
+            "check which courses run that semester or when."
+        )
     if completed_unrecognized:
         notes.append(
             "Not found in the course catalogue and ignored: "

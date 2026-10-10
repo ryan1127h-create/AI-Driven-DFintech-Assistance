@@ -193,3 +193,22 @@ def test_a_time_window_must_be_two_ordered_clock_times():
     for start, end in (("21:00", "18:00"), ("6pm", "11pm"), ("25:00", "26:00")):
         with pytest.raises(ValidationError):
             TimeWindowInput(start=start, end=end)
+
+
+def test_a_semester_plan_explains_why_a_requested_course_cant_be_taken():
+    session = lambda s: [{"ay": "2026-2027", "semester": s, "lesson_type": "Lecture", "class_no": "1",
+                          "day": "Monday", "start": "18:30", "end": "21:30"}]
+    catalog = [
+        {"code": "IT5006", "title": "Data Analytics", "units": 4, "can_recommend": True, "sessions": session(2)},
+        {"code": "FT5011", "title": "Deep Learning", "units": 4, "can_recommend": True, "sessions": session(1)},
+        {"code": "FT5010", "title": "Algo Trading", "units": 4, "can_recommend": True, "sessions": session(2),
+         "prerequisites": {"all_of": [["IT5001", "IT5001X"]]}},
+    ]
+    result = interface.recommend_courses({
+        "course_catalog": catalog, "mode": "semester_plan",
+        "planning": {"ay": "2026-2027", "semester": 2, "label": "AY2026/27 Sem2"},
+        "constraints": {"include_codes": ["FT5011", "FT5010"]},
+    })
+    notes = " ".join(result["notes"])
+    assert "FT5011 can't be recommended: it doesn't run in the semester being planned." in notes
+    assert "FT5010 can't be recommended: its prerequisite isn't completed yet." in notes

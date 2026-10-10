@@ -35,6 +35,7 @@ from app.domains.specialist.course_recommendation.models import (
     DegreeProgress,
     Group,
     ModeInput,
+    PlanTerm,
     RecommendationResult,
     RequirementSlot,
     Session,
@@ -248,6 +249,14 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
     )
 
 
+def _plan_term(request: CourseRecommendationInput) -> PlanTerm | None:
+    """The semester being planned, for a semester_plan request."""
+    planning = request.planning
+    if request.mode != "semester_plan" or planning is None:
+        return None
+    return PlanTerm(ay=planning.ay, semester=planning.semester, label=planning.label)
+
+
 def _mode_for(request: CourseRecommendationInput, notes: list[str], diagnostics: list[WorkflowDiagnostic]) -> str:
     """The mode to run: the requested one when it's available."""
     if request.mode in MODES:
@@ -383,6 +392,8 @@ def _note_unavailable_requests(
         "needs_review": "its course details are still being checked",
         "precluded_by_completed_course": "a course you've completed precludes it",
         "level_not_countable": "its level doesn't count toward the degree",
+        "prerequisite_unmet": "its prerequisite isn't completed yet",
+        "not_offered_in_term": "it doesn't run in the semester being planned",
     }
     for code in requested:
         if code in eligible:
@@ -412,7 +423,7 @@ def _build_scoped_pool(
         stage_results=stage_results,
         operation=lambda: eligibility.build_candidate_pool(
             courses, request.background.completed_courses, role_skills,
-            request.constraints.exclude_codes,
+            request.constraints.exclude_codes, _plan_term(request),
         ),
     )
     _record_pool_diagnostics(pool, notes, diagnostics, request.request_id)
