@@ -31,6 +31,7 @@ import {
 import { cn } from "../../utils/cn";
 import { formatTime } from "../../utils/format";
 import OnboardingFlow from "./onboarding/OnboardingFlow";
+import ConsentCard from "./chat/ConsentCard";
 import QuickFillCard from "./chat/QuickFillCard";
 import SaveSuggestions from "./chat/SaveSuggestions";
 import ReactMarkdown from "react-markdown";
@@ -119,6 +120,9 @@ function ChatView({ user, profileDone, onOpenProfile }) {
   const [sessionId, setSessionId] = useState(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  // Card fields dismissed since the last message was sent; they go out
+  // with the next one, so the backend stops offering them this session.
+  const pendingDeclines = useRef([]);
   const meta = ROLE_META[user?.role];
   const prompts = suggestedPrompts[user?.role] || [];
 
@@ -128,6 +132,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
 
     setSessionId(selectedSessionId);
     clearMessages();
+    pendingDeclines.current = [];
 
     if (!selectedSessionId) {
       return () => {
@@ -189,11 +194,14 @@ function ChatView({ user, profileDone, onOpenProfile }) {
 
   const timeNow = () => formatTime(new Date());
 
-  const sendMessage = async (text, prompt) => {
+  // declinedFields: card fields the user skipped to get this answer.
+  const sendMessage = async (text, prompt, declinedFields = []) => {
     const promptObj = typeof prompt === "string" ? { text: prompt } : prompt;
     const content = (text || promptObj?.text || input).trim();
 
     if (!content || isStreaming) return;
+    const declined = [...new Set([...pendingDeclines.current, ...declinedFields])];
+    pendingDeclines.current = [];
 
     addMessage({ role: "user", content, time: timeNow() });
     setInput("");
@@ -222,7 +230,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
     };
 
     try {
-      await sendMessageStream(content, { session_id: sessionId }, {
+      await sendMessageStream(content, { session_id: sessionId, declined_fields: declined }, {
         onStep: (event) => {
           updateLastMessage((m) => ({ ...m, steps: [...(m.steps || []), event] }));
         },
@@ -243,6 +251,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
               content: data.reply,
               streaming: false,
               card: data.card || null,
+              supplementCard: data.supplement_card || null,
               saveSuggestions: data.save_suggestions || [],
               intent: classified?.intents?.join(", ") || "AI chat",
               source: data.agent_used || "AI Assistant",
@@ -314,6 +323,10 @@ function ChatView({ user, profileDone, onOpenProfile }) {
                   onRollback={handleRollback}
                   cardActive={i === messages.length - 1 && !isStreaming}
                   onCardAnswered={() => sendMessage(messages[i - 1]?.content)}
+                  onCardSkipped={(fields) => sendMessage(messages[i - 1]?.content, null, fields)}
+                  onCardDismissed={(fields) => {
+                    pendingDeclines.current = [...pendingDeclines.current, ...fields];
+                  }}
                 />
               ),
             )}
@@ -417,7 +430,9 @@ function UserMessage({ msg }) {
   );
 }
 
-function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, onCardAnswered }) {
+function AssistantMessage({
+  msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, onCardAnswered, onCardSkipped, onCardDismissed,
+}) {
   const [copied, setCopied] = useState(false);
   // A live reply carries its sources inside its text; one loaded from
   // history has them alongside.
@@ -501,9 +516,22 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback, car
             </div>
           )}
 
-          {/* A question the reply needs answered, answerable in place */}
+          {/* What the reply needs before it can answer, answerable in place */}
           {msg.card?.kind === "quick_fill" && (
-            <QuickFillCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} />
+            <QuickFillCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} onSkip={onCardSkipped} />
+          )}
+          {msg.card?.kind === "consent" && (
+            <ConsentCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} />
+          )}
+
+          {/* Details that would sharpen the answer, never in the way */}
+          {msg.supplementCard && (
+            <QuickFillCard
+              card={msg.supplementCard}
+              active={cardActive}
+              onAnswered={onCardAnswered}
+              onDismiss={onCardDismissed}
+            />
           )}
 
           {msg.saveSuggestions?.length > 0 && <SaveSuggestions suggestions={msg.saveSuggestions} />}
