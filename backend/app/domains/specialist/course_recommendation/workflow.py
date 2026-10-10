@@ -35,6 +35,9 @@ from app.domains.specialist.course_recommendation.models import (
     DegreeProgress,
     Group,
     ModeInput,
+    ModeOutput,
+    PlanContext,
+    PlanPool,
     PlanTerm,
     RecommendationResult,
     RequirementSlot,
@@ -50,12 +53,17 @@ from app.domains.specialist.course_recommendation.stages.s5_scoring import evide
 from app.domains.specialist.course_recommendation.stages.s6_modes.ad_hoc import AdHoc
 from app.domains.specialist.course_recommendation.stages.s6_modes.base import ModeStrategy
 from app.domains.specialist.course_recommendation.stages.s6_modes.degree_overview import DegreeOverview
+from app.domains.specialist.course_recommendation.stages.s6_modes.semester_plan import SemesterPlan
 
 logger = get_logger(__name__)
 T = TypeVar("T")
 
-# S6 output modes by name; semester_plan isn't available yet (see _mode_for).
-MODES: dict[str, ModeStrategy] = {"degree_overview": DegreeOverview(), "ad_hoc": AdHoc()}
+# S6 output modes by name (see _mode_for for when the requested one can't run).
+MODES: dict[str, ModeStrategy] = {
+    "degree_overview": DegreeOverview(),
+    "ad_hoc": AdHoc(),
+    "semester_plan": SemesterPlan(),
+}
 
 
 def recommend_courses(request: CourseRecommendationInput) -> RecommendationResult:
@@ -232,21 +240,42 @@ def recommend_courses(request: CourseRecommendationInput) -> RecommendationResul
         },
     )
 
-    groups = _process_slots(
+    output = _process_slots(
         request,
         mode,
         slots,
         {c.code: c for c in courses},
         pool,
+        progress,
         role_skills,
         notes,
         diagnostics,
         stage_results,
     )
+    notes.extend(output.notes)
+    plan = output.plan
+    if plan is not None:
+        plan = {**plan, "projected_progress": _projected_progress(courses, pool, plan["courses"])}
 
     return _assemble_result(
-        request, mode, role_title, courses, pool, progress, groups, notes, diagnostics, stage_results
+        request, mode, role_title, courses, pool, progress, output.groups, notes, diagnostics, stage_results, plan,
     )
+
+
+def _projected_progress(courses: list[Course], pool: CandidatePool, planned: list[str]) -> dict:
+    """Degree progress once the planned courses are done too."""
+    by_code = {c.code: c for c in courses}
+    done = tuple(dict.fromkeys([*pool.completed_recognized, *planned]))
+    units = pool.completed_units + sum(by_code[c].units for c in planned if c in by_code)
+    progress = degree_progress_stage.compute(courses, done, units)
+    return {
+        "core_mandatory_remaining": list(progress.core_mandatory_remaining),
+        "core_choice_remaining_count": progress.core_choice_remaining_count,
+        "elective_units_done": progress.elective_units_done,
+        "elective_units_target": progress.elective_units_target,
+        "total_units_done": progress.total_units_done,
+        "total_units_target": progress.total_units_target,
+    }
 
 
 def _mostly_avoided_note(pool: CandidatePool, ctx: signals.ScoringContext) -> str | None:
@@ -274,12 +303,13 @@ def _plan_term(request: CourseRecommendationInput) -> PlanTerm | None:
 
 
 def _mode_for(request: CourseRecommendationInput, notes: list[str], diagnostics: list[WorkflowDiagnostic]) -> str:
-    """The mode to run: the requested one when it's available."""
-    if request.mode in MODES:
+    """The mode to run: the requested one when it can run — a semester
+    plan needs to know which semester."""
+    if request.mode in MODES and (request.mode != "semester_plan" or request.planning is not None):
         return request.mode
     message = (
-        "Planning a single semester isn't available yet, so this is the overall "
-        "recommendation for the rest of the degree."
+        "A plan for a single semester couldn't be made without knowing which semester, "
+        "so this is the overall recommendation for the rest of the degree."
     )
     notes.append(message)
     _add_diagnostic(
@@ -299,11 +329,12 @@ def _process_slots(
     slots: tuple[RequirementSlot, ...],
     courses_by_code: dict[str, Course],
     pool: CandidatePool,
+    progress: DegreeProgress,
     role_skills: list[str],
     notes: list[str],
     diagnostics: list[WorkflowDiagnostic],
     stage_results: list[WorkflowStageResult],
-) -> list[Group]:
+) -> ModeOutput:
     """S5 (score, then select) and the S6 mode that shapes the result:
     per slot for degree_overview, across all eligible courses for ad_hoc."""
     role = request.role_profile
@@ -355,6 +386,28 @@ def _process_slots(
         )
         return MODES[mode].assemble(ModeInput(top_picks=tuple(top), top_matches_request=matched), pool)
 
+    if mode == "semester_plan":
+        pools = _plan_pools(slots, courses_by_code, progress, scoring_ctx, evidence_ctx)
+        context = PlanContext(
+            term=_plan_term(request),
+            requested_units=request.planning.requested_units,
+            study_mode=request.student.study_mode,
+            units_remaining=progress.total_units_target - progress.total_units_done,
+            level4000_allowance=max(0, cs.MAX_LEVEL_4000_ELECTIVES - progress.elective_level4000_used),
+            done=frozenset(pool.completed_recognized),
+        )
+        output = MODES[mode].assemble(ModeInput(plan_pools=pools, plan_context=context), pool)
+        _record_stage(
+            stage_results,
+            diagnostics,
+            stage="slot_selection",
+            status="success",
+            summary="The semester plan was chosen from every open requirement's candidates.",
+            output={"plan": output.plan},
+            diagnostic_codes=(),
+        )
+        return output
+
     slot_picks: list[SlotPicks] = []
 
     for slot in slots:
@@ -400,6 +453,44 @@ def _process_slots(
         slot_picks.append(SlotPicks(slot=slot, picks=picks))
 
     return MODES[mode].assemble(ModeInput(slot_picks=tuple(slot_picks)), pool)
+
+
+def _plan_pools(
+    slots: tuple[RequirementSlot, ...],
+    courses_by_code: dict[str, Course],
+    progress: DegreeProgress,
+    scoring_ctx: signals.ScoringContext,
+    evidence_ctx: evidence.EvidenceContext,
+) -> tuple[PlanPool, ...]:
+    """The requirements a semester plan draws from, each with its scored,
+    explained candidates and how many courses it still needs. The Vertical
+    groups share one elective need (the degree counts elective units, not
+    Verticals), so they pool into one."""
+    remaining_electives = max(0, progress.elective_units_target - progress.elective_units_done)
+    quotas = {
+        "core_mandatory": len(progress.core_mandatory_remaining),
+        "core_choice": progress.core_choice_remaining_count,
+        "elective": -(-remaining_electives // cs.TYPICAL_ELECTIVE_UNITS),
+        "capstone": 1,
+    }
+    labels = {
+        "core_mandatory": "Mandatory core",
+        "core_choice": "Core course choice (3 of 11 FT50xx)",
+        "elective": "Electives",
+        "capstone": "Capstone",
+    }
+    picks: dict[str, list] = {}
+    for slot in slots:
+        candidates = tuple(courses_by_code[c] for c in slot.eligible_candidates if c in courses_by_code)
+        scored = scorer.score_slot_candidates(candidates, scoring_ctx)
+        picks.setdefault(slot.slot_type, []).extend(selection.pick_all(slot, scored, evidence_ctx))
+    pools = []
+    for kind, kind_picks in picks.items():
+        seen: set[str] = set()
+        unique = [p for p in sorted(kind_picks, key=lambda p: (-p.scored.score, p.scored.course.code))
+                  if not (p.scored.course.code in seen or seen.add(p.scored.course.code))]
+        pools.append(PlanPool(kind=kind, label=labels[kind], quota=quotas[kind], picks=tuple(unique)))
+    return tuple(pools)
 
 
 def _note_unavailable_requests(
@@ -546,6 +637,7 @@ def _assemble_result(
     notes: list[str],
     diagnostics: list[WorkflowDiagnostic],
     stage_results: list[WorkflowStageResult],
+    plan: dict | None = None,
 ) -> RecommendationResult:
     """Attach sources and workflow diagnostics to the final grouped result."""
     _record_stage(
@@ -585,6 +677,7 @@ def _assemble_result(
         sources=sources,
         workflow_status="degraded" if diagnostics else "ok",
         mode=mode,
+        plan=plan,
         diagnostics=tuple(diagnostics),
         stage_results=tuple(stage_results),
     )

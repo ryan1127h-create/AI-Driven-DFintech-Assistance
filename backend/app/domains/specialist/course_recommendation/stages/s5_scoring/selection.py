@@ -108,6 +108,12 @@ def select_top(
     return picks, bool(matching)
 
 
+def pick_all(slot: RequirementSlot, scored: list[ScoredCourse], ctx: EvidenceContext) -> list[Pick]:
+    """Every scored candidate as an explained pick, best-first — for a
+    semester plan, which chooses among all of them itself."""
+    return [_pick(sc, slot, ctx, slot.label) for sc in scored]
+
+
 def select_for_slot(slot: RequirementSlot, scored: list[ScoredCourse], ctx: EvidenceContext) -> list[Pick]:
     return [
         _pick(sc, slot, ctx, slot.label)

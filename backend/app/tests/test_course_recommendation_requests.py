@@ -128,10 +128,10 @@ def test_ad_hoc_falls_back_to_best_fits_and_says_so_when_nothing_matches():
     assert group["recommendations"] and group["note"].startswith("No course matched")
 
 
-def test_a_semester_plan_runs_as_the_overview_for_now():
+def test_a_semester_plan_without_its_semester_runs_as_the_overview():
     result = interface.recommend_courses(_request(mode="semester_plan"))
-    assert result["mode"] == "degree_overview"
-    assert any("isn't available yet" in note for note in result["notes"])
+    assert result["mode"] == "degree_overview" and result["plan"] is None
+    assert any("without knowing which semester" in note for note in result["notes"])
 
 
 def test_exclusions_and_unavailable_requests_are_explained():

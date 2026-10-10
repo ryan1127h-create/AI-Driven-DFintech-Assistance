@@ -39,6 +39,25 @@ def lesson_options(course: Course, term: Term) -> dict[str, list[tuple[Session, 
     return {lesson: [tuple(slots) for slots in by_class.values()] for lesson, by_class in classes.items()}
 
 
+def _classes_clash(a: tuple[Session, ...], b: tuple[Session, ...]) -> tuple[Session, Session] | None:
+    return next(((x, y) for x in a for y in b if overlaps(x, y)), None)
+
+
+def clash(a: Course, b: Course, term: Term) -> tuple[Session, Session] | None:
+    """Two overlapping slots that can't be avoided when taking both
+    courses in `term`: some lesson type of each where every class of one
+    overlaps every class of the other. None when classes can be chosen
+    around it. (Checked one pair of lesson types at a time — enough for
+    the programme's timetable, where a lesson type rarely offers more than
+    a handful of classes.)"""
+    for a_classes in lesson_options(a, term).values():
+        for b_classes in lesson_options(b, term).values():
+            pairs = [_classes_clash(x, y) for x in a_classes for y in b_classes]
+            if pairs and all(pairs):
+                return pairs[0]
+    return None
+
+
 def _in_windows(slot: Session, windows: tuple[tuple[str, str], ...], days: frozenset[str]) -> bool:
     return slot.day in days or any(slot.start < end and start < slot.end for start, end in windows)
 

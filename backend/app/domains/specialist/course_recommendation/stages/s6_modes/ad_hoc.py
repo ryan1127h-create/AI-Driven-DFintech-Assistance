@@ -9,7 +9,7 @@ Pure function, no I/O.
 
 from __future__ import annotations
 
-from app.domains.specialist.course_recommendation.models import CandidatePool, Group, ModeInput
+from app.domains.specialist.course_recommendation.models import CandidatePool, ModeInput, ModeOutput
 from app.domains.specialist.course_recommendation.stages.s6_modes import recommendation
 
 NO_MATCH_NOTE = (
@@ -19,8 +19,8 @@ NO_MATCH_NOTE = (
 
 
 class AdHoc:
-    def assemble(self, selected: ModeInput, pool: CandidatePool) -> list[Group]:
-        return [{
+    def assemble(self, selected: ModeInput, pool: CandidatePool) -> ModeOutput:
+        return ModeOutput(groups=[{
             "slot_id": "ad_hoc",
             "slot_type": "ad_hoc",
             "label": "Courses matching your request",
@@ -33,4 +33,4 @@ class AdHoc:
                 for pick in selected.top_picks
             ],
             "note": None if selected.top_matches_request else NO_MATCH_NOTE,
-        }]
+        }])

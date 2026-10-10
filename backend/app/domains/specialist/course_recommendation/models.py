@@ -28,8 +28,8 @@ RequirementRole = Literal[
 WorkloadShape = Literal["lecture_heavy", "project_heavy", "balanced"]
 
 # The four kinds of recommendation group S4 can open, plus the single
-# list the ad_hoc mode returns.
-SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone", "ad_hoc"]
+# list the ad_hoc mode returns and the plans semester_plan returns.
+SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone", "ad_hoc", "semester_plan"]
 
 Mode = Literal["degree_overview", "ad_hoc", "semester_plan"]
 
@@ -306,16 +306,57 @@ class SlotPicks:
     note: str | None = None
 
 
+PoolKind = Literal["core_mandatory", "core_choice", "elective", "capstone"]
+
+
+@dataclass(frozen=True)
+class PlanPool:
+    """One requirement a semester plan can draw courses from: its scored,
+    explained candidates best-first, and how many of them the requirement
+    still needs (mandatory courses are all needed)."""
+
+    kind: PoolKind
+    label: str
+    quota: int
+    picks: tuple[Pick, ...]
+
+
+@dataclass(frozen=True)
+class PlanContext:
+    """What a semester plan is planned against."""
+
+    term: PlanTerm
+    requested_units: int | None
+    study_mode: str | None
+    units_remaining: int  # to graduate
+    level4000_allowance: int  # 4000-level electives that can still count
+    done: frozenset[str]  # completed and current courses
+
+
 @dataclass(frozen=True)
 class ModeInput:
     """What S5 selected, handed to the S6 mode: each open slot with its
-    picks (degree_overview), and the top picks across all slots with
-    whether they match what the student asked for (ad_hoc). A workflow
-    fills only what the chosen mode reads."""
+    picks (degree_overview); the top picks across all slots with whether
+    they match what the student asked for (ad_hoc); the requirement pools
+    and planning context (semester_plan). A workflow fills only what the
+    chosen mode reads."""
 
     slot_picks: tuple[SlotPicks, ...] = ()
     top_picks: tuple[Pick, ...] = ()
     top_matches_request: bool = True
+    plan_pools: tuple[PlanPool, ...] = ()
+    plan_context: PlanContext | None = None
+
+
+@dataclass(frozen=True)
+class ModeOutput:
+    """What an S6 mode returns: the groups, a semester plan's summary
+    (units, budget, clashes, alternatives — None outside semester_plan),
+    and notes for the reply."""
+
+    groups: list[Group]
+    plan: dict | None = None
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -334,5 +375,8 @@ class RecommendationResult:
     sources: tuple[str, ...]
     workflow_status: Literal["ok", "degraded"] = "ok"
     mode: Mode = "degree_overview"
+    # A semester plan's summary (see ModeOutput.plan), with its projected
+    # degree progress.
+    plan: dict | None = None
     diagnostics: tuple[WorkflowDiagnostic, ...] = field(default_factory=tuple)
     stage_results: tuple[WorkflowStageResult, ...] = field(default_factory=tuple)

@@ -8,7 +8,7 @@ Pure function, no I/O.
 
 from __future__ import annotations
 
-from app.domains.specialist.course_recommendation.models import CandidatePool, Group, ModeInput, SlotPicks
+from app.domains.specialist.course_recommendation.models import CandidatePool, Group, ModeInput, ModeOutput, SlotPicks
 from app.domains.specialist.course_recommendation.stages.s6_modes import recommendation
 
 SECONDARY_VERTICAL_NOTE = (
@@ -37,5 +37,5 @@ def _group(entry: SlotPicks, pool: CandidatePool) -> Group:
 
 
 class DegreeOverview:
-    def assemble(self, selected: ModeInput, pool: CandidatePool) -> list[Group]:
-        return [_group(entry, pool) for entry in selected.slot_picks]
+    def assemble(self, selected: ModeInput, pool: CandidatePool) -> ModeOutput:
+        return ModeOutput(groups=[_group(entry, pool) for entry in selected.slot_picks])
