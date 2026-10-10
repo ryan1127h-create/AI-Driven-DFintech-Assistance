@@ -86,3 +86,28 @@ def test_parsing_runs_alongside_data_gathering(monkeypatch):
     state = TurnState(messages=[HumanMessage("python courses")], user_id="u1", course_mode_hint="ad_hoc")
     parsed, prefetched = tool._understand_and_gather(state, "python courses")
     assert parsed.mode == "ad_hoc" and prefetched == "prefetched"
+
+
+def test_semester_planning_details_are_read(monkeypatch):
+    _reply(monkeypatch, {
+        "target_semester": "next", "unit_cap": 12,
+        "avoid_time_windows": [{"start": "18:00", "end": "23:00"}], "avoid_days": ["Friday"],
+    })
+    parsed = parser.parse("…", "semester_plan")
+    assert (parsed.target_semester, parsed.unit_cap) == ("next", 12)
+    assert parsed.avoid_time_windows == [{"start": "18:00", "end": "23:00"}] and parsed.avoid_days == ["Friday"]
+
+
+def test_bad_planning_details_are_dropped(monkeypatch):
+    _reply(monkeypatch, {
+        "target_semester": "summer", "unit_cap": 400,
+        "avoid_time_windows": [{"start": "evening"}, {"start": "21:00", "end": "18:00"}], "avoid_days": ["Funday"],
+    })
+    parsed = parser.parse("…", "semester_plan")
+    assert parsed.target_semester is None and parsed.unit_cap is None
+    assert parsed.avoid_time_windows == [] and parsed.avoid_days == []
+
+
+def test_a_single_time_window_given_on_its_own_is_kept(monkeypatch):
+    _reply(monkeypatch, {"avoid_time_windows": {"start": "18:00", "end": "23:00"}})
+    assert parser.parse("…", "semester_plan").avoid_time_windows == [{"start": "18:00", "end": "23:00"}]

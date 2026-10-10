@@ -13,12 +13,15 @@ the profile for this request (e.g. a Capstone intent said in passing).
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly.mappers import (
     course_skills,
     map_course,
     map_rule,
 )
+from app.tools.specialist.course_recommendation.s2_assembly import terms
 from app.tools.specialist.course_recommendation.s2_assembly.prefetched import LEVEL_FIELDS, Prefetched
 
 _MAX_TEXT = 300  # the report's LongText limit
@@ -70,7 +73,9 @@ def _student(facts: dict, parsed: ParsedRequest) -> dict:
     interest = [t for t in facts.get("track_interest") or [] if t in tracks]
     chosen = facts.get("track_chosen")
     intent = parsed.capstone_intent or facts.get("capstone_intent")
+    study_mode = parsed.study_mode or facts.get("study_mode")
     return {
+        "study_mode": study_mode if study_mode in ("full_time", "part_time", "undecided") else None,
         "capstone_intent": intent if intent in ("capstone_research", "capstone_internship", "electives_instead") else None,
         "track_interest": interest,
         "track_chosen": chosen if chosen in tracks else None,
@@ -85,10 +90,26 @@ def _constraints(parsed: ParsedRequest) -> dict:
         "keywords": parsed.keywords,
         "vertical_preference": parsed.vertical_preference,
         "workload_style": parsed.workload_style,
+        "avoid_time_windows": parsed.avoid_time_windows,
+        "avoid_days": parsed.avoid_days,
     }
 
 
-def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None) -> dict:
+def _planning(parsed: ParsedRequest, today: date) -> dict | None:
+    """For a semester plan: the semester asked about (the next one unless
+    named) and the units asked for."""
+    if parsed.mode != "semester_plan":
+        return None
+    term = terms.resolve(parsed.target_semester, today)
+    return {
+        "ay": term.schedule_ay,
+        "semester": term.semester,
+        "label": term.label,
+        "requested_units": parsed.unit_cap,
+    }
+
+
+def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None, today: date | None = None) -> dict:
     """The complete report course_recommendation consumes. Derived
     readiness gaps extend the stated tech level. Without a parsed request
     the report asks for the overall recommendation, with no constraints."""
@@ -102,6 +123,7 @@ def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None) -
     role_names = {row["tag"]: row["name_en"] for row in prefetched.role_tags}
     return {
         "mode": parsed.mode,
+        "planning": _planning(parsed, today or date.today()),
         "goals": {"target_role": target_role},
         "background": {
             "academic_background": _academic_background(prefetched.fact_labels),

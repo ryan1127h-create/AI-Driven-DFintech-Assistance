@@ -181,3 +181,15 @@ def test_sessions_and_structured_requirements_reach_the_domain():
     [course] = workflow._courses_from_report(request)
     assert course.sessions[0].day == "Monday" and course.sessions[0].semester == 2
     assert course.prerequisite_groups == (("IT5001X",),) and course.corequisite_codes == ("IT5006",)
+
+
+def test_a_time_window_must_be_two_ordered_clock_times():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.domains.specialist.course_recommendation.contracts import TimeWindowInput
+
+    assert TimeWindowInput(start="18:00", end="23:00").start == "18:00"
+    for start, end in (("21:00", "18:00"), ("6pm", "11pm"), ("25:00", "26:00")):
+        with pytest.raises(ValidationError):
+            TimeWindowInput(start=start, end=end)

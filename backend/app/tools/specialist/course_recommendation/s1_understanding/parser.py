@@ -21,6 +21,7 @@ from app.tools.specialist.course_recommendation.s1_understanding.schema import (
     SKILLS,
     STUDY_MODES,
     TRACKS,
+    WEEKDAYS,
     Mode,
     ParsedRequest,
 )
@@ -50,6 +51,15 @@ work, "lecture" if they prefer lecture- or discussion-based courses, else null.
 - "study_mode": {" or ".join(STUDY_MODES)} if they say how they study, else null.
 - "capstone_intent": {", ".join(CAPSTONE_INTENTS)} if they say whether they'll \
 do the Capstone (research or internship) or take electives instead, else null.
+- "target_semester": "next" if they ask about the next semester or term \
+(e.g. "下学期", "next sem"), "S1" or "S2" if they name Semester 1 or 2, else null.
+- "unit_cap": the number of units (MCs, 学分) they want to take that \
+semester, as an integer, else null.
+- "avoid_time_windows": a LIST of time ranges they want to avoid, each \
+{{"start": "HH:MM", "end": "HH:MM"}} in 24-hour time — "no evening classes" \
+is [{{"start": "18:00", "end": "23:00"}}], "no morning classes" \
+[{{"start": "08:00", "end": "12:00"}}].
+- "avoid_days": weekdays they want to keep free, from: {", ".join(WEEKDAYS)}.
 """
 
 

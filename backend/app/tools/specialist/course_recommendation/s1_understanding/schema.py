@@ -30,6 +30,9 @@ SKILLS = (
 )
 STUDY_MODES = ("full_time", "part_time")
 CAPSTONE_INTENTS = ("capstone_research", "capstone_internship", "electives_instead")
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+_CLOCK = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
 
 _COURSE_CODE = re.compile(r"^[A-Z]{2,4}\d{4}[A-Z]?$")
 _MAX_ITEMS = 10
@@ -55,8 +58,45 @@ class ParsedRequest(BaseModel):
     # Profile facts the user stated in the message (for save suggestions).
     study_mode: Literal["full_time", "part_time"] | None = None
     capstone_intent: Literal["capstone_research", "capstone_internship", "electives_instead"] | None = None
+    # For a semester plan: which semester, how many units, and the times
+    # and days to keep free.
+    target_semester: Literal["next", "S1", "S2"] | None = None
+    unit_cap: int | None = None
+    avoid_time_windows: list[dict] = []
+    avoid_days: list[str] = []
     # True when the message couldn't be parsed and this is the default.
     parse_failed: bool = False
+
+    @field_validator("target_semester", mode="before")
+    @classmethod
+    def _semester(cls, value):
+        return value if value in ("next", "S1", "S2") else None
+
+    @field_validator("unit_cap", mode="before")
+    @classmethod
+    def _units(cls, value):
+        return value if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 30 else None
+
+    @field_validator("avoid_time_windows", mode="before")
+    @classmethod
+    def _windows(cls, values):
+        if isinstance(values, dict):  # one window given on its own
+            values = [values]
+        if not isinstance(values, list):
+            return []
+        windows = []
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            start, end = item.get("start"), item.get("end")
+            if isinstance(start, str) and isinstance(end, str) and _CLOCK.fullmatch(start) and _CLOCK.fullmatch(end) and start < end:
+                windows.append({"start": start, "end": end})
+        return windows[:5]
+
+    @field_validator("avoid_days", mode="before")
+    @classmethod
+    def _days(cls, values):
+        return _keep(values, WEEKDAYS)
 
     @field_validator("include_codes", "exclude_codes", mode="before")
     @classmethod

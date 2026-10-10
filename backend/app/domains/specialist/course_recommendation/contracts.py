@@ -25,6 +25,8 @@ TrackId = Literal[
     "digital_financial_transactions_risk",
 ]
 WorkloadStyle = Literal["less_project", "lecture"]
+StudyMode = Literal["full_time", "part_time", "undecided"]
+Weekday = Literal["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 CapstoneIntent = Literal["capstone_research", "capstone_internship", "electives_instead"]
 # The skill vocabulary of the knowledge base's role tags
 # (knowledge.tags_definition.required_skills).
@@ -108,9 +110,43 @@ class BackgroundInput(_StrictInputModel):
         return _normalize_completed_courses(value)
 
 
+def _is_clock(value: str) -> bool:
+    """ "HH:MM", 24-hour."""
+    hours, sep, minutes = value.partition(":")
+    return (
+        sep == ":" and len(hours) == 2 and len(minutes) == 2 and hours.isdigit() and minutes.isdigit()
+        and int(hours) < 24 and int(minutes) < 60
+    )
+
+
+class TimeWindowInput(_StrictInputModel):
+    """A daily time range to keep free, 24-hour "HH:MM"."""
+
+    start: ShortText
+    end: ShortText
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "TimeWindowInput":
+        if not (_is_clock(self.start) and _is_clock(self.end) and self.start < self.end):
+            raise ValueError("a time window is two HH:MM times, start before end")
+        return self
+
+
+class PlanningInput(_StrictInputModel):
+    """The semester a semester_plan request is for, and the units the
+    student asked for (None: none stated — the domain applies the
+    programme's default load for the study mode)."""
+
+    ay: ShortText  # the timetable's form, e.g. "2026-2027"
+    semester: int = Field(ge=1, le=2)
+    label: ShortText  # the student record's form, e.g. "AY2026/27 Sem2"
+    requested_units: int | None = Field(default=None, ge=1, le=30)
+
+
 class StudentInput(_StrictInputModel):
     """Study-plan facts about the student (profile, or stated this turn)."""
 
+    study_mode: StudyMode | None = None
     capstone_intent: CapstoneIntent | None = None
     track_interest: list[TrackId] = Field(default_factory=list, max_length=3)
     # The Vertical the student has declared (school records).
@@ -131,6 +167,9 @@ class RecommendationConstraints(_StrictInputModel):
     keywords: list[ShortText] = Field(default_factory=list, max_length=10)
     vertical_preference: list[TrackId] = Field(default_factory=list, max_length=3)
     workload_style: WorkloadStyle | None = None
+    # Times and days the student wants kept free (a scoring preference).
+    avoid_time_windows: list[TimeWindowInput] = Field(default_factory=list, max_length=5)
+    avoid_days: list[Weekday] = Field(default_factory=list, max_length=7)
 
     @field_validator("candidate_course_codes")
     @classmethod
@@ -280,6 +319,8 @@ class CourseRecommendationInput(_StrictInputModel):
     # to retrieve profile or course data.
     user_id: str | None = Field(default=None, min_length=1, max_length=100)
     mode: Mode = "degree_overview"
+    # Required for a semester_plan request; ignored otherwise.
+    planning: PlanningInput | None = None
     goals: GoalInput = Field(default_factory=GoalInput)
     background: BackgroundInput = Field(default_factory=BackgroundInput)
     student: StudentInput = Field(default_factory=StudentInput)
