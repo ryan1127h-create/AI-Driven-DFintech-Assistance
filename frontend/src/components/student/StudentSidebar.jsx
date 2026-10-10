@@ -60,6 +60,9 @@ export default function StudentSidebar() {
   const navItems = [
     { key: "profile", to: "/workspace/profile", label: "Profile", icon: User },
     ...pagesForStage(lifecycleStage),
+    ...(user?.role === "enrolled_student"
+      ? [{ key: "alumni-match", to: "/alumni-match", label: "Alumni Match", icon: MessageSquare }]
+      : []),
   ];
 
   // Loaded once per user, then reloaded quietly (no loading state) whenever
@@ -155,11 +158,30 @@ export default function StudentSidebar() {
         </button>
         <button
           onClick={startNewChat}
-          className="mt-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-app-primary hover:bg-brand-400 transition shadow-glow"
+          className="btn-primary mt-4 flex h-10 w-10 !p-0 rounded-xl text-white"
           title="New Chat"
         >
           <Plus size={20} />
         </button>
+        <nav className="mt-4 flex w-full flex-col items-center gap-1" aria-label="Student navigation">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.key}
+                to={item.to}
+                title={item.label}
+                aria-label={item.label}
+                className={({ isActive }) => cn(
+                  "sidebar-item h-10 w-10 justify-center px-0",
+                  isActive && "sidebar-item-active",
+                )}
+              >
+                <Icon size={16} />
+              </NavLink>
+            );
+          })}
+        </nav>
         <div className="mt-auto">
           <AccountMenu compact user={user} onSettings={() => setSettingsSection("account")} onLogout={handleLogout} />
         </div>

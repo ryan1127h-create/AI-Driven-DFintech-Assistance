@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { ChevronsUpDown, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { cn } from "../../utils/cn";
+import { useTheme } from "../../context/ThemeContext";
 
 // The user's row at the bottom of the sidebar; opens a small menu with
 // Settings and Log out. `compact` is the collapsed sidebar's avatar only.
@@ -13,9 +14,10 @@ function Avatar({ user, size = "h-8 w-8 text-xs" }) {
   );
 }
 
-export default function AccountMenu({ user, subtitle, onSettings, onLogout, compact }) {
+export default function AccountMenu({ user, subtitle, onSettings, onLogout, compact, showSettings = true, showAppearance = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -50,10 +52,19 @@ export default function AccountMenu({ user, subtitle, onSettings, onLogout, comp
             <p className="truncate text-sm font-medium text-app-primary">{user?.name}</p>
             <p className="truncate text-[11px] text-app-muted">{user?.email}</p>
           </div>
-          <button type="button" role="menuitem" onClick={() => choose(onSettings)}
-            className="mt-1 flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-secondary transition hover:bg-app-hover hover:text-app-primary">
-            <Settings size={14} /> Settings
-          </button>
+          {showSettings && (
+            <button type="button" role="menuitem" onClick={() => choose(onSettings)}
+              className="mt-1 flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-secondary transition hover:bg-app-hover hover:text-app-primary">
+              <Settings size={14} /> Settings
+            </button>
+          )}
+          {showAppearance && (
+            <button type="button" role="menuitem" onClick={() => choose(toggleTheme)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-secondary transition hover:bg-app-hover hover:text-app-primary">
+              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              Appearance: {theme === "dark" ? "Dark" : "Light"}
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={() => choose(onLogout)}
             className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-secondary transition hover:bg-app-hover hover:text-red-400">
             <LogOut size={14} /> Log out

@@ -10,15 +10,19 @@ import ProfilePage from "./pages/ProfilePage";
 import ChecklistPage from "./pages/ChecklistPage";
 import LifecyclePage from "./pages/LifecyclePage";
 import AdminPage from "./pages/AdminPage";
+import AlumniMatchPage from "./pages/AlumniMatchPage";
+import AdminEscalationPage from "./pages/AdminEscalationPage";
 import StudentLayout from "./components/student/StudentLayout";
 import ChatWorkspace from "./components/student/ChatWorkspace";
 import WorkspaceLayout from "./components/student/WorkspaceLayout";
+import AdminLayout from "./components/admin/AdminLayout";
 
-function ProtectedRoute({ children, staffOnly }) {
+function ProtectedRoute({ children, staffOnly, enrolledOnly }) {
   const { role, loading, isStaff } = useRole();
   if (loading) return null;
   if (!role) return <Navigate to="/login" replace />;
   if (staffOnly && !isStaff) return <Navigate to="/app" replace />;
+  if (enrolledOnly && role !== "enrolled_student") return <Navigate to="/app" replace />;
   return children;
 }
 
@@ -43,6 +47,7 @@ export default function App() {
 
               <Route element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>
                 <Route path="/app" element={<ChatWorkspace />} />
+                <Route path="/alumni-match" element={<ProtectedRoute enrolledOnly><AlumniMatchPage /></ProtectedRoute>} />
                 <Route path="/workspace" element={<WorkspaceLayout />}>
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="checklist" element={<StageRoute page="checklist"><ChecklistPage /></StageRoute>} />
@@ -50,7 +55,10 @@ export default function App() {
                 </Route>
               </Route>
 
-              <Route path="/admin" element={<ProtectedRoute staffOnly><AdminPage /></ProtectedRoute>} />
+              <Route element={<ProtectedRoute staffOnly><AdminLayout /></ProtectedRoute>}>
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/escalations" element={<AdminEscalationPage />} />
+              </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
