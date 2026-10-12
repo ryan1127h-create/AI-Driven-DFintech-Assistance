@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import concurrent.futures
 
-from app.domains.specialist.course_recommendation.interface import recommend_courses
 from app.core.logging import get_logger
+from app.domains.specialist.course_recommendation.interface import recommend_courses
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.specialist.course_recommendation.gate import input_needs
 from app.tools.specialist.course_recommendation.s1_understanding import parser

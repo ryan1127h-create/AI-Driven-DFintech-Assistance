@@ -20,11 +20,12 @@ from app.tools.specialist.course_recommendation.s7_presentation.prompts import (
     COURSE_RECOMMENDATION_STYLE_PROMPT,
     SEMESTER_PLAN_STYLE_PROMPT,
 )
-
-_STYLES = {"ad_hoc": AD_HOC_STYLE_PROMPT, "semester_plan": SEMESTER_PLAN_STYLE_PROMPT}
 from app.tools.structured_reply import render_structured_reply, render_template
 
 logger = get_logger(__name__)
+
+# The style prompt for each mode; the overview's is the default.
+_STYLES = {"ad_hoc": AD_HOC_STYLE_PROMPT, "semester_plan": SEMESTER_PLAN_STYLE_PROMPT}
 
 _CORRECTION = """
 
