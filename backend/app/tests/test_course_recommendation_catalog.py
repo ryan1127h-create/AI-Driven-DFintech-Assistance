@@ -72,12 +72,3 @@ def test_workload_shape_balanced_otherwise():
 
 def test_workload_shape_none_when_missing():
     assert catalog.workload_shape_of(None) is None
-
-
-def test_is_project_averse_matches_keyword():
-    assert catalog.is_project_averse("I'd prefer discussion-based courses, less project work")
-
-
-def test_is_project_averse_false_when_no_signal():
-    assert catalog.is_project_averse(None) is False
-    assert catalog.is_project_averse("I enjoy hands-on coding") is False

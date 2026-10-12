@@ -104,7 +104,7 @@ class Settings:
     # tools run and the turn is answered with a single consolidated
     # need-input request instead. Unlike the two kill switches above this
     # costs no LLM call either way, so this exists purely as an emergency
-    # off switch (e.g. a tool's required_input check turns out to be wrong
+    # off switch (e.g. a tool's input_needs check turns out to be wrong
     # in production) rather than for cost/latency isolation.
     enable_input_requirements_gate: bool = (
         os.getenv("ENABLE_INPUT_REQUIREMENTS_GATE", "true").lower() == "true"

@@ -41,7 +41,8 @@ RESULT = {
 
 def test_view_keeps_what_the_reply_needs_and_drops_audit_data():
     view = to_render_view(RESULT)
-    assert set(view) == {"target_role", "groups", "degree_progress", "skill_gaps", "notes", "sources"}
+    assert set(view) == {"mode", "target_role", "groups", "degree_progress", "plan", "skill_gaps", "notes", "sources"}
+    assert view["plan"] is None
     course = view["groups"][0]["courses"][0]
     assert course["course_code"] == "IT5006" and course["units"] == 4 and course["recommended"] is True
     assert course["synopsis"].startswith("A foundation in data analytics")
@@ -96,3 +97,70 @@ def test_renderer_keeps_a_corrected_retry(monkeypatch):
     monkeypatch.setattr(renderer, "render_structured_reply",
                         lambda view, msg, prompt, on_event=None, depth=None: (next(replies), []))
     assert renderer.render(RESULT, "courses?")[0] == "Take IT5006 (4 units)."
+
+
+def test_the_ad_hoc_mode_renders_under_its_own_style(monkeypatch):
+    prompts = []
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("Take IT5006.", []))
+    renderer.render({**RESULT, "mode": "ad_hoc"}, "python courses?")
+    renderer.render(RESULT, "what should I take?")
+    assert prompts[0] == renderer.AD_HOC_STYLE_PROMPT
+    assert prompts[1] == renderer.COURSE_RECOMMENDATION_STYLE_PROMPT
+
+
+def test_guardrail_lets_the_reply_echo_codes_the_user_typed():
+    view = to_render_view(RESULT)
+    assert guardrail.check("FT5003 is left out, as you asked.", view, "please not ft5003") == []
+    assert guardrail.check("FT5003 is left out.", view, "no blockchain please") != []
+
+
+
+PLAN_RESULT = {
+    **RESULT,
+    "mode": "semester_plan",
+    "groups": [{
+        "slot_id": "plan", "slot_type": "semester_plan", "label": "Plan for AY2026/27 Sem2",
+        "required_pick_count": 2, "note": None,
+        "recommendations": [
+            {**RESULT["groups"][0]["recommendations"][0], "counts_toward": "Mandatory core",
+             "class_times": ["Lecture: Thursday 09:00–11:00"]},
+            {**RESULT["groups"][0]["recommendations"][0], "course_code": "FT5007", "course_title": "Capstone",
+             "units": 6, "course_units": 12, "counts_toward": "Capstone", "class_times": []},
+        ],
+    }],
+    "plan": {"term": "AY2026/27 Sem2", "study_mode": "full_time", "unit_budget": 12, "budget_source": "default",
+             "units": 10, "courses": ["FT5007", "IT5006"], "clashes": [], "alternatives": [],
+             "projected_progress": {"total_units_done": 26, "total_units_target": 52}},
+}
+
+
+def test_a_plans_view_carries_its_summary_and_class_times():
+    view = to_render_view(PLAN_RESULT)
+    assert view["plan"]["units"] == 10 and "courses" not in view["plan"]
+    [it5006, capstone] = view["groups"][0]["courses"]
+    assert it5006["class_times"] == ["Lecture: Thursday 09:00–11:00"]
+    assert (capstone["units"], capstone["course_units"]) == (6, 12)
+
+
+def test_the_capstone_may_be_given_either_unit_count():
+    view = to_render_view(PLAN_RESULT)
+    assert guardrail.check("FT5007 (6 units this semester, 12 in all).", view) == []
+    assert guardrail.check("FT5007 (12 units) spans two semesters.", view) == []
+    assert guardrail.check("FT5007 (8 units)", view) == ["FT5007 is 6 or 12 units, the reply says 8"]
+
+
+def test_a_plans_total_must_match():
+    view = to_render_view(PLAN_RESULT)
+    assert guardrail.check("This plan has a total of 10 units, out of 12.", view) == []
+    assert guardrail.check("合计 10 学分。", view) == []
+    assert guardrail.check("A total of 16 units.", view) == ["the plan totals 10 units, the reply says 16"]
+    assert guardrail.check("核心课共 28 学分。", view) == []  # not the plan's total
+
+
+def test_a_plan_renders_under_its_own_style(monkeypatch):
+    prompts = []
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("ok", []))
+    renderer.render(PLAN_RESULT, "plan my next semester")
+    assert prompts == [renderer.SEMESTER_PLAN_STYLE_PROMPT]

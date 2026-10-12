@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from app.domains.specialist.course_recommendation.errors import (
     WorkflowDiagnostic,
@@ -27,11 +27,16 @@ RequirementRole = Literal[
 # workload 5-tuple. None when workload data is unavailable.
 WorkloadShape = Literal["lecture_heavy", "project_heavy", "balanced"]
 
-# The four kinds of recommendation group S4 can open.
-SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone"]
+# The four kinds of recommendation group S4 can open, plus the single
+# list the ad_hoc mode returns and the plans semester_plan returns.
+SlotType = Literal["core_mandatory", "core_choice", "elective", "capstone", "ad_hoc", "semester_plan"]
+
+Mode = Literal["degree_overview", "ad_hoc", "semester_plan"]
 
 CapstonePath = Literal[
     "undecided",
+    # The student intends to do the Capstone but isn't ready for it yet.
+    "direct_planned",
     "direct_in_progress",
     "direct_completed",
     "elective_alternative_in_progress",
@@ -71,6 +76,15 @@ class Recommendation(TypedDict):
     # checkable facts for why it fits — see stages/s5_scoring/evidence.py.
     synopsis: str
     evidence: list[str]
+    # The requirement group the course counts toward (ad_hoc mode only:
+    # there the list isn't grouped by requirement); None when it counts
+    # toward none still open.
+    counts_toward: str | None
+    # semester_plan only: when the course meets that semester, and — for a
+    # course counting fewer units this semester than it has (the
+    # Capstone) — its full units.
+    class_times: NotRequired[list[str]]
+    course_units: NotRequired[int]
 
 
 class Group(TypedDict):
@@ -96,8 +110,33 @@ class ExcludedCourse(TypedDict, total=False):
         "precluded_by_completed_course",
         "needs_review",
         "level_not_countable",
+        "excluded_by_student",
+        "prerequisite_unmet",
+        "not_offered_in_term",
     ]
     related_course_code: str
+
+
+@dataclass(frozen=True)
+class PlanTerm:
+    """The semester a plan is for (see contracts.PlanningInput)."""
+
+    ay: str
+    semester: int
+    label: str
+
+
+@dataclass(frozen=True)
+class Session:
+    """One timetable class slot (see contracts.SessionInput)."""
+
+    ay: str
+    semester: int
+    lesson_type: str
+    class_no: str
+    day: str
+    start: str
+    end: str
 
 
 @dataclass(frozen=True)
@@ -123,6 +162,11 @@ class Course:
     corequisite_text: str = ""
     # (tag, display name) of each role family the course is tagged for.
     role_tags: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    sessions: tuple[Session, ...] = field(default_factory=tuple)
+    # Structured requirements (see contracts.PrerequisitesInput).
+    prerequisite_groups: tuple[tuple[str, ...], ...] = field(default_factory=tuple)
+    corequisite_codes: tuple[str, ...] = field(default_factory=tuple)
+    prerequisite_unparsed: str | None = None
     # Populated by stages/s3_constraints/catalog.py during S3 — never read before
     # that stage runs, so default to the safe "not yet classified" values.
     requirement_role: RequirementRole = "unclassified"
@@ -157,6 +201,9 @@ class CandidatePool:
     # not found among the student's completed courses — a caution, never an
     # exclusion (see stages/s3_constraints/eligibility.py's module docstring for why).
     prerequisite_cautions: tuple[str, ...] = field(default_factory=tuple)
+    # Mandatory courses the student asked to leave out, kept because the
+    # degree requires them.
+    kept_mandatory: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -178,6 +225,9 @@ class DegreeProgress:
     elective_level4000_cap_reached: bool
     total_units_done: int
     total_units_target: int
+    # True when capstone_path follows the student's stated intent rather
+    # than being inferred from completed units.
+    capstone_from_intent: bool = False
 
 
 @dataclass(frozen=True)
@@ -246,6 +296,9 @@ class Pick:
     reason: str
     synopsis: str = ""
     evidence: tuple[str, ...] = field(default_factory=tuple)
+    # The slot the course counts toward, when the picks aren't drawn from
+    # one slot (ad_hoc mode).
+    slot: "RequirementSlot | None" = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +309,59 @@ class SlotPicks:
     slot: RequirementSlot
     picks: tuple[Pick, ...]
     note: str | None = None
+
+
+PoolKind = Literal["core_mandatory", "core_choice", "elective", "capstone"]
+
+
+@dataclass(frozen=True)
+class PlanPool:
+    """One requirement a semester plan can draw courses from: its scored,
+    explained candidates best-first, and how many of them the requirement
+    still needs (mandatory courses are all needed)."""
+
+    kind: PoolKind
+    label: str
+    quota: int
+    picks: tuple[Pick, ...]
+
+
+@dataclass(frozen=True)
+class PlanContext:
+    """What a semester plan is planned against."""
+
+    term: PlanTerm
+    requested_units: int | None
+    study_mode: str | None
+    units_remaining: int  # to graduate
+    level4000_allowance: int  # 4000-level electives that can still count
+    done: frozenset[str]  # completed and current courses
+
+
+@dataclass(frozen=True)
+class ModeInput:
+    """What S5 selected, handed to the S6 mode: each open slot with its
+    picks (degree_overview); the top picks across all slots with whether
+    they match what the student asked for (ad_hoc); the requirement pools
+    and planning context (semester_plan). A workflow fills only what the
+    chosen mode reads."""
+
+    slot_picks: tuple[SlotPicks, ...] = ()
+    top_picks: tuple[Pick, ...] = ()
+    top_matches_request: bool = True
+    plan_pools: tuple[PlanPool, ...] = ()
+    plan_context: PlanContext | None = None
+
+
+@dataclass(frozen=True)
+class ModeOutput:
+    """What an S6 mode returns: the groups, a semester plan's summary
+    (units, budget, clashes, alternatives — None outside semester_plan),
+    and notes for the reply."""
+
+    groups: list[Group]
+    plan: dict | None = None
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -273,5 +379,9 @@ class RecommendationResult:
     notes: tuple[str, ...]
     sources: tuple[str, ...]
     workflow_status: Literal["ok", "degraded"] = "ok"
+    mode: Mode = "degree_overview"
+    # A semester plan's summary (see ModeOutput.plan), with its projected
+    # degree progress.
+    plan: dict | None = None
     diagnostics: tuple[WorkflowDiagnostic, ...] = field(default_factory=tuple)
     stage_results: tuple[WorkflowStageResult, ...] = field(default_factory=tuple)

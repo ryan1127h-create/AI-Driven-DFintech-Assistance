@@ -31,6 +31,9 @@ class ConversationState:
     # freeze_and_unlock() (see service.py) moves the entries
     # covered by a frozen block into the archive and drops them from here.
     pending_turn_intents: list[dict] = field(default_factory=list)
+    # Input fields the user skipped or dismissed in this conversation — not
+    # asked for again until a new conversation starts.
+    declined_fields: list[str] = field(default_factory=list)
     # Owning user, set the first time a session is used and checked against
     # the caller's authenticated user_id on every subsequent turn (see
     # turn_service.py::run_turn) — None only for a session that hasn't been
@@ -45,6 +48,7 @@ def state_to_json(state: ConversationState) -> dict:
         "raw_tail": messages_to_dict(state.raw_tail),
         "history_summaries": [asdict(b) for b in state.history_summaries],
         "pending_turn_intents": state.pending_turn_intents,
+        "declined_fields": state.declined_fields,
         "user_id": state.user_id,
     }
 
@@ -56,5 +60,6 @@ def state_from_json(data: dict) -> ConversationState:
         raw_tail=messages_from_dict(data.get("raw_tail") or []),
         history_summaries=[HistoryBlock(**b) for b in (data.get("history_summaries") or [])],
         pending_turn_intents=data.get("pending_turn_intents") or [],
+        declined_fields=data.get("declined_fields") or [],
         user_id=data.get("user_id"),
     )

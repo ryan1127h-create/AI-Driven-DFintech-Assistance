@@ -73,7 +73,7 @@ def test_preferences_default_when_settings_cannot_be_read(monkeypatch):
 
 
 def test_a_turn_uses_the_saved_preferences(monkeypatch):
-    state = SimpleNamespace(history_summaries=[], raw_tail=[])
+    state = SimpleNamespace(history_summaries=[], raw_tail=[], declined_fields=[])
     conv = turn_service.conversation
     monkeypatch.setattr(conv, "new_session_id", lambda: "s1")
     monkeypatch.setattr(conv, "get_state", lambda sid, uid: state)
@@ -83,7 +83,7 @@ def test_a_turn_uses_the_saved_preferences(monkeypatch):
     monkeypatch.setattr(turn_service, "get_assistant_preferences",
                         lambda uid: {"language_pref": ["zh"], "answer_depth": "detailed"})
     monkeypatch.setattr(turn_service.classification, "classify_intent",
-                        lambda messages, on_event=None: (["financial"], None, [], None))
+                        lambda messages, on_event=None: (["financial"], None, [], None, None))
     captured = {}
 
     def answer_turn(turn_state, intents, on_event=None):

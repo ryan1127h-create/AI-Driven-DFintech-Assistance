@@ -25,6 +25,7 @@ from app.domains.specialist.course_recommendation.stages.s5_scoring.evidence imp
     evidence_for,
     synopsis,
 )
+from app.domains.specialist.course_recommendation.stages.s5_scoring.signals import REQUEST_SIGNALS
 
 
 def best_pair(scored: list[ScoredCourse]) -> tuple[ScoredCourse, ScoredCourse] | None:
@@ -74,19 +75,47 @@ def rank_for_slot(
     return (primary + filler)[:display_count]
 
 
-def reason_from(evidence: tuple[str, ...], slot: RequirementSlot) -> str:
-    """The evidence as one sentence, falling back to the requirement the
-    course counts toward when there is none."""
-    text = "; ".join(evidence) or f"counts toward {slot.label}"
-    return text[0].upper() + text[1:] + "."
+def _pick(sc: ScoredCourse, slot: RequirementSlot | None, ctx: EvidenceContext, fallback_label: str) -> Pick:
+    """A pick with its synopsis, evidence, and the evidence as a one-sentence
+    reason (falling back to the requirement when there's no evidence)."""
+    evidence = evidence_for(sc, slot, ctx)
+    text = "; ".join(evidence) or f"counts toward {fallback_label}"
+    return Pick(
+        scored=sc, reason=text[0].upper() + text[1:] + ".",
+        synopsis=synopsis(sc.course.description), evidence=evidence, slot=slot,
+    )
+
+
+def select_top(
+    scored: list[ScoredCourse],
+    slot_by_code: dict[str, RequirementSlot],
+    count: int,
+    ctx: EvidenceContext,
+) -> tuple[list[Pick], bool]:
+    """The ad_hoc selection: the best `count` courses across every slot.
+    Only courses matching something the student asked for are listed,
+    ranked by how well they match it first and their overall score second
+    — a course that fits the student's role but barely the request mustn't
+    lead. When none matches, the best general fits are returned instead.
+    Returns (picks, whether they match the request)."""
+    def request_score(sc: ScoredCourse) -> float:
+        return sum(item.delta for item in sc.breakdown if item.signal in REQUEST_SIGNALS)
+
+    matching = [sc for sc in scored if any(item.signal in REQUEST_SIGNALS for item in sc.breakdown)]
+    matching.sort(key=lambda sc: (-request_score(sc), -sc.score, sc.course.code))
+    chosen = (matching or scored)[:count]
+    picks = [_pick(sc, slot_by_code.get(sc.course.code), ctx, "your degree") for sc in chosen]
+    return picks, bool(matching)
+
+
+def pick_all(slot: RequirementSlot, scored: list[ScoredCourse], ctx: EvidenceContext) -> list[Pick]:
+    """Every scored candidate as an explained pick, best-first — for a
+    semester plan, which chooses among all of them itself."""
+    return [_pick(sc, slot, ctx, slot.label) for sc in scored]
 
 
 def select_for_slot(slot: RequirementSlot, scored: list[ScoredCourse], ctx: EvidenceContext) -> list[Pick]:
-    picks = []
-    for sc in rank_for_slot(scored, slot.required_pick_count, slot.display_count):
-        evidence = evidence_for(sc, slot, ctx)
-        picks.append(Pick(
-            scored=sc, reason=reason_from(evidence, slot),
-            synopsis=synopsis(sc.course.description), evidence=evidence,
-        ))
-    return picks
+    return [
+        _pick(sc, slot, ctx, slot.label)
+        for sc in rank_for_slot(scored, slot.required_pick_count, slot.display_count)
+    ]

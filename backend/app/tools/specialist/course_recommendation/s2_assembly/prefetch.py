@@ -24,19 +24,31 @@ from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.interface import (
     get_role_profile,
     list_course_electives,
+    list_course_schedule,
     list_course_tags,
     list_courses,
     list_curriculum_rules,
     list_role_tags,
     match_role_tag,
 )
-from app.domains.profile.interface import derived_course_notes, describe_value, get_profile_for_purpose
+from app.domains.profile.interface import (
+    derived_course_notes,
+    describe_value,
+    get_profile_for_purpose,
+    missing_purpose_consent,
+)
 from app.tools.specialist.course_recommendation.s2_assembly.prefetched import LABELLED_FIELDS, Prefetched
 
 logger = get_logger(__name__)
 
 # Per-read limit; the tool's own timeout bounds the whole turn.
 _READ_TIMEOUT_SECONDS = 10.0
+
+_CONSENT_OFF_NOTE = (
+    "Personalised recommendations are turned off, so this doesn't use your "
+    "profile. Turning them on in Settings lets the recommendation be planned "
+    "around you."
+)
 
 _PROFILE_UNAVAILABLE_NOTE = (
     "Your profile couldn't be read just now, so this recommendation isn't personalised."
@@ -59,6 +71,7 @@ def _knowledge() -> dict:
         "course_tags": list_course_tags(),
         "role_tags": list_role_tags(),
         "course_electives": list_course_electives(),
+        "course_schedule": list_course_schedule(),
     }
 
 
@@ -71,6 +84,7 @@ def prefetch(user_id: str | None, target_role_hint: str | None) -> Prefetched:
         knowledge = pool.submit(_knowledge)
         facts_future = pool.submit(get_profile_for_purpose, user_id, "course") if user_id else None
         derived_future = pool.submit(derived_course_notes, user_id) if user_id else None
+        consent_future = pool.submit(missing_purpose_consent, user_id, "course") if user_id else None
 
         facts: dict = {}
         if facts_future is not None:
@@ -87,12 +101,20 @@ def prefetch(user_id: str | None, target_role_hint: str | None) -> Prefetched:
             except Exception:
                 logger.exception("course recommendation: reading derived notes failed, leaving them out")
 
+        if consent_future is not None:
+            try:
+                if consent_future.result(timeout=_READ_TIMEOUT_SECONDS):
+                    notes.append(_CONSENT_OFF_NOTE)
+            except Exception:
+                logger.exception("course recommendation: checking consent failed, leaving it unmentioned")
+
         kb = knowledge.result(timeout=_READ_TIMEOUT_SECONDS)
     finally:
         pool.shutdown(wait=False)
 
     role_tag = resolve_role_tag(facts, target_role_hint)
     return Prefetched(
+        stated_role_tag=match_role_tag(target_role_hint) if target_role_hint else None,
         facts=facts,
         fact_labels={key: describe_value(key, facts[key]) for key in LABELLED_FIELDS if key in facts},
         role_labels={

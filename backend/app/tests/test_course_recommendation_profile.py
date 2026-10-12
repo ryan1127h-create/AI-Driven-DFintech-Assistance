@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.tools.specialist.course_recommendation import tool
+from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly import builder, prefetch
 from app.tools.specialist.course_recommendation.s7_presentation import renderer
 
@@ -52,8 +53,11 @@ def stubs(monkeypatch):
     monkeypatch.setattr(prefetch, "list_course_electives", lambda: {})
     monkeypatch.setattr(prefetch, "list_courses", lambda: [])
     monkeypatch.setattr(prefetch, "list_curriculum_rules", lambda: [])
+    monkeypatch.setattr(prefetch, "list_course_schedule", lambda: {})
     monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: FACTS)
     monkeypatch.setattr(prefetch, "derived_course_notes", lambda uid: NO_DERIVED)
+    monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: None)
+    monkeypatch.setattr(tool.parser, "parse", lambda message, mode: ParsedRequest())
 
 
 def test_role_named_in_the_message_wins():
@@ -69,7 +73,7 @@ def test_main_role_then_first_family():
 
 def test_request_is_built_from_profile_facts():
     request = builder.build_request(prefetch.prefetch("u1", None))
-    assert request["goals"] == {"target_role": "Data Analytics", "target_industry": None}
+    assert request["goals"] == {"target_role": "Data Analytics"}
     assert request["role_profile"]["role_id"] == "data_analytics"
     background = request["background"]
     assert background["academic_background"] == (
@@ -137,3 +141,45 @@ def test_unreadable_catalogue_fails_the_turn(monkeypatch):
     monkeypatch.setattr(prefetch, "list_courses", _fail)
     with pytest.raises(RuntimeError, match="knowledge db down"):
         prefetch.prefetch("u1", None)
+
+
+def test_the_request_carries_what_the_message_asked_for(monkeypatch):
+    facts = {**FACTS, "track_interest": ["computing_technologies"], "track_chosen": "financial_data_analytics_intelligence",
+             "capstone_intent": "capstone_research"}
+    monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: facts)
+    parsed = ParsedRequest(
+        mode="ad_hoc", include_codes=["FT5011"], exclude_codes=["FT5003"], keywords=["deep learning"],
+        workload_style="lecture", capstone_intent="electives_instead",
+    )
+    request = builder.build_request(prefetch.prefetch("u1", None), parsed)
+    assert request["mode"] == "ad_hoc"
+    assert request["student"] == {
+        "study_mode": None,
+        "capstone_intent": "electives_instead",  # stated in the message, wins over the profile
+        "track_interest": ["computing_technologies"],
+        "track_chosen": "financial_data_analytics_intelligence",
+    }
+    assert request["constraints"]["include_codes"] == ["FT5011"]
+    assert request["constraints"]["exclude_codes"] == ["FT5003"]
+    assert request["constraints"]["workload_style"] == "lecture"
+
+
+def test_consent_off_is_said_in_the_reply_notes(monkeypatch):
+    monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: "consent_personalized_rec")
+    monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: {})
+    assert any("Personalised recommendations are turned off" in note for note in prefetch.prefetch("u1", None).notes)
+
+
+def test_a_semester_plan_request_carries_its_planning():
+    from datetime import date
+
+    parsed = ParsedRequest(mode="semester_plan", target_semester="next", unit_cap=12,
+                           avoid_time_windows=[{"start": "18:00", "end": "23:00"}], study_mode="part_time")
+    request = builder.build_request(prefetch.prefetch("u1", None), parsed, today=date(2026, 10, 10))
+    assert request["planning"] == {"ay": "2026-2027", "semester": 2, "label": "AY2026/27 Sem2", "requested_units": 12}
+    assert request["student"]["study_mode"] == "part_time"
+    assert request["constraints"]["avoid_time_windows"] == [{"start": "18:00", "end": "23:00"}]
+
+
+def test_other_modes_carry_no_planning():
+    assert builder.build_request(prefetch.prefetch("u1", None), ParsedRequest(mode="ad_hoc"))["planning"] is None

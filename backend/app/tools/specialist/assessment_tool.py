@@ -7,7 +7,7 @@ The "is there enough to assess at all" check lives here, not in the
 domain — needs_clarification is orchestrator vocabulary the domain
 shouldn't need to know about (same pattern as career_planning_tool.py's
 _has_known_target_role() check). It's also declared as this tool's
-required_input (see orchestrator/dispatch/requirements.py) even though
+input_needs (see orchestrator/dispatch/requirements.py) even though
 it's unreachable via the normal dispatch path today —
 classification.classify_intent() short-circuits to the "general" intent
 on an empty message, so no tool is ever routed to at all in that case.
@@ -29,14 +29,14 @@ _NEEDS_BACKGROUND_REPLY = (
 )
 
 
-def _required_input(state: TurnState) -> tuple[MissingInputField, ...]:
+def _input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
     if last_human_message(state.messages):
         return ()
     return (MissingInputField(slot="applicant_background", prompt=_NEEDS_BACKGROUND_REPLY),)
 
 
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
-    # Defense-in-depth only — see _required_input()'s docstring above.
+    # Defense-in-depth only — see _input_needs()'s docstring above.
     last_user_message = last_human_message(state.messages)
     if not last_user_message:
         return ToolAnswer(text=_NEEDS_BACKGROUND_REPLY, agent_used="assessment_agent", needs_clarification=True)
@@ -58,5 +58,5 @@ ASSESSMENT_TOOL = Tool(
     input_model=ChatToolInput,
     handler=_handler,
     trigger_intents=frozenset({"assessment"}),
-    required_input=_required_input,
+    input_needs=_input_needs,
 )

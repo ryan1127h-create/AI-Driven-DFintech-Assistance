@@ -107,9 +107,28 @@ def test_course_skills_are_the_union_of_their_tags_skills():
 
 def test_warm_cache_loads_every_catalogue_table(monkeypatch):
     loaded = []
-    for name in ("list_courses", "list_curriculum_rules", "list_course_tags", "list_role_tags", "list_course_electives"):
+    tables = ("list_courses", "list_curriculum_rules", "list_course_tags", "list_role_tags",
+              "list_course_electives", "list_course_schedule")
+    for name in tables:
         monkeypatch.setattr(service, name, lambda name=name: loaded.append(name))
     service.warm_cache()
-    assert sorted(loaded) == sorted(
-        ["list_courses", "list_curriculum_rules", "list_course_tags", "list_role_tags", "list_course_electives"]
-    )
+    assert sorted(loaded) == sorted(tables)
+
+
+def test_course_schedule_is_grouped_by_course_with_readable_times(monkeypatch):
+    class _Schedule:
+        def fetch_course_schedule(self):
+            return [
+                {"course_code": "CS5242", "ay": "2026-2027", "semester": "2", "lesson_type": "Lecture",
+                 "class_no": "1", "day": "Monday", "start_time": "1830", "end_time": "2030"},
+                {"course_code": "CS5242", "ay": "2026-2027", "semester": "2", "lesson_type": "Tutorial",
+                 "class_no": "2", "day": "Monday", "start_time": "2030", "end_time": "2130"},
+            ]
+
+    monkeypatch.setattr(service, "knowledge_db", _Schedule())
+    assert service.list_course_schedule() == {"CS5242": [
+        {"ay": "2026-2027", "semester": 2, "lesson_type": "Lecture", "class_no": "1",
+         "day": "Monday", "start": "18:30", "end": "20:30"},
+        {"ay": "2026-2027", "semester": 2, "lesson_type": "Tutorial", "class_no": "2",
+         "day": "Monday", "start": "20:30", "end": "21:30"},
+    ]}

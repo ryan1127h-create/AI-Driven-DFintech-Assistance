@@ -85,13 +85,17 @@ def _primary_vertical(
     courses_by_code: dict[str, Course],
     skill_gaps: tuple[str, ...],
     target_role_tag: str | None,
+    chosen_vertical: str | None,
 ) -> str:
-    """Which Vertical best fits the student — a lightweight proxy available
+    """The Vertical the student has declared, when it has candidates.
+    Otherwise which Vertical best fits the student — a lightweight proxy available
     from S3 output alone (no full S5 scoring needed just to rank Verticals
     against each other): most eligible courses tagged for the target role
     first (the direct course-to-role link), then most skill gaps covered,
     then most eligible candidates, then alphabetically for full
     determinism."""
+    if chosen_vertical in by_vertical:
+        return chosen_vertical
     gap_set = set(skill_gaps)
 
     def _priority(vertical: str) -> tuple[int, int, int]:
@@ -111,6 +115,7 @@ def derive_slots(
     pool: CandidatePool,
     progress: DegreeProgress,
     target_role_tag: str | None = None,
+    chosen_vertical: str | None = None,
 ) -> tuple[RequirementSlot, ...]:
     by_code = {c.code: c for c in pool.eligible}
     slots: list[RequirementSlot] = []
@@ -152,7 +157,7 @@ def derive_slots(
                 by_vertical.setdefault(vertical, []).append(course.code)
         if by_vertical:
             pick_count = min(tuning.MAX_PICKS_PER_SLOT, _remaining_course_count(remaining_elective_units))
-            primary = _primary_vertical(by_vertical, by_code, pool.skill_gaps, target_role_tag)
+            primary = _primary_vertical(by_vertical, by_code, pool.skill_gaps, target_role_tag, chosen_vertical)
             for vertical in sorted(by_vertical):
                 is_primary = vertical == primary
                 candidates = tuple(by_vertical[vertical])
@@ -164,7 +169,12 @@ def derive_slots(
                 )
                 slots.append(slot)
 
-    if progress.capstone_path in ("direct_in_progress", "elective_alternative_in_progress"):
+    # An inferred elective-alternative path still leaves the Capstone open
+    # as an option; a stated choice of electives instead doesn't.
+    capstone_open = progress.capstone_path == "direct_in_progress" or (
+        progress.capstone_path == "elective_alternative_in_progress" and not progress.capstone_from_intent
+    )
+    if capstone_open:
         if cs.CAPSTONE_CODE in by_code:
             slots.append(
                 _make_slot("capstone", "capstone", "Capstone path", 1, (cs.CAPSTONE_CODE,))

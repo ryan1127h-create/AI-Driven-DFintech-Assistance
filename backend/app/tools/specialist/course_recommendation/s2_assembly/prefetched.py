@@ -39,6 +39,8 @@ class Prefetched:
     readiness_notes: tuple[str, ...]
     graduation_notes: tuple[str, ...]
     role_tag: str | None
+    # The role tag the message itself named, when it named a known one.
+    stated_role_tag: str | None
     role_profile: dict | None
     courses: list[dict]
     curriculum_rules: list[dict]
@@ -48,3 +50,6 @@ class Prefetched:
     # Limitations met while gathering (e.g. the profile couldn't be read),
     # passed on to the reply's notes.
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # course_code -> its timetable class slots (knowledge_retrieval
+    # list_course_schedule()).
+    course_schedule: dict[str, list[dict]] = field(default_factory=dict)

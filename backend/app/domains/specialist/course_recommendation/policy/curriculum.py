@@ -58,6 +58,29 @@ MAX_LEVEL_4000_ELECTIVES = 2
 MIN_COUNTABLE_ELECTIVE_LEVEL = 4000
 NON_COUNTABLE_LEVEL = 6000  # this level and above never counts toward the degree
 
+# The elective Verticals by the profile's track keys (profile fields
+# track_interest / track_chosen) -> their names in the catalogue
+# (knowledge.course_electives).
+TRACK_VERTICALS = {
+    "computing_technologies": "Vertical #1. Computing Technologies",
+    "financial_data_analytics_intelligence": "Vertical #2. Financial Data Analytics and Intelligence",
+    "digital_financial_transactions_risk": "Vertical #3. Digital Financial Transactions and Risk Management",
+}
+
+# Semester unit load, by study mode (MSc DFinTech programme structure,
+# comp.nus.edu.sg): full-time 12-20 units, part-time 4-12. The defaults
+# are the recommended course plans' usual semester (16 full-time, 8
+# part-time), used when the student doesn't say how many units they want.
+UNIT_LOAD = {
+    "full_time": {"min": 12, "max": 20, "default": 16},
+    "part_time": {"min": 4, "max": 12, "default": 8},
+}
+
+# The Capstone (12 units) spans two semesters. ASSUMPTION, to verify: it
+# counts 6 units toward each semester's load — which fits the programme's
+# recommended plans (12 + 6 = 18 units in each Capstone semester).
+CAPSTONE_UNITS_PER_SEMESTER = 6
+
 # rule:cur_degree_structure
 TOTAL_PROGRAMME_UNITS = 52
 CORE_UNITS = 28

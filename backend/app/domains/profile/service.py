@@ -381,6 +381,13 @@ def has_consent(user_id: str, consent_key: str) -> bool:
     return repository.has_consent(user_id, consent_key)
 
 
+def missing_purpose_consent(user_id: str, purpose: str) -> str | None:
+    """The consent the user still has to give before their profile can be
+    used for `purpose`, or None when nothing stands in the way."""
+    key = repository.purpose_consent_key(purpose)
+    return key if key and not repository.has_consent(user_id, key) else None
+
+
 def get_consents(user_id: str) -> list[dict]:
     """All consent keys, not-granted unless the latest decision granted."""
     definitions = repository.load_field_definitions()

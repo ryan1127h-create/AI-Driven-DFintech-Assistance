@@ -14,6 +14,8 @@ apply to a DFT (Graduate Coursework) student.
 
 from __future__ import annotations
 
+from app.tools.specialist.course_recommendation.s2_assembly.prerequisites import parse as parse_requirements
+
 
 def course_skills(course_tags: dict[str, list[str]], role_tags: list[dict]) -> dict[str, list[str]]:
     """course_code -> the union of its role tags' required_skills, in a
@@ -55,7 +57,10 @@ def map_course(
     course_electives: dict[str, list[str]],
     course_tags: dict[str, list[str]],
     role_names: dict[str, str],
+    schedule: dict[str, list[dict]] | None = None,
 ) -> dict:
+    prerequisite = row.get("prerequisite_grad_text") or ""
+    corequisite = row.get("corequisite_grad_text") or ""
     return {
         "code": row["course_code"],
         "title": (row.get("title") or "")[:300],
@@ -78,6 +83,8 @@ def map_course(
         "role_tags": [
             {"tag": tag, "name": role_names.get(tag, tag)} for tag in course_tags.get(row["course_code"], [])
         ],
+        "sessions": (schedule or {}).get(row["course_code"], []),
+        "prerequisites": parse_requirements(prerequisite, corequisite),
     }
 
 

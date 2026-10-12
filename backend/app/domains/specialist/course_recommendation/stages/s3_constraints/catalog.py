@@ -17,7 +17,6 @@ import re
 
 from app.domains.specialist.course_recommendation.models import RequirementRole, WorkloadShape
 from app.domains.specialist.course_recommendation.policy import curriculum as cs
-from app.domains.specialist.course_recommendation.policy import tuning
 
 _CODE_LEVEL = re.compile(r"\d{4}")
 
@@ -78,14 +77,3 @@ def workload_shape_of(workload: tuple[float, ...] | None) -> WorkloadShape | Non
     if (lecture + tutorial + prep) / total >= 0.7:
         return "lecture_heavy"
     return "balanced"
-
-
-def is_project_averse(acceptable_workload: str | None) -> bool:
-    """Best-effort keyword match over the student's free-text workload
-    preference — see policy/tuning.PROJECT_AVERSE_KEYWORDS. A miss
-    here just means the workload-fit scoring term stays neutral, never a
-    hard filter."""
-    if not acceptable_workload:
-        return False
-    text = acceptable_workload.strip().lower()
-    return any(keyword in text for keyword in tuning.PROJECT_AVERSE_KEYWORDS)

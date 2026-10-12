@@ -48,6 +48,7 @@ __all__ = [
     "finish_cv_document",
     "get_profile_summary_text",
     "has_consent",
+    "missing_purpose_consent",
     "latest_cv_import",
     "list_user_ids",
     "record_consents",
@@ -97,6 +98,12 @@ def get_profile_summary_text(user_id: str) -> str:
 
 def has_consent(user_id: str, consent_key: str) -> bool:
     return service.has_consent(user_id, consent_key)
+
+
+def missing_purpose_consent(user_id: str, purpose: str) -> str | None:
+    """The consent still needed before the profile can serve `purpose`
+    (e.g. "consent_personalized_rec" for "course"), or None."""
+    return service.missing_purpose_consent(user_id, purpose)
 
 
 def cv_targets(user_id: str) -> list[dict]:

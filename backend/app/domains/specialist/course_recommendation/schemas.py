@@ -17,6 +17,7 @@ from app.domains.specialist.course_recommendation.errors import (
 )
 from app.domains.specialist.course_recommendation.models import (
     CapstonePath,
+    Mode,
     RecommendationResult,
     SlotType,
 )
@@ -47,6 +48,9 @@ class RecommendedCourse(BaseModel):
     score_breakdown: list[ScoreItemResponse]
     synopsis: str
     evidence: list[str]
+    counts_toward: str | None = None
+    class_times: list[str] = []
+    course_units: int | None = None
 
 
 class RecommendationGroup(BaseModel):
@@ -109,6 +113,10 @@ class CourseRecommendationFailureResponse(BaseModel):
 class CourseRecommendationResponse(BaseModel):
     request_id: str
     workflow_status: Literal["ok", "degraded"]
+    mode: Mode
+    # A semester plan's summary: term, study mode, unit budget and units
+    # planned, courses, clashes, alternatives, projected degree progress.
+    plan: dict | None = None
     target_role: str | None
     groups: list[RecommendationGroup]
     degree_progress: DegreeProgressResponse | None
@@ -148,6 +156,8 @@ def response_from_result(result: RecommendationResult) -> CourseRecommendationRe
         return CourseRecommendationResponse(
             request_id=result.request_id,
             workflow_status=result.workflow_status,
+            mode=result.mode,
+            plan=result.plan,
             target_role=result.target_role,
             groups=[RecommendationGroup.model_validate(item) for item in result.groups],
             degree_progress=(

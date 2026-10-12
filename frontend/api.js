@@ -147,6 +147,9 @@ export async function sendMessageStream(message, extra = {}, { onStep, onToken, 
     body: JSON.stringify({
       message,
       session_id: extra.session_id,
+      // Card fields the user just skipped or dismissed (see backend
+      // ChatRequest.declined_fields).
+      declined_fields: extra.declined_fields || [],
     }),
   });
 

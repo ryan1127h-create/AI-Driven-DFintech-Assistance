@@ -22,10 +22,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.domains.specialist.course_recommendation import timetable
 from app.domains.specialist.course_recommendation.models import Course, ScoreItem
 from app.domains.specialist.course_recommendation.policy import tuning
 
 PROJECT_HEAVY_NOTE = "This course is primarily independent project work."
+
+# Display text for the knowledge base's skill vocabulary (contracts.SkillId).
+SKILL_LABELS = {
+    "ai_ml": "AI and machine learning",
+    "data_analytics": "data analytics",
+    "data_engineering": "data engineering",
+    "finance": "finance",
+    "payments_systems": "payment systems",
+    "product": "product management",
+    "programming": "programming",
+    "regulation": "regulation",
+    "risk_modeling": "risk modelling",
+    "security": "security",
+}
 
 
 @dataclass(frozen=True)
@@ -39,6 +54,16 @@ class ScoringContext:
     skill_share: dict[str, float]
     preferences: tuple[str, ...]
     project_averse: bool
+    # What the student asked for this turn (all optional).
+    requested_codes: frozenset[str] = frozenset()
+    preferred_skills: tuple[str, ...] = ()
+    interest_verticals: frozenset[str] = frozenset()
+    prefers_lecture: bool = False
+    # Times ((start, end), "HH:MM") and weekdays to keep free, and the
+    # semester being planned ((ay, semester); None outside a plan).
+    avoid_windows: tuple[tuple[str, str], ...] = ()
+    avoid_days: frozenset[str] = frozenset()
+    plan_term: tuple[str, int] | None = None
 
 
 def skill_shares(courses: list[Course]) -> dict[str, float]:
@@ -100,7 +125,57 @@ def _preference(course: Course, ctx: ScoringContext) -> ScoreItem | None:
     matched = preference_matches(course, ctx)
     if not matched:
         return None
-    return ScoreItem("preference", tuning.W_PREFERENCE * len(matched), "matches your stated interests: " + ", ".join(matched))
+    return ScoreItem("preference", tuning.W_PREFERENCE * len(matched), "matches your interest in " + ", ".join(matched))
+
+
+def _requested(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    if course.code not in ctx.requested_codes:
+        return None
+    return ScoreItem("requested", tuning.W_REQUESTED, "you asked for this course")
+
+
+def _preferred_skill(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    # Only distinctive skills: a common derived skill can't show that a
+    # course actually builds what the student asked for.
+    matched = distinctive(tuple(s for s in course.skills if s in ctx.preferred_skills), ctx.skill_share)
+    if not matched:
+        return None
+    labels = ", ".join(SKILL_LABELS.get(s, s) for s in matched)
+    return ScoreItem("preferred_skill", tuning.W_PREFERENCE * len(matched), f"builds {labels}, which you asked for")
+
+
+def _vertical_interest(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    if not ctx.interest_verticals.intersection(course.vertical):
+        return None
+    return ScoreItem("vertical_interest", tuning.W_VERTICAL_INTEREST, "in a Vertical you're interested in")
+
+
+def _workload_fit(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    if not (ctx.prefers_lecture and course.workload_shape == "lecture_heavy"):
+        return None
+    return ScoreItem("workload_fit", tuning.W_WORKLOAD_FIT, "lecture-based, as you prefer")
+
+
+def forced_avoided_slot(course: Course, ctx: ScoringContext):
+    """A class slot the student couldn't avoid that falls in a time or day
+    they want kept free: in the semester being planned, or — outside a
+    plan — in every semester the course runs (when it runs in a semester
+    with a clear option, it can be taken then). None otherwise."""
+    if not (ctx.avoid_windows or ctx.avoid_days):
+        return None
+    terms = [ctx.plan_term] if ctx.plan_term else timetable.terms_run(course)
+    slots = [timetable.forced_avoided_slot(course, term, ctx.avoid_windows, ctx.avoid_days) for term in terms]
+    return slots[0] if slots and all(slots) else None
+
+
+def _avoid_time(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    slot = forced_avoided_slot(course, ctx)
+    if slot is None:
+        return None
+    return ScoreItem(
+        "avoid_time", tuning.AVOID_TIME_PENALTY,
+        f"meets at a time you want kept free ({slot.day} {slot.start}–{slot.end})",
+    )
 
 
 def _project_heavy(course: Course, ctx: ScoringContext) -> ScoreItem | None:
@@ -113,6 +188,18 @@ SIGNALS: tuple[Callable[[Course, ScoringContext], ScoreItem | None], ...] = (
     _role_tag,
     _skill_gap,
     _role_skill,
+    _requested,
+    _preferred_skill,
     _preference,
+    _vertical_interest,
+    _workload_fit,
+    _avoid_time,
     _project_heavy,
 )
+
+# The signals that answer what the student asked for this turn — their
+# evidence is worded for the student and shown as a reason.
+REQUEST_SIGNALS = frozenset({"requested", "preferred_skill", "preference", "vertical_interest", "workload_fit"})
+# Signals that count against what the student asked for; shown too, but
+# never as a match.
+REQUEST_PENALTIES = frozenset({"avoid_time"})

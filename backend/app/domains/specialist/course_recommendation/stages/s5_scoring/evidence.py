@@ -4,8 +4,9 @@ S5 — what a recommendation is explained with. For each picked course:
   - a synopsis: the opening sentences of its description, the only
     source the reply may draw on for what the course teaches;
   - evidence: short, checkable facts for why it fits this student — the
-    requirement it counts toward, its direct role tags, skill gaps it
-    closes, how it's taught, when it runs, a prerequisite already met.
+    requirement it counts toward, what the student asked for that it
+    matches, its direct role tags, skill gaps it closes, how it's taught,
+    when it runs, a prerequisite already met.
 
 Skills are only named when they are distinctive: course skills are
 derived from role tags and very common ones ("programming" is on ~90% of
@@ -27,21 +28,12 @@ from app.domains.specialist.course_recommendation.models import (
     ScoredCourse,
 )
 from app.domains.specialist.course_recommendation.policy import tuning
-from app.domains.specialist.course_recommendation.stages.s5_scoring.signals import distinctive
-
-# Display text for the knowledge base's skill vocabulary (contracts.SkillId).
-SKILL_LABELS = {
-    "ai_ml": "AI and machine learning",
-    "data_analytics": "data analytics",
-    "data_engineering": "data engineering",
-    "finance": "finance",
-    "payments_systems": "payment systems",
-    "product": "product management",
-    "programming": "programming",
-    "regulation": "regulation",
-    "risk_modeling": "risk modelling",
-    "security": "security",
-}
+from app.domains.specialist.course_recommendation.stages.s5_scoring.signals import (
+    REQUEST_PENALTIES,
+    REQUEST_SIGNALS,
+    SKILL_LABELS,
+    distinctive,
+)
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _MAX_OTHER_ROLES = 3
@@ -78,7 +70,9 @@ def _skills_text(skills: tuple[str, ...]) -> str:
     return ", ".join(SKILL_LABELS.get(s, s) for s in skills)
 
 
-def _requirement(slot: RequirementSlot) -> str:
+def _requirement(slot: RequirementSlot | None) -> str:
+    if slot is None:
+        return "doesn't count toward a requirement you still have open"
     if slot.slot_type == "core_mandatory":
         return (
             f"one of the {len(slot.eligible_candidates)} mandatory core courses you still need"
@@ -93,7 +87,7 @@ def _requirement(slot: RequirementSlot) -> str:
     return f"counts toward your remaining electives ({slot.label})"
 
 
-def _role_relation(course: Course, slot: RequirementSlot, target_role: tuple[str, str] | None) -> str | None:
+def _role_relation(course: Course, slot: RequirementSlot | None, target_role: tuple[str, str] | None) -> str | None:
     if not course.role_tags:
         return None
     tags = dict(course.role_tags)
@@ -101,7 +95,7 @@ def _role_relation(course: Course, slot: RequirementSlot, target_role: tuple[str
         others = [name for tag, name in course.role_tags if tag != target_role[0]][:_MAX_OTHER_ROLES]
         text = f"tagged for your target role, {target_role[1]}"
         return f"{text}, and also for {', '.join(others)}" if others else text
-    if slot.slot_type == "core_mandatory":
+    if slot is not None and slot.slot_type == "core_mandatory":
         # Required whatever the student's direction, so a mismatch with the
         # target role is no reason for or against it.
         return None
@@ -146,10 +140,17 @@ def _prerequisite(course: Course, cautions: frozenset[str]) -> str | None:
     return None
 
 
-def evidence_for(scored: ScoredCourse, slot: RequirementSlot, ctx: EvidenceContext) -> tuple[str, ...]:
+def evidence_for(scored: ScoredCourse, slot: RequirementSlot | None, ctx: EvidenceContext) -> tuple[str, ...]:
+    """slot: the requirement group the course counts toward, None when it
+    counts toward none still open."""
     course = scored.course
     facts = [
         _requirement(slot),
+        # What the student asked for this turn comes first after the requirement.
+        *(
+            item.evidence for item in scored.breakdown
+            if item.signal in REQUEST_SIGNALS or item.signal in REQUEST_PENALTIES
+        ),
         _role_relation(course, slot, ctx.target_role),
         *_skill_facts(scored, ctx.skill_share),
         _workload(course),

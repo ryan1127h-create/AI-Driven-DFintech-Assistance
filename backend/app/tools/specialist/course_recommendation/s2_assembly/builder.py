@@ -1,23 +1,27 @@
 """
 S2 — assembles the complete report the course_recommendation domain
-consumes from what prefetch.py gathered: the user's profile facts, the
-resolved role profile, and the knowledge base's catalogue (each course with
-its role tags) and current-intake curriculum rules.
+consumes from what prefetch.py gathered and what S1 read from the message:
+the user's profile facts, the resolved role profile, what this request
+asks for, and the knowledge base's catalogue (each course with its role
+tags) and current-intake curriculum rules.
 
 Pure function: no profile or knowledge-base access (everything arrives in
-Prefetched). Current courses count as completed: the plan is for the semesters after
-them. `preferences` (workload/style text) is not populated yet: nothing
-upstream extracts it from the chat turn, so the domain runs with its safe
-"no preference signal" default.
+Prefetched and ParsedRequest). Current courses count as completed: the
+plan is for the semesters after them. What the message states wins over
+the profile for this request (e.g. a Capstone intent said in passing).
 """
 
 from __future__ import annotations
 
+from datetime import date
+
+from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly.mappers import (
     course_skills,
     map_course,
     map_rule,
 )
+from app.tools.specialist.course_recommendation.s2_assembly import terms
 from app.tools.specialist.course_recommendation.s2_assembly.prefetched import LEVEL_FIELDS, Prefetched
 
 _MAX_TEXT = 300  # the report's LongText limit
@@ -64,9 +68,52 @@ def _done_course_codes(facts: dict) -> list[str]:
     return codes[:50]
 
 
-def build_request(prefetched: Prefetched) -> dict:
+def _student(facts: dict, parsed: ParsedRequest) -> dict:
+    tracks = ("computing_technologies", "financial_data_analytics_intelligence", "digital_financial_transactions_risk")
+    interest = [t for t in facts.get("track_interest") or [] if t in tracks]
+    chosen = facts.get("track_chosen")
+    intent = parsed.capstone_intent or facts.get("capstone_intent")
+    study_mode = parsed.study_mode or facts.get("study_mode")
+    return {
+        "study_mode": study_mode if study_mode in ("full_time", "part_time", "undecided") else None,
+        "capstone_intent": intent if intent in ("capstone_research", "capstone_internship", "electives_instead") else None,
+        "track_interest": interest,
+        "track_chosen": chosen if chosen in tracks else None,
+    }
+
+
+def _constraints(parsed: ParsedRequest) -> dict:
+    return {
+        "include_codes": parsed.include_codes,
+        "exclude_codes": parsed.exclude_codes,
+        "preferred_skills": parsed.preferred_skills,
+        "keywords": parsed.keywords,
+        "vertical_preference": parsed.vertical_preference,
+        "workload_style": parsed.workload_style,
+        "avoid_time_windows": parsed.avoid_time_windows,
+        "avoid_days": parsed.avoid_days,
+    }
+
+
+def _planning(parsed: ParsedRequest, today: date) -> dict | None:
+    """For a semester plan: the semester asked about (the next one unless
+    named) and the units asked for."""
+    if parsed.mode != "semester_plan":
+        return None
+    term = terms.resolve(parsed.target_semester, today)
+    return {
+        "ay": term.schedule_ay,
+        "semester": term.semester,
+        "label": term.label,
+        "requested_units": parsed.unit_cap,
+    }
+
+
+def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None, today: date | None = None) -> dict:
     """The complete report course_recommendation consumes. Derived
-    readiness gaps extend the stated tech level."""
+    readiness gaps extend the stated tech level. Without a parsed request
+    the report asks for the overall recommendation, with no constraints."""
+    parsed = parsed or ParsedRequest()
     role_profile = prefetched.role_profile
     # The report requires target_role and role_profile to be both present
     # or both absent.
@@ -75,20 +122,22 @@ def build_request(prefetched: Prefetched) -> dict:
     skills = course_skills(prefetched.course_tags, prefetched.role_tags)
     role_names = {row["tag"]: row["name_en"] for row in prefetched.role_tags}
     return {
-        "goals": {
-            "target_role": target_role,
-            "target_industry": None,
-        },
+        "mode": parsed.mode,
+        "planning": _planning(parsed, today or date.today()),
+        "goals": {"target_role": target_role},
         "background": {
             "academic_background": _academic_background(prefetched.fact_labels),
             "tech_level": _tech_level(prefetched.fact_labels, prefetched.readiness_notes),
-            "school_tier": None,
-            "work_years": None,
             "completed_courses": _done_course_codes(prefetched.facts),
         },
+        "student": _student(prefetched.facts, parsed),
+        "constraints": _constraints(parsed),
         "role_profile": role_profile,
         "course_catalog": [
-            map_course(row, skills, prefetched.course_electives, prefetched.course_tags, role_names)
+            map_course(
+                row, skills, prefetched.course_electives, prefetched.course_tags, role_names,
+                prefetched.course_schedule,
+            )
             for row in prefetched.courses
         ],
         "curriculum_rules": [map_rule(chunk) for chunk in prefetched.curriculum_rules],
