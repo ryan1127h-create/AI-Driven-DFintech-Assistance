@@ -265,3 +265,13 @@ def test_summary_adds_derived_course_notes_only_with_consent(repo):
     assert "Graduation risk (derived): 28 units this semester is a heavy load." in summary
     assert "finance" not in summary
 
+
+
+def test_readiness_gaps_for_career_planning_need_the_consent(repo):
+    repo.derived = {"readiness_gap": {
+        "maths_stats": {"level": 1, "required": 2, "gap": 1, "status": "gap", "evidence": []},
+        "programming": {"level": 3, "required": 2, "gap": 0, "status": "met", "evidence": []},
+    }}
+    assert interface.derived_readiness_gaps("u1") == []
+    repo.consents = {"consent_personalized_rec": {"granted": True}}
+    assert interface.derived_readiness_gaps("u1") == [{"area": "maths_stats", "level": 1, "required": 2}]

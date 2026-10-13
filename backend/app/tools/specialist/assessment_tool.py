@@ -5,8 +5,7 @@ needs from TurnState, calls assess(), wraps the result in a ToolAnswer.
 
 The "is there enough to assess at all" check lives here, not in the
 domain — needs_clarification is orchestrator vocabulary the domain
-shouldn't need to know about (same pattern as career_planning_tool.py's
-_has_known_target_role() check). It's also declared as this tool's
+shouldn't need to know about. It's also declared as this tool's
 input_needs (see orchestrator/dispatch/requirements.py) even though
 it's unreachable via the normal dispatch path today —
 classification.classify_intent() short-circuits to the "general" intent

@@ -35,6 +35,7 @@ from app.domains.profile import service
 __all__ = [
     "check_value",
     "derived_course_notes",
+    "derived_readiness_gaps",
     "cv_targets",
     "describe_facts",
     "delete_cv_data",
@@ -163,3 +164,8 @@ def list_user_ids() -> list[str]:
 def derived_course_notes(user_id: str) -> dict[str, list[str]]:
     """{"readiness": [...], "graduation": [...]} sentences (consent-gated)."""
     return service.derived_course_notes(user_id)
+
+
+def derived_readiness_gaps(user_id: str) -> list[dict]:
+    """[{area, level, required}] readiness gaps (consent-gated)."""
+    return service.derived_readiness_gaps(user_id)
