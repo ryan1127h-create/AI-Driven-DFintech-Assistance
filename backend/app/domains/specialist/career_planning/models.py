@@ -2,12 +2,42 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 # met: the evidence shows the skill; partial: some evidence, not enough;
 # missing: the profile says it isn't there; unknown: no evidence either way.
 SkillStatus = Literal["met", "partial", "missing", "unknown"]
+
+# A profile fact as S3 reads it: a level, a single value, or several.
+FactValue = int | str | tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FunctionExperience:
+    key: str
+    internship: bool = False
+
+
+@dataclass(frozen=True)
+class StudentEvidence:
+    """The student's evidence-bearing facts, materialized from the report's
+    profile section: `facts` by field key (only fields on file), the
+    functional experience, and the courses from the student record."""
+
+    facts: dict[str, FactValue] = field(default_factory=dict)
+    functions: tuple[FunctionExperience, ...] = ()
+    completed_courses: tuple[str, ...] = ()
+    current_courses: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CourseLink:
+    """A programme course and the role families it is tagged for."""
+
+    code: str
+    title: str
+    tags: frozenset[str]
 
 
 @dataclass(frozen=True)
