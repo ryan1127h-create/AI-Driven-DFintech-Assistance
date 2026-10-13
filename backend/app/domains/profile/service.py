@@ -448,6 +448,12 @@ def describe_value(field_key: str, value) -> str:
     return _display(value, labels)
 
 
+def field_labels(field_keys) -> dict[str, str]:
+    """field_key -> its English label, for the keys the dictionary holds."""
+    definitions = repository.load_field_definitions()
+    return {key: definitions[key]["label"] for key in field_keys if key in definitions}
+
+
 def describe_facts(facts: dict) -> list[str]:
     """One "Label: value" line per fact, in field-dictionary order."""
     definitions = repository.load_field_definitions()

@@ -40,6 +40,7 @@ __all__ = [
     "describe_facts",
     "delete_cv_data",
     "describe_value",
+    "field_labels",
     "get_profile_field",
     "get_profile_for_purpose",
     "fail_cv_document",
@@ -73,6 +74,11 @@ def describe_facts(facts: dict) -> list[str]:
 def describe_value(field_key: str, value) -> str:
     """English display text for a field value."""
     return service.describe_value(field_key, value)
+
+
+def field_labels(field_keys) -> dict[str, str]:
+    """field_key -> its English label (field_definitions.label)."""
+    return service.field_labels(field_keys)
 
 
 def get_profile_field(user_id: str, field_key: str):

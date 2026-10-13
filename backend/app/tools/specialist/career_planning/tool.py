@@ -22,8 +22,8 @@ from app.tools.specialist.career_planning.s1_understanding import parser
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
 from app.tools.specialist.career_planning.s2_assembly.builder import build_report
 from app.tools.specialist.career_planning.s2_assembly.prefetch import prefetch, role_catalog
-from app.tools.specialist.career_planning.s7_presentation.prompts import CAREER_STYLE_PROMPT
-from app.tools.structured_reply import render_structured_reply
+from app.tools.specialist.career_planning.s7_presentation import renderer
+from app.tools.specialist.career_planning.s7_presentation.save_suggestions import save_suggestions
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
 logger = get_logger(__name__)
@@ -61,10 +61,11 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
 
     result = plan_career(built.report)
     result["notes"] = [*built.notes, *prefetched.notes, *result["notes"]]
-    answer, sources = render_structured_reply(
-        result, user_message, CAREER_STYLE_PROMPT, on_event=on_event, depth=state.answer_depth,
+    answer, sources = renderer.render(result, prefetched, user_message, on_event=on_event, depth=state.answer_depth)
+    return ToolAnswer(
+        text=answer, sources=sources, agent_used="career_agent",
+        save_suggestions=save_suggestions(parsed, prefetched, result["mode"]),
     )
-    return ToolAnswer(text=answer, sources=sources, agent_used="career_agent")
 
 
 def _fallback(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
@@ -79,4 +80,7 @@ CAREER_TOOL = Tool(
     fallback=_fallback,
     trigger_intents=frozenset({"career"}),
     input_needs=input_needs,
+    # Grades, fits and dates are computed deterministically and renderer.py
+    # checks the reply against them, so evaluation would only add a model call.
+    skip_evaluation=True,
 )

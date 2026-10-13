@@ -24,6 +24,9 @@ class Prefetched:
     course_links: list[dict]
     # Limitations met while gathering, passed on to the reply's notes.
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # How the reply shows the profile facts evidence is drawn from:
+    # field_key -> {"label": ..., "values": {raw value as str: display text}}.
+    evidence_labels: dict = field(default_factory=dict)
 
     @property
     def profile_roles(self) -> list[str]:

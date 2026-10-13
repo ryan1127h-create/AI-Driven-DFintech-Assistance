@@ -256,13 +256,14 @@ def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
     monkeypatch.setattr(tool, "prefetch", lambda uid: _prefetched({"code_level": 3}, notes=("Profile note.",)))
     seen = {}
 
-    def render(result, message, style, on_event=None, depth=None):
+    def render(result, prefetched, message, on_event=None, depth=None):
         seen["result"] = result
         return "reply", ["src"]
-    monkeypatch.setattr(tool, "render_structured_reply", render)
+    monkeypatch.setattr(tool.renderer, "render", render)
 
     answer = tool._handler(_state(career_mode_hint="plan", message="am I ready for data analytics?"))
     assert answer.text == "reply" and answer.agent_used == "career_agent"
+    assert answer.save_suggestions == [{"field_key": "main_target_role", "value": "data_analytics"}]
     result = seen["result"]
     assert result["mode"] == "plan" and result["roles"][0]["role"]["tag"] == "data_analytics"
     assert result["notes"][0] == "Profile note."

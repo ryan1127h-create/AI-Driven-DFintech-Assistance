@@ -24,6 +24,8 @@ from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.interface import list_course_tags, list_courses, list_role_tags
 from app.domains.profile.interface import (
     derived_readiness_gaps,
+    describe_value,
+    field_labels,
     get_profile_field,
     get_profile_for_purpose,
     missing_purpose_consent,
@@ -61,6 +63,21 @@ def _course_links() -> list[dict]:
     ]
 
 
+def _raw_values(value) -> list:
+    items = value if isinstance(value, list) else [value]
+    return [item.get("key") if isinstance(item, dict) else item for item in items]
+
+
+def evidence_labels(facts: dict) -> dict:
+    """How each fact on file (and each of its values) is shown in the reply."""
+    labels = field_labels(facts)
+    return {
+        key: {"label": labels.get(key, key),
+              "values": {str(v): describe_value(key, v) for v in _raw_values(value) if v is not None}}
+        for key, value in facts.items() if value not in (None, "", [])
+    }
+
+
 def _result(future, default, what: str, notes: list[str], note: str | None = None):
     if future is None:
         return default
@@ -94,7 +111,13 @@ def prefetch(user_id: str | None) -> Prefetched:
     finally:
         pool.shutdown(wait=False)
 
+    try:
+        labels = evidence_labels(facts_value)
+    except Exception:
+        logger.exception("career planning: labelling the profile facts failed, showing raw values")
+        labels = {}
     return Prefetched(
+        evidence_labels=labels,
         facts=facts_value,
         stage=stage_value,
         readiness_gaps=gaps_value,
