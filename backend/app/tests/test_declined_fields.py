@@ -29,7 +29,7 @@ def test_a_turn_adds_newly_declined_fields_to_those_already_declined(monkeypatch
     monkeypatch.setattr(turn_service, "get_assistant_preferences",
                         lambda uid: {"language_pref": [], "answer_depth": "standard"})
     monkeypatch.setattr(turn_service.classification, "classify_intent",
-                        lambda messages, on_event=None: (["course_recommendation"], None, [], None, None))
+                        lambda messages, on_event=None: (["course_recommendation"], None, [], None, None, None))
     captured = {}
 
     def answer_turn(turn_state, intents, on_event=None):

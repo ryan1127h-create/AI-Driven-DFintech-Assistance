@@ -109,7 +109,8 @@ of funds, or scholarship application procedures.
 
 "career" — The user is asking about career paths, job roles, role readiness, \
 capability evidence, portfolios, networking, interviews, or job-search milestones \
-— e.g. "what does a compliance career need", "am I ready for a quant role", or \
+— e.g. "what does a compliance career need", "am I ready for a quant role", \
+"which jobs suit my background", "data analyst or data engineer?", or \
 "how should I prepare for product-manager interviews". Do NOT use this category \
 for requests about courses, modules, curricula, or what to study; those are academic.
 
@@ -165,6 +166,15 @@ unit load, e.g. "plan my courses for next semester, 12 units";
 - "degree_overview": general advice on what to take for the degree, e.g. \
 "which electives should I take?", "help me plan my course selection".
 
+"career_mode_hint" — ONLY when the intents include "career", which kind of \
+career advice the user wants; otherwise null:
+- "exploration": which roles would suit them, with no role chosen yet, e.g. \
+"what jobs fit my background?", "what could I do after this programme?";
+- "compare": weighing two or more roles against each other, e.g. "data \
+analyst or data engineer — which suits me?";
+- "plan": getting ready for one role, e.g. "am I ready for a quant role?", \
+"how should I prepare to become a risk analyst?".
+
 Also detect "reply_language" — the single language the FINAL reply should be \
 written in, as a lowercase ISO 639-1 code (e.g. "en", "zh", "ja", "ko", "fr"):
 
@@ -184,12 +194,13 @@ Respond with ONLY a valid JSON object — no markdown, no explanation. `intents`
 always an array, even for a single intent; `target_role_hint` and `program_hints` \
 are always present (null / [] when nothing was mentioned); `reply_language` is \
 always present (null when you can't tell); `course_mode_hint` is always present \
-(null unless the intents include course_recommendation):
+(null unless the intents include course_recommendation), and so is \
+`career_mode_hint` (null unless the intents include career):
 {"intents": ["admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["financial", "admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "zh"}
 or
-{"intents": ["career"], "target_role_hint": "quant researcher", "program_hints": [], "reply_language": "en"}
+{"intents": ["career"], "target_role_hint": "quant researcher", "program_hints": [], "reply_language": "en", "career_mode_hint": "plan"}
 or
 {"intents": ["comparison"], "target_role_hint": null, "program_hints": ["NTU"], "reply_language": "ja"}
 or
@@ -217,23 +228,26 @@ _MAX_INTENTS = 3
 
 # The kinds of course advice course_mode_hint distinguishes (see the prompt).
 COURSE_MODES = {"degree_overview", "ad_hoc", "semester_plan"}
+# The kinds of career advice career_mode_hint distinguishes.
+CAREER_MODES = {"exploration", "plan", "compare"}
 
 
 def classify_intent(
     messages: list, on_event: OnEvent | None = None,
-) -> tuple[list[str], str | None, list[str], str | None, str | None]:
+) -> tuple[list[str], str | None, list[str], str | None, str | None, str | None]:
     """Classifies the latest user message into 1-3 intent categories, plus
     two optional personalisation hints (target_role_hint, program_hints),
     reply_language (see orchestrator/dispatch/localization.py) and, for a
-    course recommendation, course_mode_hint. Returns (intents,
-    target_role_hint, program_hints, reply_language, course_mode_hint) —
-    (["general"], None, [], None, None) on an empty message or any
+    course recommendation, course_mode_hint, and for career advice,
+    career_mode_hint. Returns (intents, target_role_hint, program_hints,
+    reply_language, course_mode_hint, career_mode_hint) —
+    (["general"], None, [], None, None, None) on an empty message or any
     classification failure. reply_language is None whenever the message's language can't be
     told; turn_service then falls back to the user's language preference,
     and to English without one."""
     last_user_message = last_human_message(messages)
     if not last_user_message:
-        return ["general"], None, [], None, None
+        return ["general"], None, [], None, None, None
 
     if on_event is not None:
         on_event({"type": "step", "stage": "classifying"})
@@ -271,11 +285,16 @@ def classify_intent(
         course_mode_hint = result.get("course_mode_hint")
         if "course_recommendation" not in intents or course_mode_hint not in COURSE_MODES:
             course_mode_hint = None
+
+        career_mode_hint = result.get("career_mode_hint")
+        if "career" not in intents or career_mode_hint not in CAREER_MODES:
+            career_mode_hint = None
     except Exception as exc:
         print(f"[classification] Warning: intent classification failed, defaulting to 'general' — {exc}")
         intents, target_role_hint, program_hints = ["general"], None, []
         reply_language = None
         course_mode_hint = None
+        career_mode_hint = None
 
     print(f"[classification] intents classified as: {intents} (reply_language={reply_language})")
     if on_event is not None:
@@ -283,8 +302,9 @@ def classify_intent(
             "type": "step", "stage": "classified", "intents": intents,
             "target_role_hint": target_role_hint, "program_hints": program_hints,
             "reply_language": reply_language, "course_mode_hint": course_mode_hint,
+            "career_mode_hint": career_mode_hint,
         })
-    return intents, target_role_hint, program_hints, reply_language, course_mode_hint
+    return intents, target_role_hint, program_hints, reply_language, course_mode_hint, career_mode_hint
 
 
 def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None) -> ToolAnswer:

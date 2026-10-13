@@ -42,6 +42,9 @@ class TurnState:
     # kind of advice is wanted — "degree_overview", "ad_hoc" or
     # "semester_plan" (see classification.COURSE_MODES); None otherwise.
     course_mode_hint: str | None = None
+    # Likewise for career advice: "exploration", "plan" or "compare" (see
+    # classification.CAREER_MODES); None otherwise.
+    career_mode_hint: str | None = None
     # Input fields the user skipped or dismissed earlier in this
     # conversation (see orchestrator/dispatch/requirements.py): an optional
     # or supplementary field here isn't asked for again this session.
