@@ -180,12 +180,53 @@ class Roadmap:
     notes: tuple[str, ...]
 
 
+Mode = Literal["exploration", "plan", "compare"]
+
+
 @dataclass(frozen=True)
-class CareerPlanResult:
-    target_role: str
-    current_fit: str
-    skill_assessment: tuple[dict, ...]
-    phases: tuple[dict, ...]
-    success_indicators: tuple[str, ...]
+class ModeInput:
+    """What S3-S5 produced, for an S6 mode to shape: every graded skill,
+    the role fits (ranked for exploration, in request order otherwise),
+    and the roadmap (plan only)."""
+
+    assessments: dict[str, SkillAssessment]
+    fits: tuple[RoleFit, ...]
+    roadmap: Roadmap | None = None
+
+
+@dataclass(frozen=True)
+class Comparison:
+    """compare mode: skills every compared role needs, and those only
+    some of them do (role tag -> skills)."""
+
+    shared_skills: tuple[str, ...]
+    distinct_skills: dict[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True)
+class ModeOutput:
+    roles: tuple[RoleFit, ...]
+    # The graded skills the roles shown need, in vocabulary order.
+    skills: tuple[SkillAssessment, ...]
+    roadmap: Roadmap | None = None
+    comparison: Comparison | None = None
+    notes: tuple[str, ...] = ()
+
+
+WorkflowStatus = Literal["complete", "degraded"]
+
+
+@dataclass(frozen=True)
+class CareerPlanningResult:
+    request_id: str
+    workflow_status: WorkflowStatus
+    mode: Mode
+    roles: tuple[RoleFit, ...]
+    skills: tuple[SkillAssessment, ...]
+    roadmap: Roadmap | None
+    comparison: Comparison | None
+    has_profile_evidence: bool
     notes: tuple[str, ...]
     sources: tuple[str, ...]
+    diagnostics: tuple = ()
+    stage_results: tuple = ()

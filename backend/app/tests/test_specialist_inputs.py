@@ -1,7 +1,6 @@
 """Specialist agents take every input from their tool: programme comparison
-builds its facts from given chunks and scores given applicant facts; career
-planning renders given evidence (dropping academic lines); knowledge QA and
-the assessment answer from given context. And the tools assemble those
+builds its facts from given chunks and scores given applicant facts;
+knowledge QA and the assessment answer from given context. And the tools assemble those
 inputs — LLM calls and data reads are stubbed; no database, no LLM."""
 
 from __future__ import annotations
@@ -9,12 +8,11 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import HumanMessage
 
-from app.domains.specialist.career_planning import service as career
 from app.domains.specialist.knowledge_qa import service as qa
 from app.domains.specialist.program_comparison import facts, match_scorer
 from app.domains.specialist.program_comparison.models import ProgramFacts
 from app.tools.knowledge_context import RetrievedContext
-from app.tools.specialist import career_planning_tool, program_comparison_tool
+from app.tools.specialist import program_comparison_tool
 from app.tools.turn_context import TurnState
 
 # --- program comparison -------------------------------------------------------
@@ -70,40 +68,6 @@ def test_comparison_tool_reads_adm_facts(monkeypatch):
     assert program_comparison_tool._applicant_facts("u1")["has_gmat_gre"] is True
     monkeypatch.setattr(program_comparison_tool, "get_profile_for_purpose", lambda uid, purpose: {})
     assert program_comparison_tool._applicant_facts("u1")["has_gmat_gre"] is None
-
-
-# --- career planning -----------------------------------------------------------
-
-def test_career_summary_keeps_career_evidence_only():
-    summary = career._career_profile_summary(
-        ["Seniority: Junior", "Current courses: FT5005", "Preferred job markets: Singapore"])
-    assert summary.splitlines() == [
-        "Known career evidence from the user's profile:", "- Seniority: Junior", "- Preferred job markets: Singapore"]
-    assert career._career_profile_summary([]) == ""
-
-
-def test_career_role_comes_from_the_message_then_the_profile(monkeypatch):
-    monkeypatch.setattr(career_planning_tool, "get_role_profile",
-                        lambda tag: {"role_id": tag, "role_title": tag.replace("_", " ").title(), "required_skills": []})
-    state = TurnState(messages=[HumanMessage("plan")], user_id="u1")
-    facts_ = {"target_role_families": ["data_analytics", "blockchain"], "main_target_role": "blockchain"}
-    assert career_planning_tool._target_role(state, facts_) == "Blockchain"
-    assert career_planning_tool._target_role(state, {"target_role_families": ["data_analytics"]}) == "Data Analytics"
-    assert career_planning_tool._target_role(state, {}) is None
-    hinted = TurnState(messages=[HumanMessage("plan")], user_id="u1", target_role_hint="quant researcher")
-    assert career_planning_tool._target_role(hinted, facts_) == "quant researcher"
-
-
-def test_career_plan_uses_the_given_chunks_and_sources(monkeypatch):
-    monkeypatch.setattr(career.planning_agent, "write_plan", lambda **kw: None)
-    result = career.create_career_plan(
-        "Data Analytics", ["Seniority: Junior"],
-        [{"source_table": "tags_definition", "content": "", "context": "",
-          "metadata": {"role_id": "data_analytics", "role_title": "Data Analytics", "required_skills": ["programming"]}}],
-        ["Role tags"],
-    )
-    assert result.target_role == "Data Analytics"
-    assert result.sources == ("Role tags",)
 
 
 # --- knowledge QA / assessment ----------------------------------------------------

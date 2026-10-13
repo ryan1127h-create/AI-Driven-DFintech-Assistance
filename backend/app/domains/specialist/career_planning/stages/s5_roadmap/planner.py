@@ -119,6 +119,9 @@ class _GapQueue:
             taken = self.first + taken
         return taken
 
+    def has_work(self) -> bool:
+        return bool(self.skills or (not self.started and self.first))
+
     def leftover(self) -> list[Action]:
         rest = ([] if self.started else self.first) + self.skills
         self.skills, self.started = [], True
@@ -204,7 +207,7 @@ def build_roadmap(
 
     with_capstone = ctx.capstone_intent not in _NO_INTERNSHIP_INTENTS and ctx.internship_status != "completed"
     cycle = anchors.cycle
-    if with_capstone and cursor < cycle.applications_open and queue.skills:
+    if with_capstone and cursor < cycle.applications_open and queue.has_work():
         phases.append(_phase("build_up", cursor, cycle.applications_open - timedelta(days=1), queue.take()))
     if with_capstone:
         capstone = _capstone_phases(ctx, anchors, queue, cursor)

@@ -1,7 +1,9 @@
-"""Independent career planning.
+"""Career planning.
 
-Turns a target role, career evidence, and career-reference material into an
-evidence-aware readiness assessment and phased action plan. Academic course
-selection belongs to the separate course-recommendation domain and is not an
-input or output of this domain.
+Grades the student's skills from their profile evidence and courses,
+then — by mode — ranks the role families that fit them (exploration),
+lays one role's gaps onto a dated roadmap (plan), or sets two or three
+roles side by side (compare). Pure computation on one input report (see
+contracts.py and workflow.py); choosing courses belongs to the
+course-recommendation domain.
 """
