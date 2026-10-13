@@ -89,13 +89,8 @@ def test_exploration_asks_for_experience_only_without_any_evidence(profile):
     assert _levels(gate.input_needs(_state(career_mode_hint="exploration"))) == {"target_markets": "supplementary"}
 
 
-def test_compare_offers_the_role_families_when_too_few_are_known(profile):
-    facts, _ = profile
-    assert _levels(gate.input_needs(_state(career_mode_hint="compare"))) == {"target_role_families": "optional"}
-    facts.update(target_role_families=["data_analytics", "data_engineering"])
-    assert gate.input_needs(_state(career_mode_hint="compare")) == ()
-    facts.clear()
-    assert gate.input_needs(_state(career_mode_hint="compare", target_role_hint="quant")) == ()
+def test_compare_asks_nothing_the_message_may_already_name_the_roles(profile):
+    assert gate.input_needs(_state(career_mode_hint="compare", message="data analyst or data engineer?")) == ()
 
 
 def test_without_consent_plans_ask_for_it_and_comparisons_run(profile):
@@ -268,3 +263,10 @@ def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
     assert result["mode"] == "plan" and result["roles"][0]["role"]["tag"] == "data_analytics"
     assert result["notes"][0] == "Profile note."
     assert result["roadmap"]["phases"]
+
+
+@pytest.mark.parametrize("message", ["I'd start job hunting right after graduating.", "我打算毕业后找工作"])
+def test_a_timeline_stated_in_the_message_isnt_asked_for(profile, message):
+    facts, _ = profile
+    facts.update(main_target_role="data_analytics")
+    assert "job_search_timeline" not in _levels(gate.input_needs(_state(career_mode_hint="plan", message=message)))

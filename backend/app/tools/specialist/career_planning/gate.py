@@ -9,13 +9,16 @@ app/tools/input_needs.py).
   is nothing to go on); a comparison still runs, unpersonalised.
 - Plan: the target role is optional — without one the student is shown
   the roles that fit (see s2_assembly/builder.py) and may pick one. The
-  job-search timeline is optional too (it sets when the job search phase
-  falls; the default is right after graduating); the preferred markets,
+  job-search timeline is optional too, unless the message states it (it
+  sets when the job search phase falls; the default is right after
+  graduating); the preferred markets,
   and for a current student the internship status, are supplementary.
 - Exploration: the functional experience is optional when the profile
   holds no skill evidence at all; the preferred markets are supplementary.
-- Compare: with no role named and fewer than two in the profile, the
-  role families are optional — the comparison falls back otherwise.
+- Compare: nothing is asked. The roles to compare are usually named in
+  the message, which the gate can't count (the classifier's role hint
+  holds at most one); with fewer than two, the builder falls back to a
+  plan or an exploration and says so.
 
 A role named in the message counts as given. The gate runs before the
 message is parsed, so it only knows the classifier's role hint.
@@ -26,14 +29,13 @@ from __future__ import annotations
 from app.domains.profile.interface import get_profile_field, get_profile_for_purpose, missing_purpose_consent
 from app.tools.contracts import MissingInputField
 from app.tools.input_needs import CONSENT_PROMPT, profile_field_need
-from app.tools.turn_context import TurnState
+from app.tools.turn_context import TurnState, last_human_message
 
 _ROLE_PROMPT = "Which role are you aiming for? I'll plan your readiness for it — or skip to see which roles fit you."
 _TIMELINE_PROMPT = "When do you plan to look for work? It sets when your job search falls in the roadmap."
 _MARKETS_PROMPT = "Where would you like to work?"
 _INTERNSHIP_PROMPT = "Where are you with an internship?"
 _FUNCTIONS_PROMPT = "What kind of work have you done so far? It helps match you to roles."
-_FAMILIES_PROMPT = "Which roles would you like to compare?"
 
 # Profile facts that count as skill evidence (policy/skill_evidence.py's
 # fields, plus courses).
@@ -43,6 +45,18 @@ _EVIDENCE_FIELDS = (
     "function_experience", "degree_discipline_category", "completed_modules", "current_modules",
 )
 _JOB_SEARCH_STAGES = frozenset({"admitted", "current", "graduating"})
+# Wording that already answers the job-search timing question; the gate
+# runs before the message is parsed, so it checks the words itself.
+_TIMELINE_WORDS = (
+    "after graduat", "upon graduat", "when i graduate", "before graduat", "during the programme",
+    "during the program", "while studying", "a year after", "not looking for", "not job",
+    "毕业后", "毕业之后", "毕业前", "一毕业", "读书期间", "在读期间", "不找工作", "暂不找",
+)
+
+
+def _states_timeline(message: str) -> bool:
+    text = message.lower()
+    return any(word in text for word in _TIMELINE_WORDS)
 
 
 def _has_role(state: TurnState, facts: dict) -> bool:
@@ -65,12 +79,10 @@ def input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
     def need(field_key, level, prompt):
         return profile_field_need(state, "career", facts, field_key, level, prompt)
 
-    needs = []
     if mode == "compare":
-        families = set(facts.get("target_role_families") or []) | {facts.get("main_target_role")} - {None}
-        if not state.target_role_hint and len(families) < 2:
-            needs.append(need("target_role_families", "optional", _FAMILIES_PROMPT))
-    elif mode == "exploration" or not _has_role(state, facts):
+        return ()
+    needs = []
+    if mode == "exploration" or not _has_role(state, facts):
         if mode != "exploration":
             needs.append(need("main_target_role", "optional", _ROLE_PROMPT))
         if not any(facts.get(key) not in (None, "", []) for key in _EVIDENCE_FIELDS):
@@ -78,7 +90,7 @@ def input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
         needs.append(need("target_markets", "supplementary", _MARKETS_PROMPT))
     else:
         stage = get_profile_field(state.user_id, "lifecycle_stage")
-        if stage in _JOB_SEARCH_STAGES:
+        if stage in _JOB_SEARCH_STAGES and not _states_timeline(last_human_message(state.messages)):
             needs.append(need("job_search_timeline", "optional", _TIMELINE_PROMPT))
         needs.append(need("target_markets", "supplementary", _MARKETS_PROMPT))
         if stage == "current":

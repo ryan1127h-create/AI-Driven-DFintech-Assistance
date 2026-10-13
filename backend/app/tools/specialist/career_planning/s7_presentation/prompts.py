@@ -54,8 +54,9 @@ for it, and a dated roadmap.
 Structure the reply as:
 1. Where they stand for the role: the fit as a percentage and one line on \
 what it rests on.
-2. The skills, grouped met / partial / missing / unknown, each with its \
-evidence in one line.
+2. The skills, grouped met / partial / missing / unknown (leave out a group \
+with no skills in it), each with its evidence in one line. Call the fit \
+low-confidence only when `low_confidence` is true.
 3. The roadmap, phase by phase in the given order: the phase name and its \
 months, its actions, and its milestones with dates.
 4. At most one closing line.
