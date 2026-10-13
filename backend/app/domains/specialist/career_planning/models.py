@@ -63,6 +63,47 @@ class SkillAssessment:
 
 
 @dataclass(frozen=True)
+class RoleDefinition:
+    """A role family (knowledge.tags_definition)."""
+
+    tag: str
+    name: str
+    definition: str
+    required_skills: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CourseSupport:
+    """The programme's courses tagged for a role, and which of them the
+    student has taken or is taking."""
+
+    course_codes: tuple[str, ...]
+    taken: tuple[str, ...]
+    taking: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RoleFit:
+    """How the student's evidence matches one role (S4)."""
+
+    role: RoleDefinition
+    # Mean evidence over the role's skills plus any experience bonus, 0-1.
+    fit: float
+    # Share of the role's skills with no evidence either way.
+    unknown_share: float
+    low_confidence: bool
+    met_skills: tuple[str, ...]
+    partial_skills: tuple[str, ...]
+    missing_skills: tuple[str, ...]
+    unknown_skills: tuple[str, ...]
+    # function_experience keys that are direct experience of the role.
+    experience: tuple[str, ...]
+    # The student lists the role in their profile.
+    preferred: bool
+    support: CourseSupport
+
+
+@dataclass(frozen=True)
 class CareerPlanResult:
     target_role: str
     current_fit: str
