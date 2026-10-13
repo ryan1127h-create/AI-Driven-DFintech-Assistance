@@ -1,8 +1,35 @@
-"""Internal domain models for independent career planning."""
+"""Internal career-planning models: what each stage hands the next."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+
+# met: the evidence shows the skill; partial: some evidence, not enough;
+# missing: the profile says it isn't there; unknown: no evidence either way.
+SkillStatus = Literal["met", "partial", "missing", "unknown"]
+
+
+@dataclass(frozen=True)
+class EvidenceItem:
+    """One fact that counted toward a skill: a profile field and the
+    value(s) that matched, or the courses ("courses") that did."""
+
+    source: str
+    values: tuple[str, ...]
+    points: float
+    # Courses still being taken / experience gained only as an intern.
+    in_progress: bool = False
+    internship: bool = False
+
+
+@dataclass(frozen=True)
+class SkillAssessment:
+    skill: str
+    status: SkillStatus
+    # Summed evidence points, capped at policy.skill_evidence.MET_POINTS.
+    points: float
+    evidence: tuple[EvidenceItem, ...]
 
 
 @dataclass(frozen=True)
