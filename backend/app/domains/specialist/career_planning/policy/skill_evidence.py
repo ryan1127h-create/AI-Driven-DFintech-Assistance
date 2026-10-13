@@ -13,8 +13,11 @@ stages/s3_evidence adds them up per skill:
   - an ABSENT signal is the profile explicitly saying the skill isn't
     there ("missing" — only when nothing else counts for it).
 
-Each field counts once per skill (its best-matching signal), and so do
-the courses. No evidence at all is "unknown", never "missing".
+Each field counts once per skill (its best-matching signal). Courses are
+one source too, but add up: each matching course is worth the signal's
+points divided by how many role tags the course carries (a course tagged
+for three roles says less about any one of them), summed up to the
+signal's points. No evidence at all is "unknown", never "missing".
 
 Level anchors (field_definitions.value_labels): code_level 0-4, the other
 *_level fields 1-3 — e.g. code_level 3 "has built a complete project with
@@ -50,6 +53,12 @@ MET_POINTS = 1.0
 INTERNSHIP_FACTOR = 0.5
 # A course still being taken is worth this share of a completed one.
 IN_PROGRESS_FACTOR = 0.5
+
+
+def course_weight(tag_count: int) -> float:
+    """The share of a course signal's points one course is worth, by how
+    many role tags the course carries."""
+    return 1.0 / max(tag_count, 1)
 
 SignalKind = Literal["level", "any_of", "course_tag", "absent"]
 
@@ -126,7 +135,8 @@ SKILL_SIGNALS: dict[str, tuple[Signal, ...]] = {
         _any("degree_discipline_category", MODERATE, "finance_econ_accounting"),
         _any("prior_coursework", MODERATE, "corporate_finance", "investments_derivatives", "accounting"),
         _any("domain_knowledge", MODERATE, "capital_markets", "derivatives", "wealth_insurtech"),
-        _courses(MODERATE, "finance_investment", "quantitative_finance"),
+        # Quantitative-finance courses count toward risk modelling only.
+        _courses(MODERATE, "finance_investment"),
     ),
     "risk_modeling": (
         _any("certifications", STRONG, "frm"),

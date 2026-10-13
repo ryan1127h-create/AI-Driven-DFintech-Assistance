@@ -78,16 +78,36 @@ def test_work_experience_wins_over_an_internship_in_the_same_line():
     assert graded.points == 1.0 and not graded.evidence[0].internship
 
 
-def test_courses_count_by_their_role_tags():
+def test_a_course_is_worth_less_the_more_roles_it_is_tagged_for():
+    # IT5001X carries one tag, FT5005 two: 0.4 and 0.4 / 2.
+    assert _grade("programming", completed_courses=("IT5001X",)).points == 0.4
     done = _grade("ai_ml", completed_courses=("FT5005",))
+    assert done.evidence[0].values == ("FT5005",) and done.points == 0.2
+
+
+def test_courses_add_up_to_the_signals_points():
+    links = tuple(CourseLink(f"FT500{i}", "x", frozenset({"data_analytics", "blockchain", "cybersecurity"}))
+                  for i in range(1, 5))
+    two = _grade("data_analytics", links, completed_courses=("FT5001", "FT5002"))
+    four = _grade("data_analytics", links, completed_courses=("FT5001", "FT5002", "FT5003", "FT5004"))
+    assert two.points == round(2 * 0.4 / 3, 6)
+    assert four.points == 0.4 and four.evidence[0].values == ("FT5001", "FT5002", "FT5003", "FT5004")
+
+
+def test_a_current_course_counts_half():
     taking = _grade("ai_ml", current_courses=("FT5005",))
-    assert done.evidence[0].values == ("FT5005",) and done.points == 0.4
-    assert taking.points == 0.2 and taking.evidence[0].in_progress
+    assert taking.points == 0.1 and taking.evidence[0].in_progress
 
 
 def test_completed_courses_take_precedence_over_current_ones():
     graded = _grade("finance", completed_courses=("BMD5302",), current_courses=("BMD5302",))
-    assert graded.points == 0.4 and not graded.evidence[0].in_progress
+    assert graded.points == 0.2 and not graded.evidence[0].in_progress
+
+
+def test_quantitative_finance_courses_count_toward_risk_modelling_only():
+    links = (CourseLink("QF5001", "x", frozenset({"quantitative_finance"})),)
+    assert _grade("risk_modeling", links, completed_courses=("QF5001",)).points == 0.4
+    assert _grade("finance", links, completed_courses=("QF5001",)).status == "unknown"
 
 
 def test_a_course_without_a_matching_tag_is_not_evidence():

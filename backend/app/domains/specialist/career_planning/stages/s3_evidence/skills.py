@@ -65,14 +65,22 @@ def _any_of_item(signal: Signal, evidence: StudentEvidence) -> EvidenceItem | No
 def _course_item(
     signal: Signal, evidence: StudentEvidence, tags: Mapping[str, frozenset[str]],
 ) -> EvidenceItem | None:
-    """Completed courses count in full; only if none match, current ones
-    count at a share."""
-    done = tuple(c for c in evidence.completed_courses if tags.get(c, frozenset()) & signal.values)
+    """Each matching course adds the signal's points weighted by its tag
+    count, up to the signal's points. Completed courses count in full;
+    only if none match, current ones count at a share."""
+    def matching(codes):
+        return tuple(c for c in codes if tags.get(c, frozenset()) & signal.values)
+
+    def points(codes):
+        total = sum(signal.points * rules.course_weight(len(tags[c])) for c in codes)
+        return round(min(total, signal.points), 6)
+
+    done = matching(evidence.completed_courses)
     if done:
-        return EvidenceItem("courses", done, signal.points)
-    taking = tuple(c for c in evidence.current_courses if tags.get(c, frozenset()) & signal.values)
+        return EvidenceItem("courses", done, points(done))
+    taking = matching(evidence.current_courses)
     if taking:
-        return EvidenceItem("courses", taking, signal.points * rules.IN_PROGRESS_FACTOR, in_progress=True)
+        return EvidenceItem("courses", taking, round(points(taking) * rules.IN_PROGRESS_FACTOR, 6), in_progress=True)
     return None
 
 
