@@ -9,8 +9,10 @@ Storage shape per session, in the `chat` schema:
   - `chat.conversations` (hot table, always small): turn_count,
     last_frozen_end, raw_tail (unfrozen recent messages only),
     history_summaries (list of frozen block summaries), pending_turn_intents
-    (one {"turn","intents","agent_used"} entry per not-yet-archived turn —
-    see models.py::ConversationState). Read/written every turn — this is
+    (one {"turn","intents","agent_used","contexts"} entry per
+    not-yet-archived turn — see models.py::ConversationState),
+    declined_fields (input fields the user skipped in this conversation).
+    Read/written every turn — this is
     the ONLY table a normal turn writes to. `conversation_id` doubles as
     the app-level `session_id`.
   - `chat.messages` (cold table, one row per conversation, keyed by the
@@ -307,19 +309,21 @@ class SupabaseConversationStore(ConversationStore):
     def get_state(self, session_id: str) -> ConversationState:
         row = chat_db.fetch_one(
             "select turn_count, last_frozen_end, raw_tail, history_summaries, "
-            "pending_turn_intents, user_id "
+            "pending_turn_intents, declined_fields, user_id "
             "from chat.conversations where conversation_id = %s",
             (session_id,),
         )
         if not row:
             return ConversationState()
-        turn_count, last_frozen_end, raw_tail, history_summaries, pending_turn_intents, user_id = row
+        (turn_count, last_frozen_end, raw_tail, history_summaries, pending_turn_intents,
+         declined_fields, user_id) = row
         return ConversationState(
             turn_count=turn_count,
             last_frozen_end=last_frozen_end,
             raw_tail=messages_from_dict(raw_tail or []),
             history_summaries=[HistoryBlock(**b) for b in (history_summaries or [])],
             pending_turn_intents=pending_turn_intents or [],
+            declined_fields=list(declined_fields or []),
             user_id=str(user_id) if user_id is not None else None,
         )
 
@@ -328,14 +332,15 @@ class SupabaseConversationStore(ConversationStore):
             """
             insert into chat.conversations
               (conversation_id, user_id, turn_count, last_frozen_end, raw_tail,
-               history_summaries, pending_turn_intents, total_messages)
-            values (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s)
+               history_summaries, pending_turn_intents, declined_fields, total_messages)
+            values (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s)
             on conflict (conversation_id) do update
               set turn_count = excluded.turn_count,
                   last_frozen_end = excluded.last_frozen_end,
                   raw_tail = excluded.raw_tail,
                   history_summaries = excluded.history_summaries,
                   pending_turn_intents = excluded.pending_turn_intents,
+                  declined_fields = excluded.declined_fields,
                   total_messages = excluded.total_messages
             """,
             (
@@ -343,6 +348,7 @@ class SupabaseConversationStore(ConversationStore):
                 json.dumps(messages_to_dict(state.raw_tail)),
                 json.dumps([asdict(b) for b in state.history_summaries]),
                 json.dumps(state.pending_turn_intents),
+                json.dumps(state.declined_fields),
                 2 * state.turn_count,  # strict Human/AI pairing assumed, same as service.py
             ),
         )
