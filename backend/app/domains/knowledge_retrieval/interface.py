@@ -13,8 +13,6 @@ Current consumers:
       match_role_tag() to assemble the report course_recommendation's own
       interface.py needs — that domain still never reads this one itself;
       the chat adapter builds the report before handing it over.
-    - app/tools/specialist/program_comparison_tool.py hands list_chunks()
-      to program_comparison, which assembles its facts table from them.
     - checklist labels an application's documents and explains its status
       with list_admissions_items() / explain_application_status().
     - profile reads the role tags (list_role_tags()) for validation and
@@ -36,7 +34,6 @@ from app.domains.knowledge_retrieval.service import (
     list_admissions_items,
     list_course_electives,
     list_course_schedule,
-    list_chunks,
     list_course_tags,
     list_courses,
     list_curriculum_rules,
@@ -54,7 +51,6 @@ __all__ = [
     "ADMISSIONS_OFFICIAL_SOURCES",
     "list_admissions_items",
     "explain_application_status",
-    "list_chunks",
     "list_courses",
     "list_curriculum_rules",
     "list_course_electives",

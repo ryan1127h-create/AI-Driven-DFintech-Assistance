@@ -172,6 +172,17 @@ forbidden_modules =
     app.domains.specialist.career_planning.stages
     app.domains.specialist.career_planning.workflow
 
+; program_comparison's internal structure (see its workflow.py and
+; stages/__init__.py). The domain is pure computation: no adapter at all,
+; not even the LLM - facts, fit and differences are deterministic.
+[importlinter:contract:comparison-domain-pure]
+name = programme comparison domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.program_comparison
+forbidden_modules =
+    app.adapters
+
 ; program_comparison's policy holds the rules the stages read (see its
 ; policy/__init__.py); it takes plain values and knows nothing else here.
 [importlinter:contract:comparison-policy-leaf]

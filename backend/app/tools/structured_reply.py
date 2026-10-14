@@ -1,19 +1,15 @@
 """
-Shared rendering layer: turns a structured result dict from a specialist
-domain (currently program_comparison and career_planning — any future
-domain with the same shape of problem can reuse this too) into one
-natural-language chat reply.
+Shared rendering layer: turns a specialist's render view (a structured
+dict its S7 payload builds — course recommendation's, career planning's,
+programme comparison's)
+into one natural-language chat reply, streamed.
 
-The source domain already writes most of its content in natural language
-(program_comparison's `best_fit_summary`/`program_comments`,
-career_planning's `current_fit`/skill-assessment evidence/phase actions) —
-it just returns that as a structured dict shaped for a REST/frontend
-consumer, not a single chat-ready string. So this is a *reflow* step, not
-a "write from scratch" step: connect already-written material into one
-coherent reply that matches the user's own language, not compose new
-analysis. Kept deliberately cheap (small max_tokens) and with its own
-deterministic fallback — mirrors the fallback discipline every LLM step
-inside those domains already follows.
+The view already holds every fact, figure and judgement; this step only
+connects them into one coherent reply in the user's own language under
+the caller's style prompt — it composes no new analysis. The callers
+check the reply against the view themselves (their guardrail.py) and fall
+back to render_template(), the deterministic walk of the view this module
+also provides.
 """
 
 from __future__ import annotations
@@ -22,13 +18,9 @@ from app.adapters.deepseek_adapter import llm
 from app.core import answer_depth
 from app.tools.contracts import OnEvent
 
-# Headroom above the reflowed reply, as a safety margin against truncation.
-# This step reflows existing prose rather than composing new analysis, so
-# it needs less than the ~4000-12000 max_tokens the upstream domains' own
-# generation steps use — but a rich result (e.g. a multi-programme
-# comparison with per-programme match-score breakdowns) can still be
-# genuinely long. 2200 proved too tight in testing (truncated a
-# 2-programme comparison mid-sentence); 3500 leaves comfortable headroom.
+# Headroom above the reply, as a safety margin against truncation: a rich
+# view (a three-programme comparison with a table) is genuinely long, and
+# 2200 proved too tight in testing.
 _MAX_TOKENS = 3500
 
 _RENDER_PROMPT = """\
@@ -106,7 +98,7 @@ def render_structured_reply(
     on_event: OnEvent | None = None, depth: str | None = None,
 ) -> tuple[str, list[str]]:
     """
-    Renders a program-comparison-shaped result dict into one
+    Renders a specialist's render view into one
     chat reply. Never raises — any failure falls back to
     render_template(). Returns (reply_text, sources) where `sources` is
     result.get("sources", []) verbatim.

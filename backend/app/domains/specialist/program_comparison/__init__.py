@@ -1,8 +1,9 @@
 """
-Program comparison — lays the NUS programme and one or more competitor
-programmes side by side on a shared set of dimensions (fees, format,
-curriculum, ...), then scores each against the applicant's own profile.
-A dimension with no data for a given programme is excluded from that
-programme's score and the total re-weighted over what remains, rather than
-guessed.
+Program comparison — lays MSc DFT beside other master's programmes on
+verified catalogue facts (fees, length, curriculum, admission, study
+modes, funding, deadlines, location), reads each against the applicant's
+own situation, and states the differences from MSc DFT. Pure computation
+over the report the tools layer assembles (see contracts.py): nothing is
+scored or ranked, a fact not on file is unknown rather than guessed, and
+amounts in different currencies are never converted.
 """

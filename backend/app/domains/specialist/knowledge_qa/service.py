@@ -1,9 +1,6 @@
 """
 Fixed-topic registry for Knowledge QA: one role prompt + soft topic-boost
-per topic (retrieval_scope() tells the caller how to retrieve), plus the
-generic escape hatch (answer_with_role_prompt) for a caller with its own
-role prompt — currently used by program_comparison's legacy-RAG fallback
-(see app/tools/specialist/program_comparison_tool.py). The caller
+per topic (retrieval_scope() tells the caller how to retrieve). The caller
 retrieves and passes the context in.
 """
 
@@ -119,11 +116,3 @@ def answer_topic(
     role_prompt = _TOPICS[topic].role_prompt.replace("{official_sources}", official_sources)
     return qa_agent.answer(role_prompt, user_message, chat_history, context=context, on_event=on_event, depth=depth)
 
-
-def answer_with_role_prompt(
-    role_prompt: str, user_message: str, chat_history: list[dict],
-    *, context: str | None, on_event: OnEvent | None = None, depth: str | None = None,
-) -> str:
-    """Generic escape hatch for a caller with its own role prompt, outside
-    the four fixed topics above."""
-    return qa_agent.answer(role_prompt, user_message, chat_history, context=context, on_event=on_event, depth=depth)

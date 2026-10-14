@@ -2,8 +2,7 @@
 Knowledge QA's only LLM step: stream an answer grounded strictly in the
 reference context the caller retrieved (the tools layer — this domain
 reads no data itself). Shared by every fixed topic (see
-service.py's registry) and by any caller supplying its own role prompt
-(service.py::answer_with_role_prompt).
+service.py's registry).
 
 Takes plain, already-extracted inputs (a user_message string, chat_history
 as plain role/content dicts) rather than LangChain message objects or a

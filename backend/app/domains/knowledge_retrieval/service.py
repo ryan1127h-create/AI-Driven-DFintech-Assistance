@@ -132,8 +132,6 @@ def _topic_of(source_table: str, metadata: dict | None) -> str:
         return "academic"
     if source_table == "tags_definition":
         return "career"
-    if source_table == "competitor_programs":
-        return "comparison"
     if source_table == "knowledge_snippets":
         if md.get("namespace") == "admissions":
             return "admissions"
@@ -307,7 +305,7 @@ def retrieve(
 
     filter_topics: hard-restrict candidates to these topics before fusion
         (use only for topics with no overlap elsewhere in the corpus, e.g.
-        "career", "comparison" — a bad guess here loses recall entirely).
+        "career" — a bad guess here loses recall entirely).
     boost_topics: soft-boost matching hits after fusion without excluding
         anything else (safe default for topics whose boundaries aren't
         clean, e.g. "admissions", "academic", "financial", "faq").
@@ -339,7 +337,6 @@ _FALLBACK_SOURCE = {
     "knowledge_snippets": "Programme FAQ (official)",
     "programme_pages": "NUS MSc DFT programme website",
     "courses": "NUSMods course catalogue",
-    "competitor_programs": "Competitor programme comparison — compiled by this project",
 }
 
 
@@ -448,21 +445,11 @@ def list_courses() -> list[dict]:
     return courses
 
 
-def list_chunks() -> list[dict]:
-    """Every knowledge-base chunk (chunk_key, source_table, content, context,
-    conflict_group, authoritative, metadata), unranked — for a caller that
-    assembles its own facts from specific chunks rather than searching."""
-    return knowledge_db.fetch_all_chunks()
-
-
 def list_curriculum_rules() -> list[dict]:
     """Every course_rules chunk for the current intake (_CURRENT_INTAKE),
     verbatim — a deterministic filter over fetch_all_chunks(), not a
     semantic search, so nothing is missed or reordered by relevance
-    scoring. Same "filter fetch_all_chunks() by source_table" pattern
-    app/domains/specialist/program_comparison/repository.py already uses
-    for its own curriculum-rule lookups, promoted here as a public,
-    reusable capability."""
+    scoring."""
     return [
         c for c in knowledge_db.fetch_all_chunks()
         if c["source_table"] == "course_rules"
