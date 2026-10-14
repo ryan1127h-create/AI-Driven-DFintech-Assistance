@@ -172,6 +172,19 @@ forbidden_modules =
     app.domains.specialist.career_planning.stages
     app.domains.specialist.career_planning.workflow
 
+; program_comparison's policy holds the rules the stages read (see its
+; policy/__init__.py); it takes plain values and knows nothing else here.
+[importlinter:contract:comparison-policy-leaf]
+name = programme comparison policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.program_comparison.policy
+forbidden_modules =
+    app.domains.specialist.program_comparison.contracts
+    app.domains.specialist.program_comparison.errors
+    app.domains.specialist.program_comparison.interface
+    app.domains.specialist.program_comparison.models
+
 ; In the career planning tool only s2_assembly/prefetch.py reads the
 ; profile or the knowledge base (gate.py, which the orchestrator calls
 ; before the tool runs, reads the profile too); understanding works from
