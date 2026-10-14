@@ -19,6 +19,10 @@ weakness; suggest adding it to their profile. Back each status with its \
 progress) or as the number of programme courses that support a role. Never \
 recommend specific courses; for course choice, point them to asking for \
 course recommendations.
+- Write the whole reply in the user's language: translate skill names, \
+statuses (met / partial / missing / unknown), phase names and the actions \
+too. A role may keep its English name in parentheses after the \
+translation; course codes and titles stay exactly as given.
 - Write dates as month and year, exactly as given. A milestone marked \
 projected repeats the last published Capstone cycle's dates: say it's to be \
 confirmed when the school publishes the cycle.
@@ -58,8 +62,9 @@ for it, and a dated roadmap.
 Structure the reply as:
 1. Where they stand for the role: the fit as a percentage and one line on \
 what it rests on.
-2. The skills, grouped met / partial / missing / unknown (leave out a group \
-with no skills in it), each with its evidence in one line. Call the fit \
+2. The skills, grouped met / partial / missing / unknown, each with its \
+evidence in one line. Write nothing at all for a group with no skills in \
+it — no heading and no "none" line. Call the fit \
 low-confidence only when `low_confidence` is true.
 3. The roadmap, phase by phase in the given order: the phase name and its \
 months, its actions, and its milestones with dates.
@@ -96,9 +101,10 @@ Structure the reply as:
 profile hasn't changed.
 2. The role names in the given order, on one line, each with its fit as a \
 percentage.
-3. Ask them to pick one of these roles for a full readiness plan — or, if \
-most of the roles' skills are unknown, suggest adding their skill levels \
-and experience to their profile, which would change the result.
+3. Ask them to pick one of these roles for a full readiness plan. Only if \
+most of the roles' skills are actually unknown (see `skills_unknown`), \
+also suggest adding their skill levels and experience to their profile, \
+which would change the result; otherwise say nothing about it.
 
 {_HARD_RULES}"""
 
