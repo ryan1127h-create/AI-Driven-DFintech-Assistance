@@ -4,9 +4,11 @@ and what S1 parsed. Pure: no reads.
 
 Which mode actually runs, and for which roles:
 
-    compare      the roles the message names, topped up from the profile
-                 (main role first) to two or three; with only one, a
-                 plan for it; with none, an exploration
+    compare      the roles the message names, topped up — first from the
+                 roles the previous career turn covered ("and compared
+                 with data engineering?"), then from the profile (main
+                 role first) — to two or three; with only one, a plan for
+                 it; with none, an exploration
     plan         the first role the message names, else the profile's
                  main role (then its first listed one); with none, an
                  exploration — the student sees which roles fit, and is
@@ -79,17 +81,21 @@ def _functions(items) -> list[dict]:
 
 def resolve_mode(
     mode_hint: str | None, parsed: ParsedCareerRequest, prefetched: Prefetched,
+    previous_roles: list[str] | tuple[str, ...] = (),
 ) -> tuple[str, list[str], list[str]]:
-    """(mode, target roles, notes)."""
+    """(mode, target roles, notes). `previous_roles`: the roles the previous
+    career turn covered."""
     named = parsed.roles
-    profile = [r for r in prefetched.profile_roles if r not in named]
+    known = {r["tag"] for r in prefetched.role_catalog}
+    earlier = [r for r in previous_roles if r in known and r not in named]
+    profile = [r for r in prefetched.profile_roles if r not in named and r not in earlier]
     names = {r["tag"]: r["name"] for r in prefetched.role_catalog}
     mode = mode_hint or ("compare" if len(named) >= 2 else "plan" if named or profile else "exploration")
     if mode == "exploration" and named:
         mode = "compare" if len(named) >= 2 else "plan"
 
     if mode == "compare":
-        roles = (named + profile)[:_MAX_COMPARE]
+        roles = (named + earlier + profile)[:_MAX_COMPARE]
         if len(roles) >= 2:
             return "compare", roles, []
         if roles:
@@ -109,9 +115,10 @@ def build_report(
     mode_hint: str | None,
     today: date,
     user_id: str | None = None,
+    previous_roles: list[str] | tuple[str, ...] = (),
 ) -> Built:
     facts = prefetched.facts
-    mode, roles, notes = resolve_mode(mode_hint, parsed, prefetched)
+    mode, roles, notes = resolve_mode(mode_hint, parsed, prefetched, previous_roles)
     if parsed.unmatched_roles:
         notes.append(_NOTES["unmatched"].format(names=", ".join(f'"{r}"' for r in parsed.unmatched_roles)))
     if parsed.parse_failed:
@@ -139,7 +146,10 @@ def build_report(
         "profile": profile,
         "situation": situation,
         "readiness_gaps": prefetched.readiness_gaps,
-        "role_catalog": prefetched.role_catalog,
+        "role_catalog": [
+            {key: r[key] for key in ("tag", "name", "definition", "required_skills")}
+            for r in prefetched.role_catalog
+        ],
         "course_links": prefetched.course_links,
         "evidence_sources": list(SOURCES),
     }

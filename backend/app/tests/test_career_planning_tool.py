@@ -307,3 +307,26 @@ def test_the_parser_is_told_which_roles_were_offered(monkeypatch):
                                    {"key": "data_engineering", "label": "Data Engineering"}])
     assert "1. Data Analytics (data_analytics)\n2. Data Engineering (data_engineering)" in seen["prompt"]
     assert "by position" in seen["prompt"]
+
+
+def test_the_parser_lists_each_roles_chinese_name(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(parser.llm, "complete", lambda prompt, *a, **k: seen.setdefault("prompt", prompt) and "{}")
+    catalog = [{**CATALOG[1], "name_zh": "数据工程"}]
+    parser.parse("那和数据工程比呢？", catalog)
+    assert "- data_engineering: Data Engineering / 数据工程 — Pipelines." in seen["prompt"]
+
+
+def test_a_comparison_follow_up_compares_against_the_previous_role():
+    # "And compared with data engineering?" after a data analytics plan.
+    resolved = builder.resolve_mode("compare", ParsedCareerRequest(roles=["data_engineering"]),
+                                    _prefetched({"main_target_role": "quantitative_finance"}),
+                                    previous_roles=["data_analytics"])
+    assert resolved == ("compare", ["data_engineering", "data_analytics", "quantitative_finance"], [])
+
+
+def test_the_report_carries_only_the_contracts_role_fields():
+    prefetched = Prefetched(facts={}, stage=None, readiness_gaps=[], course_links=LINKS,
+                            role_catalog=[{**r, "name_zh": "x"} for r in CATALOG])
+    report = builder.build_report(prefetched, ParsedCareerRequest(), "exploration", date(2026, 10, 13)).report
+    assert all("name_zh" not in r for r in report["role_catalog"])

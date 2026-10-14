@@ -59,7 +59,10 @@ def _understand_and_gather(state: TurnState, user_message: str):
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     user_message = last_human_message(state.messages)
     parsed, prefetched = _understand_and_gather(state, user_message)
-    built = build_report(prefetched, parsed, state.career_mode_hint, date.today(), state.user_id)
+    built = build_report(
+        prefetched, parsed, state.career_mode_hint, date.today(), state.user_id,
+        previous_roles=follow_up.roles_covered(state.previous_turn),
+    )
 
     result = plan_career(built.report)
     result["notes"] = [*built.notes, *prefetched.notes, *result["notes"]]

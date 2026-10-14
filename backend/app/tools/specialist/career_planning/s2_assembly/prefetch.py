@@ -44,11 +44,12 @@ _PROFILE_UNAVAILABLE_NOTE = "Your profile couldn't be read just now, so this adv
 
 
 def role_catalog() -> list[dict]:
-    """[{tag, name, definition, required_skills}] for every role family
-    that names its skills."""
+    """[{tag, name, name_zh, definition, required_skills}] for every role
+    family that names its skills (name_zh lets S1 match a role named in
+    Chinese)."""
     return [
-        {"tag": r["tag"], "name": r["name_en"], "definition": r.get("definition") or "",
-         "required_skills": list(r["required_skills"])}
+        {"tag": r["tag"], "name": r["name_en"], "name_zh": r.get("name_zh") or "",
+         "definition": r.get("definition") or "", "required_skills": list(r["required_skills"])}
         for r in list_role_tags() if r.get("required_skills")
     ]
 

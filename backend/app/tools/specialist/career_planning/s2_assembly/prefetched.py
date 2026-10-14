@@ -18,7 +18,7 @@ class Prefetched:
     stage: str | None
     # [{area, level, required}] programme-readiness gaps (derived labels).
     readiness_gaps: list[dict]
-    # [{tag, name, definition, required_skills}] — the role families.
+    # [{tag, name, name_zh, definition, required_skills}] — the role families.
     role_catalog: list[dict]
     # [{code, title, tags}] — the courses on offer and their role tags.
     course_links: list[dict]

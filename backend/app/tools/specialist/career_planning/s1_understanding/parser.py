@@ -42,7 +42,8 @@ The programme's role families (tag: name — definition):
 
 Reply with ONLY a JSON object with these keys:
 - "roles": the tags of the role families the message names or describes, \
-in the order named — map job titles onto the closest family (e.g. "quant \
+in any language, in the order named — "数据工程" is data_engineering — and \
+map job titles onto the closest family (e.g. "quant \
 researcher" -> quantitative_finance, "compliance officer" -> \
 regulation_governance, "data scientist" -> data_analytics or \
 machine_learning_ai by what they describe). Only tags from the list above.
@@ -58,7 +59,11 @@ US, EUROPE, OTHER, ANY anywhere).
 
 
 def _catalogue(role_catalog: list[dict]) -> str:
-    return "\n".join(f"- {r['tag']}: {r['name']} — {r.get('definition') or ''}".rstrip(" —") for r in role_catalog)
+    def line(r: dict) -> str:
+        names = " / ".join(n for n in (r["name"], r.get("name_zh")) if n)
+        definition = r.get("definition") or ""
+        return f"- {r['tag']}: {names}" + (f" — {definition}" if definition else "")
+    return "\n".join(line(r) for r in role_catalog)
 
 
 _OPTIONS = """

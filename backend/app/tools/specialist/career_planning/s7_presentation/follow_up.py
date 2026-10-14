@@ -35,6 +35,13 @@ def options_offered(previous: PreviousTurn | None) -> list[dict] | None:
     return awaiting.get("options") if awaiting.get("kind") == "choose_role" else None
 
 
+def roles_covered(previous: PreviousTurn | None) -> list[str]:
+    """The roles the previous career reply covered (role tags), if any —
+    what "and compared with X?" compares against."""
+    context = previous.context_for(TOOL) if previous else None
+    return list((context or {}).get("subjects") or [])
+
+
 def repeats_previous(result: dict, previous: PreviousTurn | None) -> bool:
     """An exploration showing exactly the roles the previous one did: the
     reply should say so briefly instead of walking through them again."""

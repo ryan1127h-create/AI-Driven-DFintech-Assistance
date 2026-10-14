@@ -509,8 +509,8 @@ def list_course_electives() -> dict[str, list[str]]:
 
 
 def list_role_tags() -> list[dict]:
-    """The 12 role tags (role families): {tag, name_en, definition,
-    required_skills}. Courses carry these tags, and a profile's
+    """The 12 role tags (role families): {tag, name_en, name_zh,
+    definition, required_skills}. Courses carry these tags, and a profile's
     target_role_families takes its values from them."""
     return [
         {**row, "required_skills": list(row["required_skills"] or [])}

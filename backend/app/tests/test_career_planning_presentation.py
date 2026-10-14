@@ -219,3 +219,9 @@ def test_a_repeat_is_rendered_briefly(monkeypatch):
                         lambda view, m, style, **k: seen.append(style) or ("ok", []))
     renderer.render(_result("exploration", ()), _prefetched(), "", repeat=True)
     assert "keep this reply SHORT" in seen[0]
+
+
+def test_the_roles_covered_come_from_the_previous_career_turn():
+    assert follow_up.roles_covered(_previous(follow_up.turn_context(_result()))) == ["data_analytics"]
+    assert follow_up.roles_covered(_previous({"tool": "orchestrator", "subjects": ["x"]})) == []
+    assert follow_up.roles_covered(None) == []
