@@ -9,7 +9,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.domains.conversation import repository, service
 from app.domains.conversation.models import ConversationState
@@ -17,7 +17,7 @@ from app.orchestrator import classification, turn_service
 from app.orchestrator import dispatch
 from app.orchestrator.dispatch import requirements, synthesis
 from app.tools.contracts import MissingInputField, ToolAnswer
-from app.tools.turn_context import PreviousTurn
+from app.tools.turn_context import PreviousTurn, to_chat_messages
 
 CONTEXT = {
     "tool": "career", "mode": "exploration", "subjects": ["software_engineering", "data_analytics"],
@@ -74,13 +74,14 @@ def test_a_turn_logged_before_contexts_existed_reads_without_them():
 
 def test_the_last_turn_survives_a_freeze(store, monkeypatch):
     monkeypatch.setattr(service.settings, "history_block_size", 2)
-    monkeypatch.setattr(service, "summarize_block", lambda messages: "summary")
+    monkeypatch.setattr(service, "summarize_block", lambda messages, log=None, start=1: "summary")
     state = ConversationState(user_id="u1")
     for i in range(3):
         _turn(state, f"q{i}", f"a{i}", [{**CONTEXT, "subjects": [str(i)]}])
     service.freeze_and_unlock("s1")
     last = service.last_turn(store.get_state("s1"))
     assert last["user_message"] == "q2" and last["contexts"][0]["subjects"] == ["2"]
+    assert len(store.get_state("s1").history_summaries) == 1   # the freeze did run
 
 
 # --- what the orchestrator records ---
@@ -198,3 +199,42 @@ def test_a_turn_hands_the_previous_turn_to_the_classifier_and_the_tools(monkeypa
     assert seen["classifier"] is seen["tools"]
     assert seen["tools"].user_message == "what fits me?" and seen["tools"].awaiting["kind"] == "choose_role"
     assert seen["tools"].context_for("career") == CONTEXT
+
+
+# --- what goes into prompts ---
+
+
+
+
+def test_long_earlier_replies_are_shortened_keeping_start_and_end(monkeypatch):
+    monkeypatch.setattr(service.settings, "history_reply_max_chars", 90)
+    reply = "START " + "x" * 300 + " Which role?"
+    shortened = service.shorten_reply(reply)
+    assert len(shortened) < 120 and shortened.startswith("START") and shortened.endswith("Which role?")
+    assert "[shortened]" in shortened
+    assert service.shorten_reply("short") == "short"
+    history = [HumanMessage("q" * 300), AIMessage(reply)]
+    prompt = service.for_prompt(history)
+    assert prompt[0].content == "q" * 300 and prompt[1].content == shortened
+
+
+def test_the_summarizer_sees_which_tool_answered_each_turn(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(service.llm, "complete", lambda prompt, transcript, **k: seen.update(
+        prompt=prompt, transcript=transcript) or "summary")
+    messages = [HumanMessage("what fits me?"), AIMessage("Four roles."), HumanMessage("SE"), AIMessage("A plan.")]
+    log = [{"turn": 5, "intents": ["career"], "agent_used": "career_agent", "contexts": [CONTEXT]},
+           {"turn": 6, "intents": ["career"], "agent_used": "career_agent"}]
+    assert service.summarize_block(messages, log, start_turn=5) == "summary"
+    assert seen["transcript"].splitlines() == [
+        "User: what fits me?", "Assistant: Four roles.",
+        "[turn 5 answered by career (exploration): software_engineering, data_analytics]",
+        "User: SE", "Assistant: A plan.", "[turn 6 answered by career_agent]",
+    ]
+    assert "current student" in seen["prompt"] and "admissions assistant" not in seen["prompt"]
+
+
+def test_context_messages_keep_the_system_role():
+    roles = [m["role"] for m in to_chat_messages(
+        [SystemMessage("profile"), HumanMessage("hi"), AIMessage("hello")])]
+    assert roles == ["system", "user", "assistant"]

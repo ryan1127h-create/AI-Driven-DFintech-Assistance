@@ -39,6 +39,7 @@ __all__ = [
     "should_freeze",
     "freeze_and_unlock",
     "render_summaries",
+    "for_prompt",
     "list_conversations",
     "get_conversation_history",
     "rollback_conversation",
@@ -105,6 +106,12 @@ def render_summaries(history_summaries: list[HistoryBlock]) -> str:
     """Renders frozen block summaries into the compact text block a turn's
     prompt injects as history context. Empty list -> empty string."""
     return service.render_summaries(history_summaries)
+
+
+def for_prompt(messages: list) -> list:
+    """The raw tail as a prompt should see it: earlier assistant replies
+    shortened to settings.history_reply_max_chars (start and end kept)."""
+    return service.for_prompt(messages)
 
 
 def list_conversations(user_id: str) -> list[dict]:

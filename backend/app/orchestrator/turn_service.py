@@ -103,7 +103,7 @@ def run_turn(
     if summaries_text:
         system_blocks.append(SystemMessage(content=summaries_text))
 
-    llm_messages = system_blocks + state.raw_tail + [new_message]
+    llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + [new_message]
     previous_turn = _previous_turn(state)
 
     (
