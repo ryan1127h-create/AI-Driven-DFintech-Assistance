@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ports.llm_port import ChatMessage
@@ -124,7 +124,10 @@ def to_chat_messages(messages: list[BaseMessage]) -> list[ChatMessage]:
     types stop, so a provider swap never has to touch this conversion."""
     result: list[ChatMessage] = []
     for m in messages:
-        role = "assistant" if isinstance(m, AIMessage) else "user"
+        # Context the orchestrator places ahead of the turns (the profile,
+        # earlier-turn summaries) stays a system message — sent as "user",
+        # the model would read it as something the user said.
+        role = "assistant" if isinstance(m, AIMessage) else "system" if isinstance(m, SystemMessage) else "user"
         content = m.content if isinstance(m.content, str) else str(m.content)
         result.append({"role": role, "content": content})
     return result
