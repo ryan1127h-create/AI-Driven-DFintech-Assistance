@@ -30,12 +30,12 @@ def test_reply_language(detected, preferred, expected):
 def test_classifier_leaves_the_language_open_when_it_cannot_tell(monkeypatch):
     replies = iter(['{"intents": ["general"], "target_role_hint": null, "program_hints": [], "reply_language": null}'])
     monkeypatch.setattr(classification.llm, "complete", lambda *a, **k: next(replies))
-    assert classification.classify_intent([HumanMessage("ok")])[3] is None
+    assert classification.classify_intent([HumanMessage("ok")]).reply_language is None
 
     def broken(*a, **k):
         raise RuntimeError("rate limited")
     monkeypatch.setattr(classification.llm, "complete", broken)
-    assert classification.classify_intent([HumanMessage("学费多少")])[3] is None
+    assert classification.classify_intent([HumanMessage("学费多少")]).reply_language is None
 
 
 # --- answer depth -----------------------------------------------------------------
@@ -83,7 +83,7 @@ def test_a_turn_uses_the_saved_preferences(monkeypatch):
     monkeypatch.setattr(turn_service, "get_assistant_preferences",
                         lambda uid: {"language_pref": ["zh"], "answer_depth": "detailed"})
     monkeypatch.setattr(turn_service.classification, "classify_intent",
-                        lambda messages, on_event=None, previous_turn=None: (["financial"], None, [], None, None, None))
+                        lambda messages, on_event=None, previous_turn=None: classification.Classification(["financial"]))
     captured = {}
 
     def answer_turn(turn_state, intents, on_event=None):

@@ -72,7 +72,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     user_message = last_human_message(state.messages)
     parsed, prefetched = _understand_and_gather(state, user_message)
     built = build_report(
-        prefetched, parsed, None, state.program_hints, date.today(), state.user_id,
+        prefetched, parsed, state.comparison_mode_hint, state.program_hints, date.today(), state.user_id,
         previous_programs=follow_up.programs_covered(state.previous_turn),
     )
 

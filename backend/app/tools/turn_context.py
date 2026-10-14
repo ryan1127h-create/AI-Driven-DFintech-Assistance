@@ -72,6 +72,9 @@ class TurnState:
     # Likewise for career advice: "exploration", "plan" or "compare" (see
     # classification.CAREER_MODES); None otherwise.
     career_mode_hint: str | None = None
+    # Likewise for a programme comparison: "compare", "detail" or "explore"
+    # (see classification.COMPARISON_MODES); None otherwise.
+    comparison_mode_hint: str | None = None
     # Input fields the user skipped or dismissed earlier in this
     # conversation (see orchestrator/dispatch/requirements.py): an optional
     # or supplementary field here isn't asked for again this session.

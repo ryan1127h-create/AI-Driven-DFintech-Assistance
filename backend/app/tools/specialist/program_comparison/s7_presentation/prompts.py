@@ -49,8 +49,9 @@ Structure the reply as:
 1. One opening line naming the programmes compared and, if `personalised` \
 is false, that this is from published facts only.
 2. A compact Markdown table: one row per aspect in `aspects` that has \
-facts, one column for MSc DFT then one per programme compared; cells are \
-short (key figures only).
+facts, one column for MSc DFT then one per programme compared — every \
+programme under `compared_with` gets its column; cells are short (key \
+figures only; for curriculum, skill names only, no course codes).
 3. The differences that matter (`differences_from_msc_dft`), each tied to \
 the user's situation from `for_you` where there is one — e.g. what each \
 would cost them after automatic reductions, whether their English score \

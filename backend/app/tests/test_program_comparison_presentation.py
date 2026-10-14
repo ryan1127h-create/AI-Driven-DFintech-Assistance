@@ -121,7 +121,7 @@ def test_guardrail_catches(reply, problem):
 
 
 def test_what_the_user_said_may_be_echoed():
-    assert guardrail.check("Yes, compared with NTU's March 2027 round…", VIEW, "what about NTU in March 2027?",
+    assert guardrail.check("Yes, HKUST compared with NTU's March 2027 round…", VIEW, "what about NTU in March 2027?",
                            UNIVERSITIES) == []
 
 
@@ -141,9 +141,9 @@ def test_renderer_keeps_a_corrected_draft(monkeypatch):
 
     def fake(view, message, style, **kwargs):
         calls.append(style)
-        return ("HKUST is better than DFT." if len(calls) == 1 else "Both are laid out above."), []
+        return ("HKUST is better than DFT." if len(calls) == 1 else "HKUST and NTU are laid out above."), []
     monkeypatch.setattr(renderer, "render_structured_reply", fake)
-    assert renderer.render(_result(), UNIVERSITIES, "compare")[0] == "Both are laid out above."
+    assert renderer.render(_result(), UNIVERSITIES, "compare")[0] == "HKUST and NTU are laid out above."
     assert "was rejected" in calls[1]
 
 
@@ -203,3 +203,10 @@ def test_handler_sequences_the_steps(monkeypatch):
 def test_the_tool_skips_evaluation_and_has_a_fallback():
     assert tool.COMPARISON_TOOL.skip_evaluation and tool.COMPARISON_TOOL.input_needs is tool.input_needs
     assert "couldn't" in tool._fallback(TurnState(messages=[], user_id="u1")).text
+
+
+def test_a_covered_programme_left_out_of_the_reply_is_caught():
+    reply = "MSc DFT costs SGD 76,409."  # HKUST, which the view covers, is never named
+    assert any(v.startswith("programmes in the result left out of the reply: HKUST")
+               for v in guardrail.check(reply, VIEW, "", UNIVERSITIES))
+    assert guardrail.check("港科大的学费是 HKD 405,000；MSc DFT 是 SGD 76,409。", VIEW, "", UNIVERSITIES) == []

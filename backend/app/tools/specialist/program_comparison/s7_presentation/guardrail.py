@@ -3,13 +3,15 @@ S7 — checks a rendered reply against the render view it was written from.
 The rendering model is told never to invent or convert figures, bring in
 other programmes or rank them; this verifies it didn't, deterministically.
 
-Four checks (anything the user's own message mentions may be echoed):
+Five checks (anything the user's own message mentions may be echoed):
   1. every amount written with a currency is a number in the view, and
      none is restated in 万 / k units;
   2. every month-and-year in the reply is one of the view's dates' months;
   3. no university the view doesn't cover is named (any of its names or
      aliases);
-  4. no ranking or verdict wording ("better than", "the best", "更好",
+  4. every university the view does cover is named — a short follow-up
+     ("the first one and HKU") can mislead the writer into dropping one;
+  5. no ranking or verdict wording ("better than", "the best", "更好",
      "首选", ...).
 
 The caveats rule (each conflicting official statement is mentioned) is
@@ -85,16 +87,19 @@ def check(reply: str, view: dict, user_message: str = "", universities: list[dic
     if invented:
         violations.append("dates not in the result: " + ", ".join(f"{y}-{m:02d}" for y, m in invented))
 
-    stray = []
+    stray, left_out = [], []
     for u in universities:
         names = [n for n in (u["short_name"], u["name"], *u.get("aliases", [])) if n and len(n) >= 2]
-        if any(_mentions(view_text, n) for n in names) or any(_mentions(user_message, n) for n in names):
-            continue
-        hit = next((n for n in names if _mentions(reply, n)), None)
-        if hit:
-            stray.append(hit)
+        in_reply = any(_mentions(reply, n) for n in names)
+        if any(_mentions(view_text, n) for n in names):
+            if not in_reply:
+                left_out.append(u["short_name"])
+        elif in_reply and not any(_mentions(user_message, n) for n in names):
+            stray.append(next(n for n in names if _mentions(reply, n)))
     if stray:
         violations.append("programmes not in the result: " + ", ".join(stray))
+    if left_out:
+        violations.append("programmes in the result left out of the reply: " + ", ".join(left_out))
 
     ranking = sorted({m.group(0) for m in _RANKING.finditer(reply)})
     if ranking:
