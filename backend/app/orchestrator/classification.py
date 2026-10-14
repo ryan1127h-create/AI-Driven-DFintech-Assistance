@@ -39,7 +39,7 @@ import json
 from app.adapters.deepseek_adapter import llm
 from app.core import answer_depth
 from app.tools.contracts import OnEvent, ToolAnswer
-from app.tools.turn_context import last_human_message, to_chat_messages
+from app.tools.turn_context import PreviousTurn, last_human_message, to_chat_messages
 
 SUPERVISOR_SYSTEM_PROMPT = """\
 You are an AI assistant for the NUS Master of Science in Digital Financial \
@@ -79,6 +79,18 @@ AND what's the tuition?" is admissions + financial). Return at most 3 intents.
 "assessment", "course_recommendation", "general", and "off_topic" must NEVER \
 appear together with any other intent — if any of the four applies, it must \
 be the only element in the list.
+
+The input may start with a PREVIOUS TURN section: the last exchange in this \
+conversation, for context only. Classify ONLY the LATEST MESSAGE, but read it \
+in that light: a short message that answers what the assistant just asked or \
+offered — picking one of the options it listed, naming a role, course or \
+value, "yes", "no", "the second one" — continues the previous turn's topic, so \
+give it the previous turn's intent and fill the hints from what it picks (e.g. \
+the assistant listed roles to choose from and the latest message is "software \
+engineering": intents ["career"], target_role_hint "software engineering", \
+career_mode_hint "plan"). A message that is complete on its own or clearly \
+changes the subject is classified on its own, ignoring the previous turn. \
+reply_language always comes from the LATEST MESSAGE alone.
 
 The ten categories:
 
@@ -232,8 +244,36 @@ COURSE_MODES = {"degree_overview", "ad_hoc", "semester_plan"}
 CAREER_MODES = {"exploration", "plan", "compare"}
 
 
+def _classifier_input(message: str, previous_turn: PreviousTurn | None) -> str:
+    """The latest message alone, or — after an earlier turn — preceded by
+    that turn: what the user said, how the reply ended, which tool
+    answered, and any question it was waiting on."""
+    if previous_turn is None:
+        return message
+    lines = [
+        "PREVIOUS TURN (context only — do not classify it):",
+        f"User: {previous_turn.user_message[:300]}",
+        f"Assistant (ending of its reply): {previous_turn.reply_tail()}",
+    ]
+    if previous_turn.intents:
+        lines.append(f"It was classified as: {', '.join(previous_turn.intents)}")
+    for context in previous_turn.contexts:
+        mode = f", mode {context['mode']}" if context.get("mode") else ""
+        lines.append(f"Answered by: {context.get('tool')}{mode}")
+    awaiting = previous_turn.awaiting
+    if awaiting and awaiting.get("kind") == "choose_role":
+        options = "; ".join(f"{o['label']} ({o['key']})" for o in awaiting.get("options", []))
+        lines.append(f"The assistant asked the user to choose one of these roles: {options}")
+    elif awaiting and awaiting.get("kind") == "fields":
+        lines.append(f"The assistant asked the user for: {', '.join(awaiting.get('field_keys', []))}")
+    elif awaiting and awaiting.get("kind") == "consent":
+        lines.append("The assistant asked the user to turn on a consent.")
+    lines += ["", "LATEST MESSAGE (classify this):", message]
+    return "\n".join(lines)
+
+
 def classify_intent(
-    messages: list, on_event: OnEvent | None = None,
+    messages: list, on_event: OnEvent | None = None, previous_turn: PreviousTurn | None = None,
 ) -> tuple[list[str], str | None, list[str], str | None, str | None, str | None]:
     """Classifies the latest user message into 1-3 intent categories, plus
     two optional personalisation hints (target_role_hint, program_hints),
@@ -242,7 +282,9 @@ def classify_intent(
     career_mode_hint. Returns (intents, target_role_hint, program_hints,
     reply_language, course_mode_hint, career_mode_hint) —
     (["general"], None, [], None, None, None) on an empty message or any
-    classification failure. reply_language is None whenever the message's language can't be
+    classification failure. `previous_turn`, when given, is shown to the
+    model as context for reading a short follow-up (see
+    _classifier_input()). reply_language is None whenever the message's language can't be
     told; turn_service then falls back to the user's language preference,
     and to English without one."""
     last_user_message = last_human_message(messages)
@@ -258,7 +300,10 @@ def classify_intent(
     # "general" (a plain conversational reply) rather than failing the
     # whole turn.
     try:
-        response = llm.complete(INTENT_CLASSIFIER_PROMPT, last_user_message, temperature=0, max_tokens=1500)
+        response = llm.complete(
+            INTENT_CLASSIFIER_PROMPT, _classifier_input(last_user_message, previous_turn),
+            temperature=0, max_tokens=1500,
+        )
         result = json.loads(response.strip())
         raw = result.get("intents", ["general"])
         if isinstance(raw, str):  # tolerate a stray single-string response
