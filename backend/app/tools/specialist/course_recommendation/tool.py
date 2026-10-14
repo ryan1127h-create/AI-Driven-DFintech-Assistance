@@ -24,7 +24,7 @@ from app.tools.specialist.course_recommendation.s1_understanding import parser
 from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note
 from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch
-from app.tools.specialist.course_recommendation.s7_presentation import renderer
+from app.tools.specialist.course_recommendation.s7_presentation import follow_up, renderer
 from app.tools.specialist.course_recommendation.s7_presentation.save_suggestions import save_suggestions
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
@@ -78,6 +78,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     return ToolAnswer(
         text=answer, sources=sources, agent_used="course_recommendation_agent",
         save_suggestions=save_suggestions(parsed, prefetched),
+        contexts=[follow_up.turn_context(result)],
     )
 
 
