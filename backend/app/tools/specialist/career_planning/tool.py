@@ -22,7 +22,7 @@ from app.tools.specialist.career_planning.s1_understanding import parser
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
 from app.tools.specialist.career_planning.s2_assembly.builder import build_report
 from app.tools.specialist.career_planning.s2_assembly.prefetch import prefetch, role_catalog
-from app.tools.specialist.career_planning.s7_presentation import renderer
+from app.tools.specialist.career_planning.s7_presentation import follow_up, renderer
 from app.tools.specialist.career_planning.s7_presentation.save_suggestions import save_suggestions
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
 
@@ -39,10 +39,12 @@ _FALLBACK_REPLY = (
 
 def _understand_and_gather(state: TurnState, user_message: str):
     """S1 and S2's reads, in parallel: neither needs the other (the parser
-    only needs the role catalogue, which is cached)."""
+    only needs the role catalogue, which is cached, and the roles the
+    previous reply offered, if it asked the student to pick one)."""
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        parsing = pool.submit(parser.parse, user_message, role_catalog())
+        options = follow_up.options_offered(state.previous_turn)
+        parsing = pool.submit(parser.parse, user_message, role_catalog(), options)
         prefetched = prefetch(state.user_id)
         try:
             parsed = parsing.result(timeout=_PARSE_TIMEOUT_SECONDS)
@@ -61,10 +63,14 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
 
     result = plan_career(built.report)
     result["notes"] = [*built.notes, *prefetched.notes, *result["notes"]]
-    answer, sources = renderer.render(result, prefetched, user_message, on_event=on_event, depth=state.answer_depth)
+    answer, sources = renderer.render(
+        result, prefetched, user_message, on_event=on_event, depth=state.answer_depth,
+        repeat=follow_up.repeats_previous(result, state.previous_turn),
+    )
     return ToolAnswer(
         text=answer, sources=sources, agent_used="career_agent",
         save_suggestions=save_suggestions(parsed, prefetched, result["mode"]),
+        contexts=[follow_up.turn_context(result)],
     )
 
 

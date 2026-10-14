@@ -6,7 +6,9 @@ The mode comes from the intent classifier (TurnState.career_mode_hint);
 this step maps the roles the message names onto the knowledge base's role
 families — "quant researcher" is quantitative_finance, "compliance
 officer" regulation_governance — which plain text matching can't, and
-picks up situation facts stated in passing. The role catalogue is passed
+picks up situation facts stated in passing. When the previous reply
+asked the student to choose a role, its options are passed in too, so
+"the second one" or "SE" resolves to a role. The role catalogue is passed
 in (tag, name, definition), so the parser itself reads no data. Any
 failure yields an empty request marked parse_failed: the answer still
 runs, on the profile alone.
@@ -59,8 +61,18 @@ def _catalogue(role_catalog: list[dict]) -> str:
     return "\n".join(f"- {r['tag']}: {r['name']} — {r.get('definition') or ''}".rstrip(" —") for r in role_catalog)
 
 
-def parse(message: str, role_catalog: list[dict]) -> ParsedCareerRequest:
-    """`role_catalog`: [{tag, name, definition}]."""
+_OPTIONS = """
+
+The assistant's previous reply asked the student to choose one of these \
+roles, in this order:
+{options}
+If the message picks one — by name, by position ("the second one"), by an \
+abbreviation or by describing it — put its tag in "roles"."""
+
+
+def parse(message: str, role_catalog: list[dict], options: list[dict] | None = None) -> ParsedCareerRequest:
+    """`role_catalog`: [{tag, name, definition}]; `options`: the roles the
+    previous reply offered, [{key, label}], if it asked for a choice."""
     if not message.strip():
         return ParsedCareerRequest()
     prompt = _PROMPT.format(
@@ -69,6 +81,9 @@ def parse(message: str, role_catalog: list[dict]) -> ParsedCareerRequest:
         statuses=", ".join(INTERNSHIP_STATUSES),
         markets=", ".join(MARKETS),
     )
+    if options:
+        listed = "\n".join(f"{i}. {o['label']} ({o['key']})" for i, o in enumerate(options, start=1))
+        prompt += _OPTIONS.format(options=listed)
     try:
         raw = json.loads(llm.complete(prompt, message, temperature=0, max_tokens=_MAX_TOKENS).strip())
         if not isinstance(raw, dict):

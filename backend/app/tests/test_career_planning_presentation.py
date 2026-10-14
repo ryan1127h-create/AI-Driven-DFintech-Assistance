@@ -1,5 +1,6 @@
 """Exercises the career planning tool's S7: the render view, the reply
-guardrail, the re-render and template fallback, and save suggestions."""
+guardrail, the re-render and template fallback, save suggestions, and
+what a turn leaves for the next (follow_up.py)."""
 
 from __future__ import annotations
 
@@ -10,9 +11,10 @@ import pytest
 from app.domains.specialist.career_planning.interface import plan_career
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
 from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetched
-from app.tools.specialist.career_planning.s7_presentation import guardrail, renderer
+from app.tools.specialist.career_planning.s7_presentation import follow_up, guardrail, renderer
 from app.tools.specialist.career_planning.s7_presentation.payload import to_render_view
 from app.tools.specialist.career_planning.s7_presentation.save_suggestions import save_suggestions
+from app.tools.turn_context import PreviousTurn
 
 CATALOG = [
     {"tag": "data_analytics", "name": "Data Analytics", "definition": "Insight from data.",
@@ -172,3 +174,48 @@ def test_nothing_is_offered_when_the_profile_already_says_it():
     facts = {"main_target_role": "data_analytics", "internship_status": "secured"}
     assert save_suggestions(parsed, _prefetched(facts), "plan") == []
     assert save_suggestions(ParsedCareerRequest(roles=["data_analytics"]), _prefetched({}), "exploration") == []
+
+
+# --- follow-up ---
+
+
+def _previous(context):
+    return PreviousTurn(user_message="q", reply="r", contexts=(context,) if context else ())
+
+
+def test_an_exploration_records_its_roles_as_a_question():
+    context = follow_up.turn_context(_result("exploration", ()))
+    assert context["mode"] == "exploration" and context["subjects"]
+    assert context["awaiting"]["kind"] == "choose_role"
+    assert [o["key"] for o in context["awaiting"]["options"]] == context["subjects"]
+    assert context["awaiting"]["options"][0]["label"] in {r["name"] for r in CATALOG}
+
+
+def test_a_plan_records_its_role_and_asks_nothing():
+    assert follow_up.turn_context(_result()) == {
+        "tool": "career", "mode": "plan", "subjects": ["data_analytics"], "awaiting": None}
+
+
+def test_the_options_offered_come_only_from_a_career_question():
+    context = follow_up.turn_context(_result("exploration", ()))
+    assert follow_up.options_offered(_previous(context)) == context["awaiting"]["options"]
+    assert follow_up.options_offered(_previous(follow_up.turn_context(_result()))) is None
+    assert follow_up.options_offered(_previous({"tool": "orchestrator", "awaiting": {"kind": "fields"}})) is None
+    assert follow_up.options_offered(None) is None
+
+
+def test_the_same_exploration_twice_is_a_repeat():
+    result = _result("exploration", ())
+    assert follow_up.repeats_previous(result, _previous(follow_up.turn_context(result)))
+    changed = {**follow_up.turn_context(result), "subjects": ["cybersecurity"]}
+    assert not follow_up.repeats_previous(result, _previous(changed))
+    assert not follow_up.repeats_previous(_result(), _previous(follow_up.turn_context(_result())))
+    assert not follow_up.repeats_previous(result, None)
+
+
+def test_a_repeat_is_rendered_briefly(monkeypatch):
+    seen = []
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, m, style, **k: seen.append(style) or ("ok", []))
+    renderer.render(_result("exploration", ()), _prefetched(), "", repeat=True)
+    assert "keep this reply SHORT" in seen[0]

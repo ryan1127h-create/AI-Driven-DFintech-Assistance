@@ -83,6 +83,24 @@ choose.
 
 {_HARD_RULES}"""
 
+EXPLORATION_REPEAT_STYLE_PROMPT = f"""\
+{_ROLE}
+
+The student asked about suitable roles again, and the result below is the \
+same as the one you gave in your previous reply — so keep this reply SHORT \
+(at most 5 lines), and don't walk through the roles again.
+
+Structure the reply as:
+1. One line saying the result is unchanged from last time, because their \
+profile hasn't changed.
+2. The role names in the given order, on one line, each with its fit as a \
+percentage.
+3. Ask them to pick one of these roles for a full readiness plan — or, if \
+most of the roles' skills are unknown, suggest adding their skill levels \
+and experience to their profile, which would change the result.
+
+{_HARD_RULES}"""
+
 STYLES = {
     "exploration": EXPLORATION_STYLE_PROMPT,
     "plan": PLAN_STYLE_PROMPT,

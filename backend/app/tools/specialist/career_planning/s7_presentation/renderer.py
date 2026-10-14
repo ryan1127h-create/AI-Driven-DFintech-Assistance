@@ -16,7 +16,7 @@ from app.tools.contracts import OnEvent
 from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetched
 from app.tools.specialist.career_planning.s7_presentation import guardrail
 from app.tools.specialist.career_planning.s7_presentation.payload import to_render_view
-from app.tools.specialist.career_planning.s7_presentation.prompts import STYLES
+from app.tools.specialist.career_planning.s7_presentation.prompts import EXPLORATION_REPEAT_STYLE_PROMPT, STYLES
 from app.tools.structured_reply import render_structured_reply, render_template
 
 logger = get_logger(__name__)
@@ -30,10 +30,12 @@ below, and no money figures."""
 
 def render(
     result: dict, prefetched: Prefetched, user_message: str,
-    on_event: OnEvent | None = None, depth: str | None = None,
+    on_event: OnEvent | None = None, depth: str | None = None, repeat: bool = False,
 ) -> tuple[str, list[str]]:
+    """`repeat`: the result is the one the previous reply already gave
+    (see follow_up.repeats_previous) — said briefly, not walked through."""
     view = to_render_view(result, prefetched)
-    style = STYLES[view["mode"]]
+    style = EXPLORATION_REPEAT_STYLE_PROMPT if repeat else STYLES[view["mode"]]
     role_names = [r["name"] for r in prefetched.role_catalog]
 
     reply, sources = render_structured_reply(view, user_message, style, on_event=on_event, depth=depth)

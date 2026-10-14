@@ -16,7 +16,7 @@ from app.tools.specialist.career_planning.s1_understanding import parser
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
 from app.tools.specialist.career_planning.s2_assembly import builder, prefetch
 from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetched
-from app.tools.turn_context import TurnState
+from app.tools.turn_context import PreviousTurn, TurnState
 
 CATALOG = [
     {"tag": "data_analytics", "name": "Data Analytics", "definition": "Insight from data.",
@@ -137,25 +137,30 @@ def test_a_failed_parse_is_marked(monkeypatch):
 
 # --- S2 builder ---
 
-@pytest.mark.parametrize("hint, named, profile_roles, mode, roles", [
-    ("plan", ["quantitative_finance"], ["data_analytics"], "plan", ["quantitative_finance"]),
-    ("plan", [], ["data_analytics"], "plan", ["data_analytics"]),
-    ("plan", [], [], "exploration", []),
-    ("compare", ["data_analytics", "data_engineering"], [], "compare", ["data_analytics", "data_engineering"]),
-    ("compare", ["quantitative_finance"], ["data_analytics"], "compare", ["quantitative_finance", "data_analytics"]),
-    ("compare", ["quantitative_finance"], [], "plan", ["quantitative_finance"]),
-    ("compare", [], [], "exploration", []),
-    ("exploration", ["data_analytics"], [], "exploration", []),
-    (None, ["data_analytics", "data_engineering"], [], "compare", ["data_analytics", "data_engineering"]),
-    (None, [], ["data_engineering"], "plan", ["data_engineering"]),
-    (None, [], [], "exploration", []),
+@pytest.mark.parametrize("hint, named, profile_roles, mode, roles, noted", [
+    ("plan", ["quantitative_finance"], ["data_analytics"], "plan", ["quantitative_finance"], False),
+    ("plan", [], ["data_analytics"], "plan", ["data_analytics"], False),
+    ("plan", [], [], "exploration", [], True),
+    ("compare", ["data_analytics", "data_engineering"], [], "compare", ["data_analytics", "data_engineering"], False),
+    ("compare", ["quantitative_finance"], ["data_analytics"], "compare",
+     ["quantitative_finance", "data_analytics"], False),
+    ("compare", ["quantitative_finance"], [], "plan", ["quantitative_finance"], True),
+    ("compare", [], [], "exploration", [], True),
+    # Picking a role out of an exploration asks for its plan.
+    ("exploration", ["data_analytics"], [], "plan", ["data_analytics"], False),
+    ("exploration", ["data_analytics", "data_engineering"], [], "compare",
+     ["data_analytics", "data_engineering"], False),
+    ("exploration", [], ["data_analytics"], "exploration", [], False),
+    (None, ["data_analytics", "data_engineering"], [], "compare", ["data_analytics", "data_engineering"], False),
+    (None, [], ["data_engineering"], "plan", ["data_engineering"], False),
+    (None, [], [], "exploration", [], False),
 ])
-def test_the_mode_and_roles_that_run(hint, named, profile_roles, mode, roles):
+def test_the_mode_and_roles_that_run(hint, named, profile_roles, mode, roles, noted):
     facts = {"target_role_families": profile_roles} if profile_roles else {}
     resolved = builder.resolve_mode(hint, ParsedCareerRequest(roles=named), _prefetched(facts))
     assert resolved[:2] == (mode, roles)
-    # Every fallback says what ran instead.
-    assert bool(resolved[2]) == (mode != (hint or mode))
+    # A fallback (not what was asked for) says what ran instead.
+    assert bool(resolved[2]) == noted
 
 
 def test_the_report_maps_profile_facts_and_lets_the_message_win():
@@ -247,12 +252,13 @@ def test_a_knowledge_base_failure_propagates(reads):
 
 def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
     monkeypatch.setattr(tool, "role_catalog", lambda: CATALOG)
-    monkeypatch.setattr(tool.parser, "parse", lambda message, catalog: ParsedCareerRequest(roles=["data_analytics"]))
+    monkeypatch.setattr(tool.parser, "parse",
+                        lambda message, catalog, options: ParsedCareerRequest(roles=["data_analytics"]))
     monkeypatch.setattr(tool, "prefetch", lambda uid: _prefetched({"code_level": 3}, notes=("Profile note.",)))
     seen = {}
 
-    def render(result, prefetched, message, on_event=None, depth=None):
-        seen["result"] = result
+    def render(result, prefetched, message, on_event=None, depth=None, repeat=False):
+        seen["result"], seen["repeat"] = result, repeat
         return "reply", ["src"]
     monkeypatch.setattr(tool.renderer, "render", render)
 
@@ -263,6 +269,27 @@ def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
     assert result["mode"] == "plan" and result["roles"][0]["role"]["tag"] == "data_analytics"
     assert result["notes"][0] == "Profile note."
     assert result["roadmap"]["phases"]
+    assert answer.contexts == [{"tool": "career", "mode": "plan", "subjects": ["data_analytics"], "awaiting": None}]
+    assert seen["repeat"] is False
+
+
+def test_the_handler_reads_a_pick_from_the_roles_it_offered(monkeypatch):
+    options = [{"key": "data_analytics", "label": "Data Analytics"}]
+    previous = PreviousTurn(user_message="what fits me?", reply="Which one?", contexts=(
+        {"tool": "career", "mode": "exploration", "subjects": ["data_analytics"],
+         "awaiting": {"kind": "choose_role", "options": options}},))
+    monkeypatch.setattr(tool, "role_catalog", lambda: CATALOG)
+    seen = {}
+
+    def parse(message, catalog, offered):
+        seen["options"] = offered
+        return ParsedCareerRequest(roles=["data_analytics"])
+    monkeypatch.setattr(tool.parser, "parse", parse)
+    monkeypatch.setattr(tool, "prefetch", lambda uid: _prefetched({"code_level": 3}))
+    monkeypatch.setattr(tool.renderer, "render", lambda *a, **k: ("reply", []))
+    answer = tool._handler(_state(career_mode_hint="exploration", message="the first one", previous_turn=previous))
+    assert seen["options"] == options
+    assert answer.contexts[0]["mode"] == "plan"
 
 
 @pytest.mark.parametrize("message", ["I'd start job hunting right after graduating.", "我打算毕业后找工作"])
@@ -270,3 +297,12 @@ def test_a_timeline_stated_in_the_message_isnt_asked_for(profile, message):
     facts, _ = profile
     facts.update(main_target_role="data_analytics")
     assert "job_search_timeline" not in _levels(gate.input_needs(_state(career_mode_hint="plan", message=message)))
+
+
+def test_the_parser_is_told_which_roles_were_offered(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(parser.llm, "complete", lambda prompt, *a, **k: seen.setdefault("prompt", prompt) and "{}")
+    parser.parse("第二个", CATALOG, [{"key": "data_analytics", "label": "Data Analytics"},
+                                   {"key": "data_engineering", "label": "Data Engineering"}])
+    assert "1. Data Analytics (data_analytics)\n2. Data Engineering (data_engineering)" in seen["prompt"]
+    assert "by position" in seen["prompt"]

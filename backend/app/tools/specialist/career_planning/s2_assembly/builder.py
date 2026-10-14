@@ -11,7 +11,9 @@ Which mode actually runs, and for which roles:
                  main role (then its first listed one); with none, an
                  exploration — the student sees which roles fit, and is
                  offered the role field alongside
-    exploration  every role
+    exploration  every role — unless the message names roles: one is
+                 planned for, two or three compared (a student picking a
+                 role from an exploration is asking for its plan)
 
 No mode from the classifier: two named roles compare, one (or a profile
 role) plans, none explores. Each fallback adds a note saying what ran
@@ -83,6 +85,8 @@ def resolve_mode(
     profile = [r for r in prefetched.profile_roles if r not in named]
     names = {r["tag"]: r["name"] for r in prefetched.role_catalog}
     mode = mode_hint or ("compare" if len(named) >= 2 else "plan" if named or profile else "exploration")
+    if mode == "exploration" and named:
+        mode = "compare" if len(named) >= 2 else "plan"
 
     if mode == "compare":
         roles = (named + profile)[:_MAX_COMPARE]
