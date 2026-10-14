@@ -24,9 +24,10 @@ _OWNERS = {
     "app.adapters.sis_db_adapter": ("sis", "app.domains.sis.repository"),
     "app.adapters.chat_db_adapter": ("chat", "app.domains.conversation.repository"),
     "app.adapters.knowledge_db_adapter": ("knowledge", "app.domains.knowledge_retrieval.service"),
+    "app.adapters.program_db_adapter": ("program", "app.domains.program_catalog.repository"),
 }
 _SCHEMA_ADAPTERS = set(_OWNERS)
-_SCHEMAS = ("account", "profile", "sis", "chat", "knowledge")
+_SCHEMAS = ("account", "profile", "sis", "chat", "knowledge", "program")
 _SQL = re.compile(r"\b(select|insert\s+into|update|delete\s+from)\b", re.IGNORECASE)
 _TABLE_REF = re.compile(r"\b(?:from|join|into|update)\s+(" + "|".join(_SCHEMAS) + r")\.", re.IGNORECASE)
 
