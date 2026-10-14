@@ -101,10 +101,21 @@ def build_need_input_answer(result: RequirementsResult) -> ToolAnswer:
         text = "Before I can help with that, I need a bit more information:\n" + "\n".join(
             f"- {item.prompt}" for item in result.missing
         )
+    card = _blocking_card(result.missing, text)
     return ToolAnswer(
         text=text, agent_used="orchestrator_need_input", needs_clarification=True,
-        card=_blocking_card(result.missing, text),
+        card=card, contexts=[_asked_context(result.missing, card)],
     )
+
+
+def _asked_context(missing: tuple[MissingInputField, ...], card: dict | None) -> dict:
+    """What the turn asked for, so a typed answer next turn ("full-time")
+    can be read as one (see ToolAnswer.contexts)."""
+    if card and card["kind"] == "consent":
+        awaiting = {"kind": "consent", "consent_key": card["consent_key"]}
+    else:
+        awaiting = {"kind": "fields", "field_keys": [item.field_key or item.slot for item in missing]}
+    return {"tool": "orchestrator", "mode": "need_input", "subjects": [], "awaiting": awaiting}
 
 
 def _fields(items) -> list[dict]:

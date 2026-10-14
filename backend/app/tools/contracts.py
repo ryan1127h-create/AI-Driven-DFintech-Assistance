@@ -81,6 +81,17 @@ class ToolAnswer:
     # "value"}] — the client labels them from its field definitions. Never
     # written without the user's confirmation.
     save_suggestions: list[dict] = field(default_factory=list)
+    # What this turn did, in structured form, for the next turn to read
+    # (see TurnState.previous_turn) — one entry per tool that answered:
+    #   {"tool": str, "mode": str | None,
+    #    "subjects": [str],            # what was shown: role tags, course codes
+    #    "awaiting": {"kind": "choose_role" | "fields" | "consent",
+    #                 "options": [{"key", "label"}],   # choose_role
+    #                 "field_keys": [str]}             # fields
+    #                | None}           # a question the reply ended on
+    # Persisted with the turn's log entry (conversation.record_turn), never
+    # shown to the user.
+    contexts: list[dict] = field(default_factory=list)
 
 
 InputLevel = Literal["required", "optional", "supplementary"]

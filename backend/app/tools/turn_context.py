@@ -27,6 +27,33 @@ from app.ports.llm_port import ChatMessage
 OnEvent = Callable[[dict], None]
 
 
+@dataclass(frozen=True)
+class PreviousTurn:
+    """The conversation's last completed turn, for reading the current
+    message in its light: a short reply like "software engineering" or
+    "the second one" usually answers what the assistant just asked."""
+
+    user_message: str
+    reply: str
+    intents: tuple[str, ...] = ()
+    agent_used: str = ""
+    # The tools' structured record of what they did (ToolAnswer.contexts).
+    contexts: tuple[dict, ...] = ()
+
+    def context_for(self, tool: str) -> dict | None:
+        return next((c for c in self.contexts if c.get("tool") == tool), None)
+
+    @property
+    def awaiting(self) -> dict | None:
+        """The question the reply ended on, if a tool recorded one."""
+        return next((c["awaiting"] for c in self.contexts if c.get("awaiting")), None)
+
+    def reply_tail(self, chars: int = 300) -> str:
+        """The reply's ending — where its closing question usually is."""
+        text = self.reply.strip()
+        return text if len(text) <= chars else "…" + text[-chars:]
+
+
 @dataclass
 class TurnState:
     messages: list[BaseMessage]
@@ -61,6 +88,9 @@ class TurnState:
     # turn. Unlike reply_language it is applied while answers are written,
     # by every tool that writes the final text.
     answer_depth: str = "standard"
+    # The conversation's last completed turn (None on a new conversation),
+    # loaded by turn_service from the conversation state.
+    previous_turn: PreviousTurn | None = None
 
 
 class ChatToolInput(BaseModel):

@@ -77,11 +77,36 @@ def record_turn(
     # conversations table, not the archive, until a future freeze moves the
     # entries covering this turn into the archive.
     entry = {"turn": state.turn_count, "intents": intents, "agent_used": agent_used}
-    sources = (ai_message.additional_kwargs or {}).get("sources")
-    if sources:
-        entry["sources"] = list(sources)
+    extra = ai_message.additional_kwargs or {}
+    if extra.get("sources"):
+        entry["sources"] = list(extra["sources"])
+    # The tools' structured record of the turn, for the next turn to read
+    # (see last_turn() below).
+    if extra.get("turn_contexts"):
+        entry["contexts"] = list(extra["turn_contexts"])
     state.pending_turn_intents = state.pending_turn_intents + [entry]
     get_session_store().save_state(session_id, state)
+
+
+def last_turn(state: ConversationState) -> dict | None:
+    """The last completed turn — {"user_message", "reply", "intents",
+    "agent_used", "contexts"} — or None on a new conversation. Read from
+    the raw tail (which always holds the latest turns: a freeze moves only
+    the oldest block out) and that turn's log entry; a turn logged before
+    contexts were recorded simply has none."""
+    if len(state.raw_tail) < 2:
+        return None
+    human, ai = state.raw_tail[-2], state.raw_tail[-1]
+    if not isinstance(human, HumanMessage) or not isinstance(ai, AIMessage):
+        return None
+    entry = next((e for e in reversed(state.pending_turn_intents) if e.get("turn") == state.turn_count), {})
+    return {
+        "user_message": str(human.content),
+        "reply": str(ai.content),
+        "intents": list(entry.get("intents") or []),
+        "agent_used": entry.get("agent_used") or "",
+        "contexts": list(entry.get("contexts") or []),
+    }
 
 
 def delete_conversation(session_id: str, user_id: str) -> None:

@@ -32,6 +32,7 @@ __all__ = [
     "new_session_id",
     "get_state",
     "record_turn",
+    "last_turn",
     "delete_conversation",
     "try_lock",
     "release_lock",
@@ -63,6 +64,12 @@ def record_turn(
     """Persists one completed turn: appends to the raw tail, bumps
     turn_count, logs the intent-classification result."""
     service.record_turn(session_id, state, human_message, ai_message, intents, agent_used)
+
+
+def last_turn(state: ConversationState) -> dict | None:
+    """The last completed turn — {"user_message", "reply", "intents",
+    "agent_used", "contexts"} — or None on a new conversation."""
+    return service.last_turn(state)
 
 
 def delete_conversation(session_id: str, user_id: str) -> None:
