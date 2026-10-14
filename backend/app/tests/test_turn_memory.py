@@ -238,3 +238,22 @@ def test_context_messages_keep_the_system_role():
     roles = [m["role"] for m in to_chat_messages(
         [SystemMessage("profile"), HumanMessage("hi"), AIMessage("hello")])]
     assert roles == ["system", "user", "assistant"]
+
+
+# --- cache outage ---
+
+class _DownCache:
+    def get(self, *a, **k):
+        raise ConnectionError("redis down")
+    set = delete = get
+
+
+def test_a_cache_outage_falls_back_to_the_durable_store(monkeypatch):
+    durable = repository.InMemoryConversationStore()
+    store = repository.CachedConversationStore(durable)
+    monkeypatch.setattr(repository, "cache", _DownCache())
+    state = ConversationState(user_id="u1", turn_count=1, raw_tail=[HumanMessage("q"), AIMessage("a")])
+    store.save_state("s1", state)
+    assert store.get_state("s1").raw_tail[0].content == "q"
+    store.delete("s1")
+    assert durable.get_state("s1").turn_count == 0
