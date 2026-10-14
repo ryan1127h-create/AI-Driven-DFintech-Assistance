@@ -75,9 +75,10 @@ def prefetch(user_id: str | None) -> Prefetched:
         career = pool.submit(get_profile_for_purpose, user_id, "career") if user_id else None
         consent = pool.submit(missing_purpose_consent, user_id, "adm") if user_id else None
 
-        facts_value = _result(facts, {}, "the admissions profile", notes, _PROFILE_UNAVAILABLE_NOTE)
+        facts_value = _result(facts, None, "the admissions profile", notes, _PROFILE_UNAVAILABLE_NOTE)
         career_value = _result(career, {}, "the career profile", notes)
-        if _result(consent, None, "consent", notes):
+        consent_missing = _result(consent, "unknown", "consent", notes)
+        if consent_missing and consent_missing != "unknown":
             notes.append(_CONSENT_OFF_NOTE)
         roles_value = _result(roles, [], "role families", notes)
         programs_value = programs.result(timeout=_READ_TIMEOUT_SECONDS)
@@ -86,8 +87,9 @@ def prefetch(user_id: str | None) -> Prefetched:
 
     return Prefetched(
         programs=programs_value,
-        facts=facts_value,
+        facts=facts_value or {},
         role_facts={k: career_value.get(k) for k in _ROLE_FIELDS if career_value.get(k)},
         role_catalog=roles_value,
         notes=tuple(dict.fromkeys(notes)),
+        profile_read=bool(user_id) and facts_value is not None and consent_missing is None,
     )

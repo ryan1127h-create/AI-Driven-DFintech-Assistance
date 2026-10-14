@@ -23,6 +23,9 @@ class Prefetched:
     role_catalog: list[dict]
     # Limitations met while gathering, passed on to the reply's notes.
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # The admissions profile was read with consent: `facts` is the whole
+    # of it, so a value missing there is missing in the profile too.
+    profile_read: bool = False
 
     @property
     def target_id(self) -> str:

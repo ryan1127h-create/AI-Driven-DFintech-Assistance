@@ -222,7 +222,7 @@ forbidden_modules =
 ; catalogue, the profile or the knowledge base (gate.py, which the
 ; orchestrator calls before the tool runs, reads the profile too);
 ; understanding works from the message and the catalogue it is given, the
-; builder from what prefetch gathered.
+; builder and the presentation from what prefetch gathered.
 [importlinter:contract:comparison-tool-io-boundary]
 name = programme comparison tool reads data only in prefetch and the gate
 type = forbidden
@@ -231,6 +231,7 @@ source_modules =
     app.tools.specialist.program_comparison.s2_assembly.builder
     app.tools.specialist.program_comparison.s2_assembly.prefetched
     app.tools.specialist.program_comparison.s2_assembly.programs
+    app.tools.specialist.program_comparison.s7_presentation
 forbidden_modules =
     app.domains.knowledge_retrieval
     app.domains.profile
