@@ -36,11 +36,14 @@ families their profile fits best, best first.
 Structure the reply as:
 1. One opening line on what the fit is based on (their skills and \
 experience on file).
-2. Each role in the given order: its name, one line on what it is (from \
+2. Each role in the given order: its name — followed, when \
+`in_your_profile` is true, by a short note that it's one of the target \
+roles they listed in their profile — one line on what it is (from \
 `definition`), the fit as a percentage, the skills they already show \
 (`skills_met`, then `skills_partial`), what's unknown or missing, and how \
 many programme courses support it. Flag `low_confidence` fits as resting on \
-skills their profile doesn't cover yet; mark roles `in_your_profile`.
+skills their profile doesn't cover yet. Never leave out the profile note: \
+it tells them how the roles they chose compare with the rest.
 3. One closing line inviting them to pick a role for a full readiness plan.
 
 {_HARD_RULES}"""
