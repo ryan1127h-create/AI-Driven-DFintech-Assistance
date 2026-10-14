@@ -62,11 +62,12 @@ def test_a_plan_without_a_role_offers_it_and_explores(profile):
     }
 
 
-def test_a_plan_with_a_role_asks_about_timing_and_markets(profile):
+def test_a_plan_with_a_role_offers_timing_and_markets_alongside(profile):
     facts, _ = profile
     facts.update(main_target_role="data_analytics")
     assert _levels(gate.input_needs(_state(career_mode_hint="plan"))) == {
-        "job_search_timeline": "optional", "target_markets": "supplementary", "internship_status": "supplementary",
+        "job_search_timeline": "supplementary", "target_markets": "supplementary",
+        "internship_status": "supplementary",
     }
 
 

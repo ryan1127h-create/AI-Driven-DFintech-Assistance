@@ -43,7 +43,8 @@ roles they listed in their profile — one line on what it is (from \
 (`skills_met`, then `skills_partial`), what's unknown or missing, and how \
 many programme courses support it. Flag `low_confidence` fits as resting on \
 skills their profile doesn't cover yet. Never leave out the profile note: \
-it tells them how the roles they chose compare with the rest.
+it tells them how the roles they chose compare with the rest. When \
+`in_your_profile` is false, say nothing about it.
 3. One closing line inviting them to pick a role for a full readiness plan.
 
 {_HARD_RULES}"""

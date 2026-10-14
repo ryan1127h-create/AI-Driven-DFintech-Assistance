@@ -9,10 +9,11 @@ app/tools/input_needs.py).
   is nothing to go on); a comparison still runs, unpersonalised.
 - Plan: the target role is optional — without one the student is shown
   the roles that fit (see s2_assembly/builder.py) and may pick one. The
-  job-search timeline is optional too, unless the message states it (it
-  sets when the job search phase falls; the default is right after
-  graduating); the preferred markets,
-  and for a current student the internship status, are supplementary.
+  job-search timeline, the preferred markets and, for a current student,
+  the internship status are supplementary — offered under the plan, never
+  holding it up: the timeline has a sound default (right after
+  graduating), and asking for it first meant a second card straight
+  after the role was picked. A timeline the message states isn't asked.
 - Exploration: the functional experience is optional when the profile
   holds no skill evidence at all; the preferred markets are supplementary.
 - Compare: nothing is asked. The roles to compare are usually named in
@@ -91,7 +92,7 @@ def input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
     else:
         stage = get_profile_field(state.user_id, "lifecycle_stage")
         if stage in _JOB_SEARCH_STAGES and not _states_timeline(last_human_message(state.messages)):
-            needs.append(need("job_search_timeline", "optional", _TIMELINE_PROMPT))
+            needs.append(need("job_search_timeline", "supplementary", _TIMELINE_PROMPT))
         needs.append(need("target_markets", "supplementary", _MARKETS_PROMPT))
         if stage == "current":
             needs.append(need("internship_status", "supplementary", _INTERNSHIP_PROMPT))
