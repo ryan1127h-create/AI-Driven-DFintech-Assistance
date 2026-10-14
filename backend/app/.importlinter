@@ -184,6 +184,19 @@ forbidden_modules =
     app.domains.specialist.program_comparison.errors
     app.domains.specialist.program_comparison.interface
     app.domains.specialist.program_comparison.models
+    app.domains.specialist.program_comparison.schemas
+    app.domains.specialist.program_comparison.stages
+    app.domains.specialist.program_comparison.workflow
+
+; Each stage takes the previous stage's output (models) and reads rules
+; from policy; only workflow.py sequences them.
+[importlinter:contract:comparison-stages-independent]
+name = programme comparison stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.program_comparison.stages.s3_facts
+    app.domains.specialist.program_comparison.stages.s4_fit
+    app.domains.specialist.program_comparison.stages.s6_modes
 
 ; In the career planning tool only s2_assembly/prefetch.py reads the
 ; profile or the knowledge base (gate.py, which the orchestrator calls

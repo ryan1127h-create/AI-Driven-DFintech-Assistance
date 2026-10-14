@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage
 
 from app.domains.specialist.knowledge_qa import service as qa
 from app.domains.specialist.program_comparison import facts, match_scorer
-from app.domains.specialist.program_comparison.models import ProgramFacts
+from app.domains.specialist.program_comparison._legacy_models import ProgramFacts
 from app.tools.knowledge_context import RetrievedContext
 from app.tools.specialist import program_comparison_tool
 from app.tools.turn_context import TurnState

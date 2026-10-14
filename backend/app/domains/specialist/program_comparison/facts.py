@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 
-from app.domains.specialist.program_comparison.models import ProgramFacts
+from app.domains.specialist.program_comparison._legacy_models import ProgramFacts
 
 NUS_PROGRAM_NAME = "NUS MSc Digital Financial Technology"
 

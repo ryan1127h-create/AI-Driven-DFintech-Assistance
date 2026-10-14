@@ -17,7 +17,7 @@ never invent a number. No data at all -> total is None.
 
 from __future__ import annotations
 
-from app.domains.specialist.program_comparison.models import ProgramFacts, ProgramMatch, SubScore
+from app.domains.specialist.program_comparison._legacy_models import ProgramFacts, ProgramMatch, SubScore
 
 W_SKILL_FOCUS = 0.5
 W_TEST_SCORES = 0.3

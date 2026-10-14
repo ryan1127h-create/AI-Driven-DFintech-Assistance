@@ -22,6 +22,20 @@ FACTOR_DIMENSIONS = {
     "brand_ranking": (),
 }
 
+# Which aspect each catalogue fact belongs to (program.facts columns).
+FIELD_DIMENSION = {
+    "application_fee": "cost",
+    "duration_ft_months": "duration", "duration_pt_months": "duration", "max_candidature_months": "duration",
+    "course_count": "duration", "total_credits": "duration",
+    "capstone": "curriculum", "internship": "curriculum", "programming_prereq": "curriculum",
+    "background_requirement": "admission", "gmat_gre_policy": "admission", "gmat_gre_note": "admission",
+    "toefl_ibt_min": "admission", "toefl_ibt_band_min": "admission", "ielts_min": "admission",
+    "ielts_sub_min": "admission", "english_waiver": "admission", "work_exp_policy": "admission",
+    "work_exp_min_years": "admission", "cohort_size": "admission",
+    "study_modes": "flexibility", "intake_months": "flexibility", "notes": "flexibility",
+    "stem_designated": "location",
+}
+
 # Decision factors the catalogue holds no data for yet.
 UNSUPPORTED_FACTORS = frozenset({"brand_ranking"})
 

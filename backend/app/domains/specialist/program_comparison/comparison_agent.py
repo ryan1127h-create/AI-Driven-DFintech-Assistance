@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 
 from app.adapters.deepseek_adapter import llm
-from app.domains.specialist.program_comparison.models import ProgramFacts, ProgramMatch
+from app.domains.specialist.program_comparison._legacy_models import ProgramFacts, ProgramMatch
 
 # Raw-text fallback cell length when the LLM answer is unusable.
 _FALLBACK_CELL_CHARS = 500

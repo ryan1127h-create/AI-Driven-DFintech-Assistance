@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.domains.specialist.program_comparison import comparison_agent, facts, match_scorer
-from app.domains.specialist.program_comparison.models import ProgramFacts, ProgramMatch
+from app.domains.specialist.program_comparison._legacy_models import ProgramFacts, ProgramMatch
 
 SUPPORTED_DIMENSIONS = ("curriculum", "fees", "admission")
 DEFAULT_DIMENSIONS = list(SUPPORTED_DIMENSIONS)
