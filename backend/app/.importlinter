@@ -217,3 +217,25 @@ forbidden_modules =
     app.adapters.postgres_pool
     app.adapters.profile_db_adapter
     app.adapters.knowledge_db_adapter
+
+; In the programme comparison tool only s2_assembly/prefetch.py reads the
+; catalogue, the profile or the knowledge base (gate.py, which the
+; orchestrator calls before the tool runs, reads the profile too);
+; understanding works from the message and the catalogue it is given, the
+; builder from what prefetch gathered.
+[importlinter:contract:comparison-tool-io-boundary]
+name = programme comparison tool reads data only in prefetch and the gate
+type = forbidden
+source_modules =
+    app.tools.specialist.program_comparison.s1_understanding
+    app.tools.specialist.program_comparison.s2_assembly.builder
+    app.tools.specialist.program_comparison.s2_assembly.prefetched
+    app.tools.specialist.program_comparison.s2_assembly.programs
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.domains.program_catalog
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.knowledge_db_adapter
+    app.adapters.program_db_adapter
