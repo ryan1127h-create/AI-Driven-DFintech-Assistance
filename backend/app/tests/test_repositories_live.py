@@ -342,3 +342,26 @@ def test_binding_an_application_end_to_end(db, prospect):
     with pytest.raises(ValidationError):
         checklist_service.bind_application(user, "LIVE-TEST-0001")
 
+
+
+# --- conversation store against chat.conversations -----------------------------
+
+def test_conversation_state_roundtrip_keeps_declined_fields_and_contexts(db, monkeypatch):
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from app.domains.conversation import repository as conversation_repo
+    from app.domains.conversation.models import ConversationState
+
+    monkeypatch.setattr(conversation_repo, "chat_db", db)
+    store = conversation_repo.SupabaseConversationStore()
+    session_id = str(uuid.uuid4())
+    context = {"tool": "career", "mode": "exploration", "subjects": ["data_analytics"], "awaiting": None}
+    store.save_state(session_id, ConversationState(
+        turn_count=1, raw_tail=[HumanMessage("q"), AIMessage("a")],
+        pending_turn_intents=[{"turn": 1, "intents": ["career"], "agent_used": "career_agent",
+                               "contexts": [context]}],
+        declined_fields=["job_search_timeline"],
+    ))
+    loaded = store.get_state(session_id)
+    assert loaded.declined_fields == ["job_search_timeline"]
+    assert loaded.pending_turn_intents[0]["contexts"] == [context]

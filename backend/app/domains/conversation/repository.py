@@ -9,8 +9,10 @@ Storage shape per session, in the `chat` schema:
   - `chat.conversations` (hot table, always small): turn_count,
     last_frozen_end, raw_tail (unfrozen recent messages only),
     history_summaries (list of frozen block summaries), pending_turn_intents
-    (one {"turn","intents","agent_used"} entry per not-yet-archived turn —
-    see models.py::ConversationState). Read/written every turn — this is
+    (one {"turn","intents","agent_used","contexts"} entry per
+    not-yet-archived turn — see models.py::ConversationState),
+    declined_fields (input fields the user skipped in this conversation).
+    Read/written every turn — this is
     the ONLY table a normal turn writes to. `conversation_id` doubles as
     the app-level `session_id`.
   - `chat.messages` (cold table, one row per conversation, keyed by the
@@ -49,12 +51,15 @@ from langchain_core.messages import HumanMessage, messages_from_dict, messages_t
 from app.adapters.chat_db_adapter import chat_db
 from app.adapters.redis_cache_adapter import cache
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.domains.conversation.models import (
     ConversationState,
     HistoryBlock,
     state_from_json,
     state_to_json,
 )
+
+logger = get_logger(__name__)
 
 _KEY_PREFIX = "chat:session:"
 _PREVIEW_MAX_CHARS = 120
@@ -304,19 +309,21 @@ class SupabaseConversationStore(ConversationStore):
     def get_state(self, session_id: str) -> ConversationState:
         row = chat_db.fetch_one(
             "select turn_count, last_frozen_end, raw_tail, history_summaries, "
-            "pending_turn_intents, user_id "
+            "pending_turn_intents, declined_fields, user_id "
             "from chat.conversations where conversation_id = %s",
             (session_id,),
         )
         if not row:
             return ConversationState()
-        turn_count, last_frozen_end, raw_tail, history_summaries, pending_turn_intents, user_id = row
+        (turn_count, last_frozen_end, raw_tail, history_summaries, pending_turn_intents,
+         declined_fields, user_id) = row
         return ConversationState(
             turn_count=turn_count,
             last_frozen_end=last_frozen_end,
             raw_tail=messages_from_dict(raw_tail or []),
             history_summaries=[HistoryBlock(**b) for b in (history_summaries or [])],
             pending_turn_intents=pending_turn_intents or [],
+            declined_fields=list(declined_fields or []),
             user_id=str(user_id) if user_id is not None else None,
         )
 
@@ -325,14 +332,15 @@ class SupabaseConversationStore(ConversationStore):
             """
             insert into chat.conversations
               (conversation_id, user_id, turn_count, last_frozen_end, raw_tail,
-               history_summaries, pending_turn_intents, total_messages)
-            values (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s)
+               history_summaries, pending_turn_intents, declined_fields, total_messages)
+            values (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s)
             on conflict (conversation_id) do update
               set turn_count = excluded.turn_count,
                   last_frozen_end = excluded.last_frozen_end,
                   raw_tail = excluded.raw_tail,
                   history_summaries = excluded.history_summaries,
                   pending_turn_intents = excluded.pending_turn_intents,
+                  declined_fields = excluded.declined_fields,
                   total_messages = excluded.total_messages
             """,
             (
@@ -340,6 +348,7 @@ class SupabaseConversationStore(ConversationStore):
                 json.dumps(messages_to_dict(state.raw_tail)),
                 json.dumps([asdict(b) for b in state.history_summaries]),
                 json.dumps(state.pending_turn_intents),
+                json.dumps(state.declined_fields),
                 2 * state.turn_count,  # strict Human/AI pairing assumed, same as service.py
             ),
         )
@@ -510,6 +519,10 @@ class CachedConversationStore(ConversationStore):
     Caching the whole ConversationState is effective because the state
     stays small forever (bounded raw tail + slowly-growing summaries),
     instead of a blob that grows with total conversation length.
+
+    The cache is only ever an accelerator: when it can't be reached, reads
+    and writes go to the durable store alone (logged), so a cache outage
+    slows conversations down instead of failing every turn.
     """
 
     def __init__(self, durable: ConversationStore):
@@ -518,17 +531,31 @@ class CachedConversationStore(ConversationStore):
     def _key(self, session_id: str) -> str:
         return f"{_KEY_PREFIX}{session_id}"
 
+    def _cache_get(self, session_id: str) -> str | None:
+        try:
+            return cache.get(self._key(session_id))
+        except Exception as exc:
+            logger.warning("conversation cache unavailable, reading the database: %s", exc)
+            return None
+
+    def _cache_set(self, session_id: str, state: ConversationState) -> None:
+        try:
+            cache.set(self._key(session_id), json.dumps(state_to_json(state)),
+                      ttl_seconds=settings.session_ttl_seconds)
+        except Exception as exc:
+            logger.warning("conversation cache unavailable, writing the database only: %s", exc)
+
     def get_state(self, session_id: str) -> ConversationState:
-        raw = cache.get(self._key(session_id))
+        raw = self._cache_get(session_id)
         if raw:
             return state_from_json(json.loads(raw))
 
         state = self._durable.get_state(session_id)
-        cache.set(self._key(session_id), json.dumps(state_to_json(state)), ttl_seconds=settings.session_ttl_seconds)
+        self._cache_set(session_id, state)
         return state
 
     def save_state(self, session_id: str, state: ConversationState) -> None:
-        cache.set(self._key(session_id), json.dumps(state_to_json(state)), ttl_seconds=settings.session_ttl_seconds)
+        self._cache_set(session_id, state)
         self._durable.save_state(session_id, state)
 
     def archive_block(
@@ -546,7 +573,10 @@ class CachedConversationStore(ConversationStore):
         return self._durable.list_sessions(user_id)
 
     def delete(self, session_id: str) -> None:
-        cache.delete(self._key(session_id))
+        try:
+            cache.delete(self._key(session_id))
+        except Exception as exc:
+            logger.warning("conversation cache unavailable, deleting from the database only: %s", exc)
         self._durable.delete(session_id)
 
     def try_lock(self, session_id: str, status: str, user_id: str) -> str | None:
@@ -562,7 +592,7 @@ class CachedConversationStore(ConversationStore):
         # Refresh the cache immediately so the next get_state() doesn't
         # read the pre-freeze snapshot until the normal TTL would've
         # expired it.
-        cache.set(self._key(session_id), json.dumps(state_to_json(state)), ttl_seconds=settings.session_ttl_seconds)
+        self._cache_set(session_id, state)
 
 
 _store: ConversationStore | None = None

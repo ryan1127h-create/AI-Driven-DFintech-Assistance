@@ -66,6 +66,12 @@ class Settings:
     # per-turn database row bounded regardless of conversation length.
     history_block_size: int = int(os.getenv("HISTORY_BLOCK_SIZE", "10"))
     history_raw_tail_max: int = int(os.getenv("HISTORY_RAW_TAIL_MAX", "15"))
+    # Earlier assistant replies longer than this are shortened (start and
+    # end kept) wherever the history goes into a prompt — a recommendation
+    # or plan can run to thousands of characters, and replaying fifteen of
+    # them in full every turn costs more than it tells the model. The
+    # stored conversation keeps them whole.
+    history_reply_max_chars: int = int(os.getenv("HISTORY_REPLY_MAX_CHARS", "1500"))
 
     # How long a session's lock (status='processing' or 'summarizing') is
     # honored before being treated as stale. Kept well above typical turn/

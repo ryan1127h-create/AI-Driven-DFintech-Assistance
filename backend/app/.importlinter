@@ -133,3 +133,59 @@ forbidden_modules =
     app.adapters.postgres_pool
     app.adapters.profile_db_adapter
     app.adapters.knowledge_db_adapter
+
+; career_planning's internal structure (see its workflow.py and
+; stages/__init__.py). The domain is pure computation: no adapter at all,
+; not even the LLM - grades, fits and roadmaps are deterministic.
+[importlinter:contract:career-domain-pure]
+name = career planning domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.career_planning
+forbidden_modules =
+    app.adapters
+
+; Each stage takes the previous stage's output (models) and reads rules
+; from policy; only workflow.py sequences them.
+[importlinter:contract:career-stages-independent]
+name = career planning stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.career_planning.stages.s3_evidence
+    app.domains.specialist.career_planning.stages.s4_fit
+    app.domains.specialist.career_planning.stages.s5_roadmap
+    app.domains.specialist.career_planning.stages.s6_modes
+
+[importlinter:contract:career-policy-leaf]
+name = career planning policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.career_planning.policy
+forbidden_modules =
+    app.domains.specialist.career_planning.contracts
+    app.domains.specialist.career_planning.errors
+    app.domains.specialist.career_planning.interface
+    app.domains.specialist.career_planning.models
+    app.domains.specialist.career_planning.schemas
+    app.domains.specialist.career_planning.stages
+    app.domains.specialist.career_planning.workflow
+
+; In the career planning tool only s2_assembly/prefetch.py reads the
+; profile or the knowledge base (gate.py, which the orchestrator calls
+; before the tool runs, reads the profile too); understanding works from
+; the message and the catalogue it is given, the builder and the
+; presentation from what prefetch gathered.
+[importlinter:contract:career-tool-io-boundary]
+name = career planning tool reads data only in prefetch and the gate
+type = forbidden
+source_modules =
+    app.tools.specialist.career_planning.s1_understanding
+    app.tools.specialist.career_planning.s2_assembly.builder
+    app.tools.specialist.career_planning.s2_assembly.prefetched
+    app.tools.specialist.career_planning.s7_presentation
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.knowledge_db_adapter

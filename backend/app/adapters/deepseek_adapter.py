@@ -67,9 +67,9 @@ class DeepSeekAdapter(LLMPort):
     ) -> Iterator[str]:
         llm = self._build_llm(temperature, max_tokens)
         messages = [SystemMessage(content=system_prompt)]
+        roles = {"user": HumanMessage, "assistant": AIMessage, "system": SystemMessage}
         for turn in history:
-            cls = HumanMessage if turn["role"] == "user" else AIMessage
-            messages.append(cls(content=turn["content"]))
+            messages.append(roles.get(turn["role"], HumanMessage)(content=turn["content"]))
         for chunk in llm.stream(messages):
             if chunk.content:
                 yield self._content_str(chunk.content)

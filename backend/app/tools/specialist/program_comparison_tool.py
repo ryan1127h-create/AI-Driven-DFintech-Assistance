@@ -17,8 +17,7 @@ structured_reply.render_structured_reply().
 
 If compare_programs() (or the reflow step) raises for any reason, this
 falls back to plain RAG over the knowledge base's "comparison" topic (via
-knowledge_qa's generic role-prompt escape hatch) — see
-career_planning_tool.py for the identical pattern and rationale.
+knowledge_qa's generic role-prompt escape hatch).
 """
 
 from __future__ import annotations

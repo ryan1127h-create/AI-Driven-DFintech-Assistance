@@ -1,5 +1,6 @@
-"""classification.classify_intent's course_mode_hint: kept only for a
-course recommendation and only when it's one of the known modes."""
+"""classification.classify_intent's course_mode_hint and career_mode_hint:
+each kept only for its own intent and only when it's one of the known
+modes."""
 
 from __future__ import annotations
 
@@ -39,4 +40,15 @@ def test_classification_failure_gives_no_mode(monkeypatch):
         raise RuntimeError("rate limited")
 
     monkeypatch.setattr(classification.llm, "complete", broken)
-    assert classification.classify_intent([HumanMessage("courses?")]) == (["general"], None, [], None, None)
+    assert classification.classify_intent([HumanMessage("courses?")]) == (["general"], None, [], None, None, None)
+
+
+@pytest.mark.parametrize("mode", ["exploration", "plan", "compare"])
+def test_a_known_career_mode_is_kept_for_career_advice(monkeypatch, mode):
+    result = _classify(monkeypatch, intents=["career"], career_mode_hint=mode)
+    assert result[5] == mode and result[4] is None
+
+
+def test_an_unknown_or_misplaced_career_mode_is_dropped(monkeypatch):
+    assert _classify(monkeypatch, intents=["career"], career_mode_hint="roadmap")[5] is None
+    assert _classify(monkeypatch, intents=["course_recommendation"], career_mode_hint="plan")[5] is None

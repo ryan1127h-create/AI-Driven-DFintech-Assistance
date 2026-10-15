@@ -35,12 +35,20 @@ from app.domains.conversation.models import ConversationState, HistoryBlock
 from app.domains.conversation.repository import get_session_store
 
 _SUMMARY_PROMPT = """\
-Summarize the following portion of a conversation between a prospective \
-student and an NUS MSc DFinTech admissions assistant, in 2-4 concise \
-sentences. Focus on what topics were discussed and any preferences, facts, \
-or context the user mentioned that could matter later in the conversation. \
-Write the summary in English regardless of the conversation's language. Be \
-factual — do not add commentary or advice of your own.
+Summarize the following portion of a conversation between a user and the \
+NUS MSc Digital Financial Technology assistant. The user may be a \
+prospective student, an applicant, an admitted or current student, or a \
+graduate, and the conversation may cover admissions, courses, career \
+planning, fees or anything else about the programme.
+
+In 3-6 concise sentences, keep what a later turn may need: the topics \
+covered; facts and preferences the user stated (background, goals, \
+constraints); choices they made (a target role, courses, a semester plan); \
+what the assistant concluded or recommended, by name (roles, course codes); \
+and any question left open. Lines in [brackets] record which part of the \
+assistant answered a turn and what it covered — use them, but don't quote \
+them. Write in English regardless of the conversation's language. Be \
+factual — add no commentary or advice of your own.
 
 Respond with ONLY the summary text, no preamble."""
 
@@ -77,11 +85,36 @@ def record_turn(
     # conversations table, not the archive, until a future freeze moves the
     # entries covering this turn into the archive.
     entry = {"turn": state.turn_count, "intents": intents, "agent_used": agent_used}
-    sources = (ai_message.additional_kwargs or {}).get("sources")
-    if sources:
-        entry["sources"] = list(sources)
+    extra = ai_message.additional_kwargs or {}
+    if extra.get("sources"):
+        entry["sources"] = list(extra["sources"])
+    # The tools' structured record of the turn, for the next turn to read
+    # (see last_turn() below).
+    if extra.get("turn_contexts"):
+        entry["contexts"] = list(extra["turn_contexts"])
     state.pending_turn_intents = state.pending_turn_intents + [entry]
     get_session_store().save_state(session_id, state)
+
+
+def last_turn(state: ConversationState) -> dict | None:
+    """The last completed turn — {"user_message", "reply", "intents",
+    "agent_used", "contexts"} — or None on a new conversation. Read from
+    the raw tail (which always holds the latest turns: a freeze moves only
+    the oldest block out) and that turn's log entry; a turn logged before
+    contexts were recorded simply has none."""
+    if len(state.raw_tail) < 2:
+        return None
+    human, ai = state.raw_tail[-2], state.raw_tail[-1]
+    if not isinstance(human, HumanMessage) or not isinstance(ai, AIMessage):
+        return None
+    entry = next((e for e in reversed(state.pending_turn_intents) if e.get("turn") == state.turn_count), {})
+    return {
+        "user_message": str(human.content),
+        "reply": str(ai.content),
+        "intents": list(entry.get("intents") or []),
+        "agent_used": entry.get("agent_used") or "",
+        "contexts": list(entry.get("contexts") or []),
+    }
 
 
 def delete_conversation(session_id: str, user_id: str) -> None:
@@ -108,17 +141,59 @@ def release_lock(session_id: str) -> None:
 
 # ---- block-based incremental history summarization ------------------------
 
-def summarize_block(messages: list[BaseMessage]) -> str:
+def shorten_reply(text: str, limit: int | None = None) -> str:
+    """An assistant reply cut to `limit` characters (default
+    settings.history_reply_max_chars), keeping its start (what it answered)
+    and its end (where a closing question usually is)."""
+    limit = limit or settings.history_reply_max_chars
+    if len(text) <= limit:
+        return text
+    head = limit * 2 // 3
+    return text[:head].rstrip() + " … [shortened] … " + text[-(limit - head):].lstrip()
+
+
+def for_prompt(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """The history as a prompt should see it: earlier assistant replies
+    shortened (see shorten_reply), everything else as stored."""
+    return [
+        AIMessage(content=shorten_reply(str(m.content))) if isinstance(m, AIMessage) else m
+        for m in messages
+    ]
+
+
+def _turn_note(entry: dict) -> str:
+    """A turn's log entry as one bracketed line for the summarizer."""
+    parts = []
+    for context in entry.get("contexts") or []:
+        part = str(context.get("tool"))
+        if context.get("mode"):
+            part += f" ({context['mode']})"
+        if context.get("subjects"):
+            part += ": " + ", ".join(map(str, context["subjects"]))
+        parts.append(part)
+    answered = "; ".join(parts) or entry.get("agent_used") or ", ".join(entry.get("intents") or [])
+    return f"[turn {entry.get('turn')} answered by {answered}]" if answered else ""
+
+
+def summarize_block(messages: list[BaseMessage], turn_log: list[dict] | None = None, start_turn: int = 1) -> str:
     """One LLM call, permanent once computed — a block is only ever
     summarized from its raw source, never from a previous summary, so
-    repeated compression drift can't accumulate. Never raises (falls back
-    to a generic placeholder so a transient failure doesn't crash the
-    background task or silently drop the block)."""
+    repeated compression drift can't accumulate. `turn_log` is the block's
+    log entries (pending_turn_intents): which tool answered each turn and
+    what it covered. Replies are shortened as for any prompt. Never raises
+    (falls back to a generic placeholder so a transient failure doesn't
+    crash the background task or silently drop the block)."""
     try:
-        transcript = "\n".join(
-            f"{'User' if isinstance(m, HumanMessage) else 'Assistant'}: {m.content}"
-            for m in messages
-        )
+        notes = {entry.get("turn"): _turn_note(entry) for entry in turn_log or []}
+        lines = []
+        for i, m in enumerate(messages):
+            if isinstance(m, HumanMessage):
+                lines.append(f"User: {m.content}")
+                continue
+            lines.append(f"Assistant: {shorten_reply(str(m.content))}")
+            if notes.get(start_turn + i // 2):
+                lines.append(notes[start_turn + i // 2])
+        transcript = "\n".join(lines)
         # max_tokens is generous relative to the desired 2-4 sentence
         # summary as a safety margin against truncation.
         return llm.complete(_SUMMARY_PROMPT, transcript, temperature=0, max_tokens=1000).strip()
@@ -174,7 +249,8 @@ def freeze_and_unlock(session_id: str) -> None:
             block_messages = state.raw_tail[:n_msgs]
             start_turn = state.last_frozen_end + 1
             end_turn = state.last_frozen_end + block_size
-            summary = summarize_block(block_messages)
+            block_log = [e for e in state.pending_turn_intents if start_turn <= e["turn"] <= end_turn]
+            summary = summarize_block(block_messages, block_log, start_turn)
             block = HistoryBlock(
                 start_turn=start_turn, end_turn=end_turn, summary=summary,
                 created_at=datetime.now(timezone.utc).isoformat(),

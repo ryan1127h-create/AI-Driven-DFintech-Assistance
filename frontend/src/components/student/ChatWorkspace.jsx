@@ -186,7 +186,11 @@ function ChatView({ user, profileDone, onOpenProfile }) {
     return () => {
       active = false;
     };
-  }, [location.search]);
+    // location.key, not only the search: "New Chat" from a conversation
+    // that was started here (its URL is still plain /app) navigates to the
+    // same URL, and only the key tells the two apart — without it the old
+    // session id survived and the next message continued that conversation.
+  }, [location.search, location.key]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

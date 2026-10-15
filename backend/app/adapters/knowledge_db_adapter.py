@@ -108,7 +108,7 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
 
     def fetch_role_tags(self) -> list[dict]:
         return self._cached("role_tags", lambda: self._query(
-            f"select tag, name_en, definition, required_skills from {_APP_SCHEMA}.tags_definition order by tag"
+            f"select tag, name_en, name_zh, definition, required_skills from {_APP_SCHEMA}.tags_definition order by tag"
         ))
 
     def fetch_course_tags(self) -> list[dict]:

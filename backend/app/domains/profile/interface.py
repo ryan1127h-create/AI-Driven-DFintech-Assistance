@@ -35,10 +35,12 @@ from app.domains.profile import service
 __all__ = [
     "check_value",
     "derived_course_notes",
+    "derived_readiness_gaps",
     "cv_targets",
     "describe_facts",
     "delete_cv_data",
     "describe_value",
+    "field_labels",
     "get_profile_field",
     "get_profile_for_purpose",
     "fail_cv_document",
@@ -72,6 +74,11 @@ def describe_facts(facts: dict) -> list[str]:
 def describe_value(field_key: str, value) -> str:
     """English display text for a field value."""
     return service.describe_value(field_key, value)
+
+
+def field_labels(field_keys) -> dict[str, str]:
+    """field_key -> its English label (field_definitions.label)."""
+    return service.field_labels(field_keys)
 
 
 def get_profile_field(user_id: str, field_key: str):
@@ -163,3 +170,8 @@ def list_user_ids() -> list[str]:
 def derived_course_notes(user_id: str) -> dict[str, list[str]]:
     """{"readiness": [...], "graduation": [...]} sentences (consent-gated)."""
     return service.derived_course_notes(user_id)
+
+
+def derived_readiness_gaps(user_id: str) -> list[dict]:
+    """[{area, level, required}] readiness gaps (consent-gated)."""
+    return service.derived_readiness_gaps(user_id)

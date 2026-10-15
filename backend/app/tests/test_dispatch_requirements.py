@@ -210,34 +210,6 @@ def test_the_card_rides_on_the_ai_message_to_the_client(monkeypatch):
     assert ai_message.additional_kwargs["card"]["fields"][0]["field_key"] == "main_target_role"
 
 
-def test_career_planning_requires_the_main_target_role(monkeypatch):
-    from app.tools import input_needs
-    from app.tools.specialist import career_planning_tool
-
-    monkeypatch.setattr(career_planning_tool, "_career_facts", lambda state: {})
-    monkeypatch.setattr(input_needs, "missing_purpose_consent", lambda uid, purpose: None)
-    [missing] = career_planning_tool.CAREER_TOOL.input_needs(_state())
-    assert (missing.field_key, missing.level) == ("main_target_role", "required")
-
-
-def test_career_planning_without_consent_asks_for_the_consent(monkeypatch):
-    # Asking for the role would loop: once saved, it still couldn't be read.
-    from app.tools import input_needs
-    from app.tools.specialist import career_planning_tool
-
-    monkeypatch.setattr(career_planning_tool, "_career_facts", lambda state: {})
-    monkeypatch.setattr(input_needs, "missing_purpose_consent", lambda uid, purpose: "consent_personalized_rec")
-    [missing] = career_planning_tool.CAREER_TOOL.input_needs(_state())
-    assert (missing.consent_key, missing.field_key, missing.level) == ("consent_personalized_rec", None, "required")
-
-
-def test_a_role_named_in_the_message_needs_nothing():
-    from app.tools.specialist import career_planning_tool
-
-    state = TurnState(messages=[HumanMessage("plan for a quant")], user_id="u1", target_role_hint="quant")
-    assert career_planning_tool.CAREER_TOOL.input_needs(state) == ()
-
-
 # ---- levels -------------------------------------------------------------------
 
 def _needs(*items):

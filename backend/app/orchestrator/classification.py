@@ -39,7 +39,7 @@ import json
 from app.adapters.deepseek_adapter import llm
 from app.core import answer_depth
 from app.tools.contracts import OnEvent, ToolAnswer
-from app.tools.turn_context import last_human_message, to_chat_messages
+from app.tools.turn_context import PreviousTurn, last_human_message, to_chat_messages
 
 SUPERVISOR_SYSTEM_PROMPT = """\
 You are an AI assistant for the NUS Master of Science in Digital Financial \
@@ -80,6 +80,18 @@ AND what's the tuition?" is admissions + financial). Return at most 3 intents.
 appear together with any other intent — if any of the four applies, it must \
 be the only element in the list.
 
+The input may start with a PREVIOUS TURN section: the last exchange in this \
+conversation, for context only. Classify ONLY the LATEST MESSAGE, but read it \
+in that light: a short message that answers what the assistant just asked or \
+offered — picking one of the options it listed, naming a role, course or \
+value, "yes", "no", "the second one" — continues the previous turn's topic, so \
+give it the previous turn's intent and fill the hints from what it picks (e.g. \
+the assistant listed roles to choose from and the latest message is "software \
+engineering": intents ["career"], target_role_hint "software engineering", \
+career_mode_hint "plan"). A message that is complete on its own or clearly \
+changes the subject is classified on its own, ignoring the previous turn. \
+reply_language always comes from the LATEST MESSAGE alone.
+
 The ten categories:
 
 "admissions" — The user is asking a factual question about: admission \
@@ -109,7 +121,8 @@ of funds, or scholarship application procedures.
 
 "career" — The user is asking about career paths, job roles, role readiness, \
 capability evidence, portfolios, networking, interviews, or job-search milestones \
-— e.g. "what does a compliance career need", "am I ready for a quant role", or \
+— e.g. "what does a compliance career need", "am I ready for a quant role", \
+"which jobs suit my background", "data analyst or data engineer?", or \
 "how should I prepare for product-manager interviews". Do NOT use this category \
 for requests about courses, modules, curricula, or what to study; those are academic.
 
@@ -165,6 +178,15 @@ unit load, e.g. "plan my courses for next semester, 12 units";
 - "degree_overview": general advice on what to take for the degree, e.g. \
 "which electives should I take?", "help me plan my course selection".
 
+"career_mode_hint" — ONLY when the intents include "career", which kind of \
+career advice the user wants; otherwise null:
+- "exploration": which roles would suit them, with no role chosen yet, e.g. \
+"what jobs fit my background?", "what could I do after this programme?";
+- "compare": weighing two or more roles against each other, e.g. "data \
+analyst or data engineer — which suits me?";
+- "plan": getting ready for one role, e.g. "am I ready for a quant role?", \
+"how should I prepare to become a risk analyst?".
+
 Also detect "reply_language" — the single language the FINAL reply should be \
 written in, as a lowercase ISO 639-1 code (e.g. "en", "zh", "ja", "ko", "fr"):
 
@@ -184,12 +206,13 @@ Respond with ONLY a valid JSON object — no markdown, no explanation. `intents`
 always an array, even for a single intent; `target_role_hint` and `program_hints` \
 are always present (null / [] when nothing was mentioned); `reply_language` is \
 always present (null when you can't tell); `course_mode_hint` is always present \
-(null unless the intents include course_recommendation):
+(null unless the intents include course_recommendation), and so is \
+`career_mode_hint` (null unless the intents include career):
 {"intents": ["admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["financial", "admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "zh"}
 or
-{"intents": ["career"], "target_role_hint": "quant researcher", "program_hints": [], "reply_language": "en"}
+{"intents": ["career"], "target_role_hint": "quant researcher", "program_hints": [], "reply_language": "en", "career_mode_hint": "plan"}
 or
 {"intents": ["comparison"], "target_role_hint": null, "program_hints": ["NTU"], "reply_language": "ja"}
 or
@@ -217,23 +240,56 @@ _MAX_INTENTS = 3
 
 # The kinds of course advice course_mode_hint distinguishes (see the prompt).
 COURSE_MODES = {"degree_overview", "ad_hoc", "semester_plan"}
+# The kinds of career advice career_mode_hint distinguishes.
+CAREER_MODES = {"exploration", "plan", "compare"}
+
+
+def _classifier_input(message: str, previous_turn: PreviousTurn | None) -> str:
+    """The latest message alone, or — after an earlier turn — preceded by
+    that turn: what the user said, how the reply ended, which tool
+    answered, and any question it was waiting on."""
+    if previous_turn is None:
+        return message
+    lines = [
+        "PREVIOUS TURN (context only — do not classify it):",
+        f"User: {previous_turn.user_message[:300]}",
+        f"Assistant (ending of its reply): {previous_turn.reply_tail()}",
+    ]
+    if previous_turn.intents:
+        lines.append(f"It was classified as: {', '.join(previous_turn.intents)}")
+    for context in previous_turn.contexts:
+        mode = f", mode {context['mode']}" if context.get("mode") else ""
+        lines.append(f"Answered by: {context.get('tool')}{mode}")
+    awaiting = previous_turn.awaiting
+    if awaiting and awaiting.get("kind") == "choose_role":
+        options = "; ".join(f"{o['label']} ({o['key']})" for o in awaiting.get("options", []))
+        lines.append(f"The assistant asked the user to choose one of these roles: {options}")
+    elif awaiting and awaiting.get("kind") == "fields":
+        lines.append(f"The assistant asked the user for: {', '.join(awaiting.get('field_keys', []))}")
+    elif awaiting and awaiting.get("kind") == "consent":
+        lines.append("The assistant asked the user to turn on a consent.")
+    lines += ["", "LATEST MESSAGE (classify this):", message]
+    return "\n".join(lines)
 
 
 def classify_intent(
-    messages: list, on_event: OnEvent | None = None,
-) -> tuple[list[str], str | None, list[str], str | None, str | None]:
+    messages: list, on_event: OnEvent | None = None, previous_turn: PreviousTurn | None = None,
+) -> tuple[list[str], str | None, list[str], str | None, str | None, str | None]:
     """Classifies the latest user message into 1-3 intent categories, plus
     two optional personalisation hints (target_role_hint, program_hints),
     reply_language (see orchestrator/dispatch/localization.py) and, for a
-    course recommendation, course_mode_hint. Returns (intents,
-    target_role_hint, program_hints, reply_language, course_mode_hint) —
-    (["general"], None, [], None, None) on an empty message or any
-    classification failure. reply_language is None whenever the message's language can't be
+    course recommendation, course_mode_hint, and for career advice,
+    career_mode_hint. Returns (intents, target_role_hint, program_hints,
+    reply_language, course_mode_hint, career_mode_hint) —
+    (["general"], None, [], None, None, None) on an empty message or any
+    classification failure. `previous_turn`, when given, is shown to the
+    model as context for reading a short follow-up (see
+    _classifier_input()). reply_language is None whenever the message's language can't be
     told; turn_service then falls back to the user's language preference,
     and to English without one."""
     last_user_message = last_human_message(messages)
     if not last_user_message:
-        return ["general"], None, [], None, None
+        return ["general"], None, [], None, None, None
 
     if on_event is not None:
         on_event({"type": "step", "stage": "classifying"})
@@ -244,7 +300,10 @@ def classify_intent(
     # "general" (a plain conversational reply) rather than failing the
     # whole turn.
     try:
-        response = llm.complete(INTENT_CLASSIFIER_PROMPT, last_user_message, temperature=0, max_tokens=1500)
+        response = llm.complete(
+            INTENT_CLASSIFIER_PROMPT, _classifier_input(last_user_message, previous_turn),
+            temperature=0, max_tokens=1500,
+        )
         result = json.loads(response.strip())
         raw = result.get("intents", ["general"])
         if isinstance(raw, str):  # tolerate a stray single-string response
@@ -271,11 +330,16 @@ def classify_intent(
         course_mode_hint = result.get("course_mode_hint")
         if "course_recommendation" not in intents or course_mode_hint not in COURSE_MODES:
             course_mode_hint = None
+
+        career_mode_hint = result.get("career_mode_hint")
+        if "career" not in intents or career_mode_hint not in CAREER_MODES:
+            career_mode_hint = None
     except Exception as exc:
         print(f"[classification] Warning: intent classification failed, defaulting to 'general' — {exc}")
         intents, target_role_hint, program_hints = ["general"], None, []
         reply_language = None
         course_mode_hint = None
+        career_mode_hint = None
 
     print(f"[classification] intents classified as: {intents} (reply_language={reply_language})")
     if on_event is not None:
@@ -283,8 +347,9 @@ def classify_intent(
             "type": "step", "stage": "classified", "intents": intents,
             "target_role_hint": target_role_hint, "program_hints": program_hints,
             "reply_language": reply_language, "course_mode_hint": course_mode_hint,
+            "career_mode_hint": career_mode_hint,
         })
-    return intents, target_role_hint, program_hints, reply_language, course_mode_hint
+    return intents, target_role_hint, program_hints, reply_language, course_mode_hint, career_mode_hint
 
 
 def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None) -> ToolAnswer:

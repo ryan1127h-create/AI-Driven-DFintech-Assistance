@@ -32,12 +32,14 @@ __all__ = [
     "new_session_id",
     "get_state",
     "record_turn",
+    "last_turn",
     "delete_conversation",
     "try_lock",
     "release_lock",
     "should_freeze",
     "freeze_and_unlock",
     "render_summaries",
+    "for_prompt",
     "list_conversations",
     "get_conversation_history",
     "rollback_conversation",
@@ -63,6 +65,12 @@ def record_turn(
     """Persists one completed turn: appends to the raw tail, bumps
     turn_count, logs the intent-classification result."""
     service.record_turn(session_id, state, human_message, ai_message, intents, agent_used)
+
+
+def last_turn(state: ConversationState) -> dict | None:
+    """The last completed turn — {"user_message", "reply", "intents",
+    "agent_used", "contexts"} — or None on a new conversation."""
+    return service.last_turn(state)
 
 
 def delete_conversation(session_id: str, user_id: str) -> None:
@@ -98,6 +106,12 @@ def render_summaries(history_summaries: list[HistoryBlock]) -> str:
     """Renders frozen block summaries into the compact text block a turn's
     prompt injects as history context. Empty list -> empty string."""
     return service.render_summaries(history_summaries)
+
+
+def for_prompt(messages: list) -> list:
+    """The raw tail as a prompt should see it: earlier assistant replies
+    shortened to settings.history_reply_max_chars (start and end kept)."""
+    return service.for_prompt(messages)
 
 
 def list_conversations(user_id: str) -> list[dict]:

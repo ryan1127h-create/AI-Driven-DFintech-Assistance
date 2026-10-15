@@ -23,7 +23,7 @@ from app.domains.auth.interface import get_assistant_preferences
 from app.domains.conversation import interface as conversation
 from app.domains.profile.interface import get_profile_summary_text
 from app.orchestrator import classification, dispatch
-from app.tools.turn_context import OnEvent, TurnState
+from app.tools.turn_context import OnEvent, PreviousTurn, TurnState
 
 
 @dataclass
@@ -44,6 +44,16 @@ def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
     preferred language only decides when that can't be told (e.g. "ok" or
     a course code), and English when there is no preference either."""
     return detected or (preferred[0] if preferred else "en")
+
+
+def _previous_turn(state) -> PreviousTurn | None:
+    last = conversation.last_turn(state)
+    if last is None:
+        return None
+    return PreviousTurn(
+        user_message=last["user_message"], reply=last["reply"], intents=tuple(last["intents"]),
+        agent_used=last["agent_used"], contexts=tuple(last["contexts"]),
+    )
 
 
 def run_turn(
@@ -93,19 +103,21 @@ def run_turn(
     if summaries_text:
         system_blocks.append(SystemMessage(content=summaries_text))
 
-    llm_messages = system_blocks + state.raw_tail + [new_message]
+    llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + [new_message]
+    previous_turn = _previous_turn(state)
 
-    intents, target_role_hint, program_hints, detected_language, course_mode_hint = classification.classify_intent(
-        llm_messages, on_event
-    )
+    (
+        intents, target_role_hint, program_hints, detected_language, course_mode_hint, career_mode_hint,
+    ) = classification.classify_intent(llm_messages, on_event, previous_turn=previous_turn)
     preferences = get_assistant_preferences(user_id)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
         target_role_hint=target_role_hint, program_hints=program_hints,
-        course_mode_hint=course_mode_hint,
+        course_mode_hint=course_mode_hint, career_mode_hint=career_mode_hint,
         declined_fields=frozenset(state.declined_fields),
         reply_language=resolve_reply_language(detected_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
+        previous_turn=previous_turn,
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
 

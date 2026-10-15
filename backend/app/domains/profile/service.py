@@ -448,6 +448,12 @@ def describe_value(field_key: str, value) -> str:
     return _display(value, labels)
 
 
+def field_labels(field_keys) -> dict[str, str]:
+    """field_key -> its English label, for the keys the dictionary holds."""
+    definitions = repository.load_field_definitions()
+    return {key: definitions[key]["label"] for key in field_keys if key in definitions}
+
+
 def describe_facts(facts: dict) -> list[str]:
     """One "Label: value" line per fact, in field-dictionary order."""
     definitions = repository.load_field_definitions()
@@ -579,3 +585,17 @@ def derived_course_notes(user_id: str) -> dict[str, list[str]]:
     for risk in derived.get("graduation_risk_flags") or []:
         notes["graduation"].append(f"Graduation risk (derived): {risk['message']}")
     return notes
+
+
+def derived_readiness_gaps(user_id: str) -> list[dict]:
+    """[{area, level, required}] for each programme-readiness area the user
+    is self-rated below, for career planning — under the same consent as
+    derived_course_notes (empty without it)."""
+    if not repository.has_consent(user_id, "consent_personalized_rec"):
+        return []
+    derived = repository.get_derived(user_id) or {}
+    return [
+        {"area": area, "level": gap["level"], "required": gap["required"]}
+        for area, gap in (derived.get("readiness_gap") or {}).items()
+        if gap.get("status") == "gap"
+    ]

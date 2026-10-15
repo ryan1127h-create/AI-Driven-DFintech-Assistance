@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ports.llm_port import ChatMessage
@@ -25,6 +25,33 @@ from app.ports.llm_port import ChatMessage
 # Passed explicitly to registry.invoke_typed(..., on_event=...); every tool
 # must treat a missing/None value as "don't emit anything".
 OnEvent = Callable[[dict], None]
+
+
+@dataclass(frozen=True)
+class PreviousTurn:
+    """The conversation's last completed turn, for reading the current
+    message in its light: a short reply like "software engineering" or
+    "the second one" usually answers what the assistant just asked."""
+
+    user_message: str
+    reply: str
+    intents: tuple[str, ...] = ()
+    agent_used: str = ""
+    # The tools' structured record of what they did (ToolAnswer.contexts).
+    contexts: tuple[dict, ...] = ()
+
+    def context_for(self, tool: str) -> dict | None:
+        return next((c for c in self.contexts if c.get("tool") == tool), None)
+
+    @property
+    def awaiting(self) -> dict | None:
+        """The question the reply ended on, if a tool recorded one."""
+        return next((c["awaiting"] for c in self.contexts if c.get("awaiting")), None)
+
+    def reply_tail(self, chars: int = 300) -> str:
+        """The reply's ending — where its closing question usually is."""
+        text = self.reply.strip()
+        return text if len(text) <= chars else "…" + text[-chars:]
 
 
 @dataclass
@@ -42,6 +69,9 @@ class TurnState:
     # kind of advice is wanted — "degree_overview", "ad_hoc" or
     # "semester_plan" (see classification.COURSE_MODES); None otherwise.
     course_mode_hint: str | None = None
+    # Likewise for career advice: "exploration", "plan" or "compare" (see
+    # classification.CAREER_MODES); None otherwise.
+    career_mode_hint: str | None = None
     # Input fields the user skipped or dismissed earlier in this
     # conversation (see orchestrator/dispatch/requirements.py): an optional
     # or supplementary field here isn't asked for again this session.
@@ -58,6 +88,9 @@ class TurnState:
     # turn. Unlike reply_language it is applied while answers are written,
     # by every tool that writes the final text.
     answer_depth: str = "standard"
+    # The conversation's last completed turn (None on a new conversation),
+    # loaded by turn_service from the conversation state.
+    previous_turn: PreviousTurn | None = None
 
 
 class ChatToolInput(BaseModel):
@@ -91,7 +124,10 @@ def to_chat_messages(messages: list[BaseMessage]) -> list[ChatMessage]:
     types stop, so a provider swap never has to touch this conversion."""
     result: list[ChatMessage] = []
     for m in messages:
-        role = "assistant" if isinstance(m, AIMessage) else "user"
+        # Context the orchestrator places ahead of the turns (the profile,
+        # earlier-turn summaries) stays a system message — sent as "user",
+        # the model would read it as something the user said.
+        role = "assistant" if isinstance(m, AIMessage) else "system" if isinstance(m, SystemMessage) else "user"
         content = m.content if isinstance(m.content, str) else str(m.content)
         result.append({"role": role, "content": content})
     return result

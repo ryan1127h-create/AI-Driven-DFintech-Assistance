@@ -164,3 +164,19 @@ def test_a_plan_renders_under_its_own_style(monkeypatch):
                         lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("ok", []))
     renderer.render(PLAN_RESULT, "plan my next semester")
     assert prompts == [renderer.SEMESTER_PLAN_STYLE_PROMPT]
+
+
+def test_a_recommendation_records_its_mode_and_top_picks():
+    from app.tools.specialist.course_recommendation.s7_presentation import follow_up
+
+    result = {"mode": "degree_overview", "groups": [
+        {"recommendations": [{"course_code": "FT5005", "recommended": True},
+                             {"course_code": "FT5010", "recommended": False}]},
+        {"recommendations": [{"course_code": "IT5006", "recommended": True},
+                             {"course_code": "FT5005", "recommended": True}]},
+    ]}
+    assert follow_up.turn_context(result) == {
+        "tool": "course_recommendation", "mode": "degree_overview",
+        "subjects": ["FT5005", "IT5006"], "awaiting": None,
+    }
+    assert follow_up.turn_context({"notes": []})["subjects"] == []

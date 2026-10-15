@@ -160,4 +160,6 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
         extra["supplement_card"] = answer.supplement_card
     if answer.save_suggestions:
         extra["save_suggestions"] = list(answer.save_suggestions)
+    if answer.contexts:
+        extra["turn_contexts"] = list(answer.contexts)
     return AIMessage(content=answer.text, additional_kwargs=extra), _reply_with_sources(answer), answer.agent_used
