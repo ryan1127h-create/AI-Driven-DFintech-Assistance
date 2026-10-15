@@ -50,7 +50,8 @@ class FieldDefinition(BaseModel):
 
 class DefinitionsOut(BaseModel):
     fields: list[FieldDefinition]
-    role_tags: dict[str, Optional[str]]
+    # values_ref -> {key: display name}, for every table a field takes its values from.
+    ref_options: dict[str, dict[str, Optional[str]]]
 
 
 class ProfileUpdate(BaseModel):

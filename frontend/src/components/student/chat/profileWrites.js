@@ -9,7 +9,7 @@ export function loadDictionary() {
     dictionaryPromise = getProfileDefinitions()
       .then((defs) => ({
         definitions: Object.fromEntries(defs.fields.map((d) => [d.field_key, d])),
-        roleTags: defs.role_tags || {},
+        refOptions: defs.ref_options || {},
       }))
       .catch((err) => {
         dictionaryPromise = null;

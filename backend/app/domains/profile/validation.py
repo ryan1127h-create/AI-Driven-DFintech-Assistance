@@ -82,7 +82,12 @@ def _text(field_key: str, value, max_len: int = MAX_TEXT) -> str:
     return value
 
 
-def _choice(field_key: str, value, allowed: list | None, role_tags: set[str] | None):
+# values_ref values: the tables a field may take its options from.
+ROLE_TAGS_REF = "knowledge.tags_definition"
+PROGRAMS_REF = "program.programs"
+
+
+def _choice(field_key: str, value, allowed: list | None, ref_keys: set[str] | None):
     """One enum value. Numeric enums (e.g. code_level 0-4) also accept the
     digit string a form select produces."""
     if allowed is not None:
@@ -91,14 +96,14 @@ def _choice(field_key: str, value, allowed: list | None, role_tags: set[str] | N
         if value not in allowed or isinstance(value, bool):
             raise FieldValueError(field_key, f"{value!r} is not an allowed value")
         return value
-    if role_tags is not None:
-        if value not in role_tags:
-            raise FieldValueError(field_key, f"{value!r} is not a known role tag")
+    if ref_keys is not None:
+        if value not in ref_keys:
+            raise FieldValueError(field_key, f"{value!r} is not one of the field's options")
         return value
     return _text(field_key, value, 120)
 
 
-def _multi(field_key: str, value, definition: dict, role_tags: set[str] | None) -> list:
+def _multi(field_key: str, value, definition: dict, ref_keys: set[str] | None) -> list:
     if not isinstance(value, list):
         raise FieldValueError(field_key, "expects a list")
     limit = definition["max_items"] or MAX_LIST_ITEMS
@@ -114,7 +119,7 @@ def _multi(field_key: str, value, definition: dict, role_tags: set[str] | None) 
             unknown = set(item) - {"key"} - set(attrs)
             if unknown or len(item) > MAX_ITEM_ATTRS:
                 raise FieldValueError(field_key, f"unexpected item attributes: {sorted(unknown)}")
-            key = _choice(field_key, item["key"], allowed, role_tags)
+            key = _choice(field_key, item["key"], allowed, ref_keys)
             normalized = {"key": key}
             for attr, rule in attrs.items():
                 if attr not in item or item[attr] is None:
@@ -129,7 +134,7 @@ def _multi(field_key: str, value, definition: dict, role_tags: set[str] | None) 
                     raise FieldValueError(field_key, f"{attr} must be one of {list(rule)}")
                 normalized[attr] = v
         else:
-            key = _choice(field_key, item, allowed, role_tags)
+            key = _choice(field_key, item, allowed, ref_keys)
             normalized = key
         if key in seen:
             raise FieldValueError(field_key, f"{key!r} is listed twice")
@@ -169,6 +174,8 @@ def _admission_tests(field_key: str, value, definition: dict) -> list:
 
 
 def _structured(field_key: str, value, definitions: dict, role_tags: set[str]):
+    """`role_tags`: the role tag keys current_position and
+    currently_hiring choose role families from."""
     if field_key == "admission_tests":
         return _admission_tests(field_key, value, definitions[field_key])
     if not isinstance(value, dict):
@@ -200,13 +207,16 @@ def _structured(field_key: str, value, definitions: dict, role_tags: set[str]):
     return out
 
 
-def validate_value(field_key: str, value, definitions: dict, role_tags: set[str]):
+def validate_value(field_key: str, value, definitions: dict, ref_options: dict[str, set[str]]):
     """Returns the normalized value, or raises FieldValueError. `value` is
-    never None here — None means "delete" and is handled by the caller."""
+    never None here — None means "delete" and is handled by the caller.
+    `ref_options`: values_ref -> the keys a field with that values_ref
+    accepts (a table missing here accepts nothing)."""
     definition = definitions.get(field_key)
     if definition is None:
         raise FieldValueError(field_key, "unknown field")
-    tags = role_tags if definition["values_ref"] == "knowledge.tags_definition" else None
+    ref = definition["values_ref"]
+    ref_keys = set(ref_options.get(ref, ())) if ref else None
     vt = definition["value_type"]
     if vt == "bool":
         if not isinstance(value, bool):
@@ -228,11 +238,11 @@ def validate_value(field_key: str, value, definitions: dict, role_tags: set[str]
             raise FieldValueError(field_key, "expects a term like 'AY2027/28 Sem1'")
         return value
     if vt == "single":
-        return _choice(field_key, value, definition["allowed_values"], tags)
+        return _choice(field_key, value, definition["allowed_values"], ref_keys)
     if vt == "multi":
-        return _multi(field_key, value, definition, tags)
+        return _multi(field_key, value, definition, ref_keys)
     if vt == "structured":
-        return _structured(field_key, value, definitions, role_tags)
+        return _structured(field_key, value, definitions, set(ref_options.get(ROLE_TAGS_REF, ())))
     raise FieldValueError(field_key, "is not writable")
 
 

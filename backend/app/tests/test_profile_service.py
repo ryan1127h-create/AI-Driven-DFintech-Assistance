@@ -9,7 +9,7 @@ import pytest
 
 from app.core.errors import NotFoundError, ValidationError
 from app.domains.profile import interface, service
-from app.tests.profile_fixtures import DEFINITIONS, ROLE_TAGS, entry
+from app.tests.profile_fixtures import DEFINITIONS, PROGRAM_OPTIONS, ROLE_TAGS, entry
 
 
 class _Repo:
@@ -81,6 +81,7 @@ def repo(monkeypatch):
     monkeypatch.setattr(r, "get_derived", lambda user_id: fake.derived)
     monkeypatch.setattr(r, "has_consent", lambda user_id, key: bool(fake.consents.get(key, {}).get("granted")))
     monkeypatch.setattr(service, "_role_tags", lambda: ROLE_TAGS)
+    monkeypatch.setattr(service, "_program_options", lambda: PROGRAM_OPTIONS)
     for name in ("get_profile", "get_profile_for_purpose", "get_field_value", "list_open_conflicts",
                  "get_current_consents", "set_fields", "set_field", "confirm_field", "close_conflict",
                  "record_consent"):
@@ -113,7 +114,7 @@ def test_definitions_hide_internal_fields(repo):
     assert "drop_off_risk" not in keys and "motivation_segment" not in keys and "language_pref" not in keys
     by_key = {d["field_key"]: d for d in defs["fields"]}
     assert by_key["code_level"]["editable"] and not by_key["lifecycle_stage"]["editable"]
-    assert defs["role_tags"] == ROLE_TAGS
+    assert defs["ref_options"] == {"knowledge.tags_definition": ROLE_TAGS, "program.programs": PROGRAM_OPTIONS}
 
 
 # --- edits ------------------------------------------------------------------
@@ -275,3 +276,36 @@ def test_readiness_gaps_for_career_planning_need_the_consent(repo):
     assert interface.derived_readiness_gaps("u1") == []
     repo.consents = {"consent_personalized_rec": {"granted": True}}
     assert interface.derived_readiness_gaps("u1") == [{"area": "maths_stats", "level": 1, "required": 2}]
+
+
+# --- options from other tables -------------------------------------------------
+
+def test_competing_programmes_are_saved_as_catalogue_ids(repo):
+    service.update_fields("u1", {"competing_programs": ["hkust_msc_fintech"]})
+    assert repo.writes[-1]["changes"] == {"competing_programs": ["hkust_msc_fintech"]}
+    with pytest.raises(ValidationError):
+        service.update_fields("u1", {"competing_programs": ["HKUST"]})
+
+
+def test_competing_programmes_read_as_their_names(repo):
+    repo.profile = {"lifecycle_stage": entry("prospect"),
+                    "competing_programs": entry(["ntu_msc_fintech", "hkust_msc_fintech"])}
+    repo.purpose_fields["adm"] = {"competing_programs"}
+    assert service.chat_summary_text("u1").splitlines()[-1] == (
+        "- Programmes being compared (competing_programs): NTU MSc FinTech (ntu_msc_fintech), "
+        "HKUST MSc(FinTech) (hkust_msc_fintech)")
+
+
+def test_programme_options_leave_out_msc_dft(monkeypatch):
+    def program(pid, uni, short, target=False):
+        return {"program_id": pid, "short_name": short, "is_target": target, "university": {"short_name": uni}}
+    monkeypatch.setattr(service.program_catalog, "list_programs", lambda: [
+        program("nus_msc_dft", "NUS", "MSc DFinTech", target=True), program("hkust_msc_fintech", "HKUST", "MSc(FinTech)")])
+    assert service._program_options() == {"hkust_msc_fintech": "HKUST MSc(FinTech)"}
+
+
+def test_programme_options_are_empty_when_the_catalogue_fails(monkeypatch):
+    def broken():
+        raise RuntimeError("catalogue down")
+    monkeypatch.setattr(service.program_catalog, "list_programs", broken)
+    assert service._program_options() == {}

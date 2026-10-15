@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { BookmarkPlus, Check, Loader2, X } from "lucide-react";
 import { updateProfile } from "../../../../api";
 import { cn } from "../../../utils/cn";
+import { refChoices } from "../profile/ProfileFields";
 import { loadDictionary, loadProfileValues, profileChanges } from "./profileWrites";
 
 function fieldLabel(dictionary, fieldKey) {
   return dictionary?.definitions[fieldKey]?.label || fieldKey;
 }
 
-// A value as the profile shows it: option labels, role names, and lists
-// joined.
+// A value as the profile shows it: option labels, the names of role tags
+// and programmes, and lists joined.
 function valueLabel(dictionary, { field_key: fieldKey, value }) {
-  const labels = dictionary?.definitions[fieldKey]?.value_labels || {};
-  const one = (v) => labels[String(v)] ?? dictionary?.roleTags?.[v] ?? String(v);
+  const definition = dictionary?.definitions[fieldKey];
+  const labels = definition?.value_labels || {};
+  const ref = definition ? refChoices(definition, dictionary.refOptions) || {} : {};
+  const one = (v) => labels[String(v)] ?? ref[v] ?? String(v);
   return Array.isArray(value) ? value.map(one).join(", ") : one(value);
 }
 

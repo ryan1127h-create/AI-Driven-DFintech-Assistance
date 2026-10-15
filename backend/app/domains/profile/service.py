@@ -14,15 +14,21 @@ import psycopg
 
 from app.core import events
 from app.core.errors import NotFoundError, ValidationError
+from app.core.logging import get_logger
 from app.domains.knowledge_retrieval import interface as knowledge
 from app.domains.profile import repository
 from app.domains.profile.validation import (
+    PROGRAMS_REF,
+    ROLE_TAGS_REF,
     FieldValueError,
     drop_expired_items,
     is_displayed,
     lock_reason,
     validate_value,
 )
+from app.domains.program_catalog import interface as program_catalog
+
+logger = get_logger(__name__)
 
 CONSENT_KEYS = (
     "consent_personalized_rec",
@@ -59,6 +65,36 @@ def _role_tags() -> dict[str, str]:
     """tag -> English name of the role tags target_role_families & co.
     take their values from (owned by the knowledge domain)."""
     return {row["tag"]: row["name_en"] for row in knowledge.list_role_tags()}
+
+
+def _program_options() -> dict[str, str]:
+    """program id -> display name ("HKUST MSc(FinTech)") of the catalogue
+    programmes competing_programs takes its values from — every one but
+    MSc DFT, the programme they are compared with. Empty when the
+    catalogue can't be read: the profile still loads, that field just
+    offers nothing to pick."""
+    try:
+        programs = program_catalog.list_programs()
+    except Exception:
+        logger.exception("profile: reading the programme catalogue failed")
+        return {}
+    return {p["program_id"]: f'{p["university"]["short_name"]} {p["short_name"]}'
+            for p in programs if not p["is_target"]}
+
+
+def _ref_options() -> dict[str, dict[str, str]]:
+    """values_ref -> {key: English display name}: the options of every
+    field that takes its values from another table."""
+    return {ROLE_TAGS_REF: _role_tags(), PROGRAMS_REF: _program_options()}
+
+
+def _ref_keys(options: dict[str, dict[str, str]]) -> dict[str, set[str]]:
+    return {ref: set(values) for ref, values in options.items()}
+
+
+def _labels(definition: dict, ref_options: dict[str, dict[str, str]]) -> dict | None:
+    ref = definition.get("values_ref")
+    return ref_options.get(ref) if ref else definition.get("value_labels")
 
 
 def _actor(user_id: str) -> str:
@@ -103,7 +139,8 @@ def get_profile(user_id: str) -> dict:
 def get_definitions() -> dict:
     """The displayed part of the field dictionary, in dictionary order,
     each with whether it is editable when nothing is on file yet, plus the
-    role tags (tag -> display name) values_ref fields choose from."""
+    options (key -> display name) of each table values_ref fields choose
+    from, by values_ref."""
     fields = []
     for definition in repository.load_field_definitions().values():
         if not is_displayed(definition):
@@ -114,7 +151,7 @@ def get_definitions() -> dict:
             "editable": reason is None,
             "locked_reason": reason,
         })
-    return {"fields": fields, "role_tags": _role_tags()}
+    return {"fields": fields, "ref_options": _ref_options()}
 
 
 def get_field(user_id: str, field_key: str):
@@ -137,7 +174,7 @@ def update_fields(user_id: str, changes: dict, cv_document_id: str | None = None
     if not changes:
         raise ValidationError("No profile fields provided.")
     definitions = repository.load_field_definitions()
-    role_tags = set(_role_tags())
+    ref_keys = _ref_keys(_ref_options())
     current = repository.get_profile(user_id)
 
     errors, normalized = [], {}
@@ -154,7 +191,7 @@ def update_fields(user_id: str, changes: dict, cv_document_id: str | None = None
             normalized[key] = None
             continue
         try:
-            normalized[key] = validate_value(key, value, definitions, role_tags)
+            normalized[key] = validate_value(key, value, definitions, ref_keys)
         except FieldValueError as exc:
             errors.append(str(exc))
     if errors:
@@ -222,7 +259,7 @@ def _apply_main_target_role_rule(changes: dict, current: dict) -> None:
 
 def set_lifecycle_stage(user_id: str, stage: str, *, source: str, actor: str) -> None:
     """Moves the user to `stage` (registration, application binding)."""
-    validate_value("lifecycle_stage", stage, repository.load_field_definitions(), set())
+    validate_value("lifecycle_stage", stage, repository.load_field_definitions(), {})
     current = repository.get_field_value(user_id, "lifecycle_stage")
     if current is not None and current["value"] == stage:
         return
@@ -253,7 +290,7 @@ def resolve_conflict(user_id: str, conflict_id: int, action: str) -> dict:
     key = conflict["field_key"]
     if action == "accept_candidate":
         definitions = repository.load_field_definitions()
-        value = validate_value(key, conflict["candidate_value"], definitions, set(_role_tags()))
+        value = validate_value(key, conflict["candidate_value"], definitions, _ref_keys(_ref_options()))
         source = conflict["candidate_source"] if conflict["candidate_source"] in repository.SOURCES else "QA"
         repository.set_field(user_id, key, value, source=source, actor=_actor(user_id), verified=True)
     elif action == "keep_current":
@@ -292,7 +329,7 @@ def check_value(field_key: str, value):
     """The value normalized as the profile would store it, or None if the
     field doesn't accept it."""
     try:
-        return validate_value(field_key, value, repository.load_field_definitions(), set(_role_tags()))
+        return validate_value(field_key, value, repository.load_field_definitions(), _ref_keys(_ref_options()))
     except FieldValueError:
         return None
 
@@ -438,14 +475,11 @@ def get_facts_for_purpose(user_id: str, purpose: str) -> dict:
 
 
 def describe_value(field_key: str, value) -> str:
-    """A field value as English display text (option labels, role tag
-    names), e.g. code_level 3 -> "Has built a complete project with tests"."""
+    """A field value as English display text (option labels, the names
+    of role tags and programmes), e.g. code_level 3 -> "Has built a
+    complete project with tests"."""
     definition = repository.load_field_definitions().get(field_key) or {}
-    if definition.get("values_ref") == "knowledge.tags_definition":
-        labels = _role_tags()
-    else:
-        labels = definition.get("value_labels")
-    return _display(value, labels)
+    return _display(value, _labels(definition, _ref_options()))
 
 
 def field_labels(field_keys) -> dict[str, str]:
@@ -522,7 +556,7 @@ def chat_summary_text(user_id: str) -> str:
         allowed |= set(repository.get_profile_for_purpose(user_id, purpose))
 
     today = date.today()
-    role_tags = _role_tags()
+    ref_options = _ref_options()
     lines = []
     for key, definition in definitions.items():
         entry = profile.get(key)
@@ -531,8 +565,7 @@ def chat_summary_text(user_id: str) -> str:
         value = drop_expired_items(entry["value"], definition, today)
         if value in (None, [], {}):
             continue
-        labels = role_tags if definition["values_ref"] == "knowledge.tags_definition" else definition["value_labels"]
-        line = f"- {definition['label']} ({key}): {_format_value(key, value, labels)}"
+        line = f"- {definition['label']} ({key}): {_format_value(key, value, _labels(definition, ref_options))}"
         lines.append(line)
     notes = derived_course_notes(user_id)
     lines.extend(f"- {note}" for note in notes["readiness"] + notes["graduation"])

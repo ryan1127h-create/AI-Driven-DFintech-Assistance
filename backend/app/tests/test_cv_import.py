@@ -102,6 +102,7 @@ def store(monkeypatch):
     r = profile_service.repository
     monkeypatch.setattr(r, "load_field_definitions", lambda: CV_DEFINITIONS)
     monkeypatch.setattr(profile_service, "_role_tags", lambda: ROLE_TAGS)
+    monkeypatch.setattr(profile_service, "_program_options", lambda: {})
     for name in ("get_profile", "list_open_conflicts", "record_conflict", "close_conflict", "create_cv_document",
                  "save_cv_result", "get_cv_document", "get_latest_cv_document", "set_fields"):
         monkeypatch.setattr(r, name, getattr(fake, name))

@@ -1,6 +1,6 @@
 import { Check, FileText } from "lucide-react";
 import { cn } from "../../../utils/cn";
-import { FieldInput } from "../profile/ProfileFields";
+import { FieldInput, refChoices } from "../profile/ProfileFields";
 import { FIELD_HINTS, upcomingIntakeTerms } from "../../../data/onboarding";
 
 // One questionnaire field, answered by tapping options rather than typing:
@@ -8,12 +8,12 @@ import { FIELD_HINTS, upcomingIntakeTerms } from "../../../data/onboarding";
 // levels (whose descriptions are full sentences). Options and their labels
 // come from the field dictionary.
 
-function optionLabel(definition, value, roleTags) {
+function optionLabel(definition, value, refOptions) {
   if (definition.value_type === "bool") return value ? "Yes" : "No";
-  return definition.value_labels?.[String(value)] ?? roleTags?.[value] ?? String(value);
+  return definition.value_labels?.[String(value)] ?? refChoices(definition, refOptions)?.[value] ?? String(value);
 }
 
-function optionsFor(definition, answers, roleTags) {
+function optionsFor(definition, answers, refOptions) {
   const key = definition.field_key;
   if (key === "main_target_role") return answers.target_role_families || [];
   if (definition.value_type === "bool") return [true, false];
@@ -22,7 +22,7 @@ function optionsFor(definition, answers, roleTags) {
     return answers[key] && !terms.includes(answers[key]) ? [answers[key], ...terms] : terms;
   }
   if (definition.allowed_values) return definition.allowed_values;
-  return definition.values_ref ? Object.keys(roleTags || {}) : [];
+  return Object.keys(refChoices(definition, refOptions) || {});
 }
 
 function Chip({ active, onClick, children }) {
@@ -82,9 +82,9 @@ function LevelList({ definition, options, value, onChange }) {
 // holds the CV's value.
 // definitions ({field_key: definition}) is only needed by the general inputs
 // of structured fields.
-export default function QuestionField({ definition, value, onChange, answers, roleTags, recommended, cvQuote, definitions }) {
+export default function QuestionField({ definition, value, onChange, answers, refOptions, recommended, cvQuote, definitions }) {
   const key = definition.field_key;
-  const options = optionsFor(definition, answers, roleTags);
+  const options = optionsFor(definition, answers, refOptions);
   const hint = FIELD_HINTS[key];
 
   // The general-purpose inputs cover what tapping options can't: structured
@@ -98,7 +98,7 @@ export default function QuestionField({ definition, value, onChange, answers, ro
 
   let input;
   if (needsGeneralInput) {
-    input = <FieldInput definition={definition} value={value} onChange={onChange} roleTags={roleTags} definitions={definitions} />;
+    input = <FieldInput definition={definition} value={value} onChange={onChange} refOptions={refOptions} definitions={definitions} />;
   } else if (definition.value_type === "single" && options.length && options.every((o) => typeof o === "number")) {
     input = <LevelList definition={definition} options={options} value={value} onChange={onChange} />;
   } else if (definition.value_type === "multi") {
@@ -116,7 +116,7 @@ export default function QuestionField({ definition, value, onChange, answers, ro
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <Chip key={String(option)} active={selected.includes(option)} onClick={() => toggle(option)}>
-            {optionLabel(definition, option, roleTags)}
+            {optionLabel(definition, option, refOptions)}
           </Chip>
         ))}
       </div>
@@ -126,7 +126,7 @@ export default function QuestionField({ definition, value, onChange, answers, ro
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <Chip key={String(option)} active={value === option} onClick={() => onChange(value === option ? null : option)}>
-            {optionLabel(definition, option, roleTags)}
+            {optionLabel(definition, option, refOptions)}
           </Chip>
         ))}
       </div>

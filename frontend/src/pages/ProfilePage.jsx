@@ -86,7 +86,7 @@ export default function ProfilePage() {
   const { user } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
   const [definitions, setDefinitions] = useState([]);
-  const [roleTags, setRoleTags] = useState({});
+  const [refOptions, setRefOptions] = useState({});
   const [profile, setProfile] = useState(null);
   const [consents, setConsents] = useState([]);
   const [conflicts, setConflicts] = useState([]);
@@ -102,7 +102,7 @@ export default function ProfilePage() {
     Promise.all([getProfileDefinitions(), getProfile(), getConsents(), getProfileConflicts(), getLatestCvImport()])
       .then(([defs, prof, cons, confl, cv]) => {
         setDefinitions(defs.fields);
-        setRoleTags(defs.role_tags || {});
+        setRefOptions(defs.ref_options || {});
         setProfile(prof);
         setConsents(cons);
         setConflicts(confl);
@@ -189,7 +189,7 @@ export default function ProfilePage() {
 
   const subStageDefinition = definitionsByKey.sub_stage;
   const subStage = fields.sub_stage?.value && subStageDefinition
-    ? formatFieldValue(subStageDefinition, fields.sub_stage.value, roleTags)
+    ? formatFieldValue(subStageDefinition, fields.sub_stage.value, refOptions)
     : null;
 
   return (
@@ -216,7 +216,7 @@ export default function ProfilePage() {
           page={current}
           profileFields={fields}
           definitionsByKey={definitionsByKey}
-          roleTags={roleTags}
+          refOptions={refOptions}
           conflicts={conflicts}
           editing={editing}
           draft={draft}
