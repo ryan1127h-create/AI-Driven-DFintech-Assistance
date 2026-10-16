@@ -5,8 +5,7 @@ resolved once per turn by turn_service.py from the classifier's detection
 and the user's preference).
 
 Answers are already written in that language: the generation steps
-(knowledge Q&A, rendered structured replies, general chat, multi-topic
-synthesis) carry the reply-language line from app/core/reply_language.py,
+(knowledge Q&A, rendered structured replies, general chat) carry the reply-language line from app/core/reply_language.py,
 so what streams to the user is in the right language from the first token.
 This stage is the safety net for what wasn't: the fixed English replies (a
 decline, an error, a request for missing input, a fallback), a generation

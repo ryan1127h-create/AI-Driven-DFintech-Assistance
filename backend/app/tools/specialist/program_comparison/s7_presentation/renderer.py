@@ -30,20 +30,26 @@ wording."""
 
 def render(result: dict, universities: list[dict], user_message: str,
            on_event: OnEvent | None = None, depth: str | None = None,
-           language: str | None = None) -> tuple[str, list[str]]:
+           language: str | None = None, other_tools: tuple[str, ...] = ()) -> tuple[str, list[str]]:
     """`universities`: the catalogue universities ({short_name, name,
     aliases}) the reply may name only when the result covers them."""
     view = to_render_view(result)
     style = STYLES[view["mode"]]
 
-    reply, sources = render_structured_reply(view, user_message, style, on_event=on_event, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, style, on_event=on_event, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message, universities)
     if not violations:
         return reply, sources
 
     logger.warning("programme comparison reply failed the guardrail, re-rendering: %s", violations)
     prompt = style + _CORRECTION.format(violations="; ".join(violations))
-    reply, sources = render_structured_reply(view, user_message, prompt, on_event=None, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, prompt, on_event=None, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message, universities)
     if not violations:
         return reply, sources

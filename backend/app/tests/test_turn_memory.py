@@ -15,7 +15,7 @@ from app.domains.conversation import repository, service
 from app.domains.conversation.models import ConversationState
 from app.orchestrator import classification, turn_service
 from app.orchestrator import dispatch
-from app.orchestrator.dispatch import requirements, synthesis
+from app.orchestrator.dispatch import merge, requirements
 from app.tools.contracts import MissingInputField, ToolAnswer
 from app.tools.turn_context import PreviousTurn, to_chat_messages
 
@@ -113,11 +113,10 @@ def test_a_consent_card_records_the_consent():
     assert context["awaiting"] == {"kind": "consent", "consent_key": "c"}
 
 
-def test_a_merged_reply_keeps_every_tools_context(monkeypatch):
-    monkeypatch.setattr(synthesis.llm, "stream", lambda *a, **k: iter(["merged"]))
+def test_a_merged_reply_keeps_every_tools_context():
     partials = [("career", ToolAnswer(text="a", contexts=[CONTEXT])),
                 ("faq", ToolAnswer(text="b", contexts=[{"tool": "faq"}]))]
-    merged = synthesis.synthesize(synthesis.SynthesizeInput(user_message="q", partials=partials))
+    merged = merge.merge(partials)
     assert merged.contexts == [CONTEXT, {"tool": "faq"}]
 
 

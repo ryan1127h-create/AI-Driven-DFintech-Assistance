@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.core import shared_turn
 from app.core.logging import get_logger
 from app.domains.specialist.knowledge_qa import guardrail, qa_agent
 from app.domains.specialist.knowledge_qa.facts import ENQUIRY_URL
@@ -102,14 +103,17 @@ def retrieval_scope(topic: str) -> set[str]:
 def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
     *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
-    depth: str | None = None, language: str | None = None,
+    depth: str | None = None, language: str | None = None, other_tools: tuple[str, ...] = (),
 ) -> str:
     """Answers for one of the four fixed topics from the current `facts`
-    block and the retrieved `context` (either may be None)."""
+    block and the retrieved `context` (either may be None). `other_tools`:
+    the tools answering the rest of the same message, whose parts this
+    answer leaves alone."""
     if not user_message:
         return "I couldn't identify your question. Could you please rephrase it?"
     spec = _TOPICS[topic]
     role_prompt = _ADVISOR.format(role=spec.role, focus=spec.focus)
+    role_prompt = shared_turn.with_instruction(role_prompt, other_tools)
     sources = f"{facts or ''}\n{context or ''}"
 
     reply = qa_agent.answer(role_prompt, user_message, chat_history,

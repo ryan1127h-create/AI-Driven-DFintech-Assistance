@@ -4,33 +4,23 @@ Knowledge QA tool adapter — builds the four chatbot-facing Tools
 app.domains.specialist.knowledge_qa. This file is wiring and data access:
 extract what the domain needs from TurnState (the latest human message,
 the chat history as plain role/content dicts), read the data it answers
-from — MSc DFT's checked record in the programme catalogue (the current
-intake's fees, dates and requirements) and the knowledge-base passages for
-the question — call the domain, and wrap the result in a ToolAnswer. No
-prompt text and no LLM call live here (see the domain's qa_agent.py and
-service.py).
+from — MSc DFT's current facts (app/tools/programme_facts.py) and the
+knowledge-base passages for the question — call the domain, and wrap the
+result in a ToolAnswer. No prompt text and no LLM call live here (see the
+domain's qa_agent.py and service.py).
+
+The answers skip the orchestrator's draft evaluation: the domain checks
+every figure and date it cites against what it was given, and says so
+plainly when the material doesn't cover a question.
 """
 
 from __future__ import annotations
 
-from app.core.logging import get_logger
-from app.domains.program_catalog import interface as program_catalog
 from app.domains.specialist.knowledge_qa import interface as knowledge_qa
 from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.knowledge_context import RetrievedContext, retrieve_context
+from app.tools.programme_facts import current_facts
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message, to_chat_messages
-
-logger = get_logger(__name__)
-
-
-def _target_programme() -> dict | None:
-    """MSc DFT's catalogue record, or None when the catalogue can't be read
-    (the answer then rests on the knowledge base alone)."""
-    try:
-        return next((p for p in program_catalog.list_programs() if p["is_target"]), None)
-    except Exception:
-        logger.exception("knowledge qa: reading the programme catalogue failed")
-        return None
 
 
 def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_intents: set[str]) -> Tool:
@@ -44,15 +34,13 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
         if user_message:
             query = knowledge_qa.search_query(user_message, chat_history)
             retrieved = retrieve_context(query, boost_topics=knowledge_qa.retrieval_scope(topic))
-        target = _target_programme()
-        facts = knowledge_qa.current_facts(target) if target else None
+        facts = current_facts()
         text = knowledge_qa.answer_topic(
             topic, user_message, chat_history,
-            context=retrieved.text, facts=facts, on_event=on_event, depth=state.answer_depth,
-            language=state.reply_language,
+            context=retrieved.text, facts=facts.text, on_event=on_event, depth=state.answer_depth,
+            language=state.reply_language, other_tools=state.other_tools,
         )
-        fact_sources = knowledge_qa.fact_source_urls(target) if target else []
-        sources = list(dict.fromkeys([*retrieved.sources, *fact_sources]))
+        sources = list(dict.fromkeys([*retrieved.sources, *facts.sources]))
         return ToolAnswer(text=text, sources=sources, agent_used=agent_name)
 
     return Tool(
@@ -61,6 +49,7 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
         input_model=ChatToolInput,
         handler=handler,
         trigger_intents=frozenset(trigger_intents),
+        skip_evaluation=True,
     )
 
 

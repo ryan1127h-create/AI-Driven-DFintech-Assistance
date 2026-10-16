@@ -4,7 +4,7 @@ registry. Imported once, by main.py at startup — nothing else needs to
 import this module.
 
 Orchestration-internal stages (intent classification, routing, evaluation,
-synthesis, localization) are NOT registered here — they're plain functions
+merge, localization) are NOT registered here — they're plain functions
 inside app/orchestrator/ now, not Tools (see
 app/orchestrator/dispatch/evaluation.py's module docstring for why).
 Everything registered below is a genuine chatbot-facing specialist: it has

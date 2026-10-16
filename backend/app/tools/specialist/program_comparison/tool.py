@@ -80,6 +80,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     result["notes"] = list(dict.fromkeys([*prefetched.notes, *built.notes, *result["notes"]]))
     answer, sources = renderer.render(
         result, _other_universities(prefetched.programs), user_message, on_event=on_event, depth=state.answer_depth, language=state.reply_language,
+        other_tools=state.other_tools,
     )
     return ToolAnswer(
         text=answer, sources=sources, agent_used="comparison_agent",

@@ -15,7 +15,7 @@ also provides.
 from __future__ import annotations
 
 from app.adapters.deepseek_adapter import llm
-from app.core import answer_depth, reply_language
+from app.core import answer_depth, reply_language, shared_turn
 from app.core.logging import get_logger
 from app.tools.contracts import OnEvent
 
@@ -98,22 +98,24 @@ def render_template(result: dict) -> str:
 def render_structured_reply(
     result: dict, user_message: str, style_prompt: str,
     on_event: OnEvent | None = None, depth: str | None = None, language: str | None = None,
+    other_tools: tuple[str, ...] = (),
 ) -> tuple[str, list[str]]:
     """
     Renders a specialist's render view into one
     chat reply. Never raises — any failure falls back to
     render_template(). `language` is the reply language (an ISO code;
-    None follows the user's message). Returns (reply_text, sources) where
+    None follows the user's message); `other_tools` the tools answering
+    the rest of a shared message. Returns (reply_text, sources) where
     `sources` is result.get("sources", []) verbatim.
     """
     sources = list(result.get("sources") or [])
     draft = _render_draft_block(result)
 
     try:
-        prompt = reply_language.with_instruction(
+        prompt = reply_language.with_instruction(shared_turn.with_instruction(
             answer_depth.with_instruction(_RENDER_PROMPT.format(style_prompt=style_prompt, draft=draft), depth),
-            language,
-        )
+            other_tools,
+        ), language)
         chunks: list[str] = []
         for chunk in llm.stream(prompt, [{"role": "user", "content": user_message}], temperature=0.2, max_tokens=answer_depth.max_tokens(depth, _MAX_TOKENS)):
             chunks.append(chunk)

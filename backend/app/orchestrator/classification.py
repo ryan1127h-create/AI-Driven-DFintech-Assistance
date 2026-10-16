@@ -5,20 +5,15 @@ signals, then either answers directly (no tool matched — plain
 conversation), declines (out of scope), or hands off to dispatch.py for
 the one- or many-tool path.
 
-Seven of the ten categories line up with a registered Tool's
-trigger_intents (see tools/registration.py) — "assessment",
-"course_recommendation", "general" and "off_topic" are the four
-exceptions, each of which must appear alone, never combined with another
-intent: assessment and course_recommendation are each their own
-registered tool but are never fanned out alongside others (see
-FANOUT_INTENTS below) — both are single, self-contained pieces of
-personalised computation, not something that composes well with a
-separately-answered topic in the same turn; "general" has no tool at
-all — it's the plain-conversation fallback this module answers directly,
-with no retrieval; "off_topic" also has no tool — dispatch/__init__.py
-answers it with a fixed decline, no LLM call at all, since this assistant
-exists only to support NUS MSc DFT students and applicants (see the module
-docstring's rationale in dispatch/routing.py::route).
+Eight of the ten categories line up with a registered Tool's
+trigger_intents (see tools/registration.py), and any of them may come
+together — up to three tools then answer in parallel and their replies are
+joined (dispatch/execution.py). The two without a tool must appear alone:
+"general" is the plain-conversation fallback this module answers directly
+(run_general_chat(), grounded in the programme's current facts); "off_topic"
+gets a fixed decline from dispatch/__init__.py with no LLM call at all,
+since this assistant exists only to support NUS MSc DFT students and
+applicants (see dispatch/routing.py::route).
 
 This same call also detects reply_language — the language the reply is
 written in. Detecting it here, in the one call that already reads the
@@ -37,6 +32,7 @@ from app.adapters.deepseek_adapter import llm
 from app.core import answer_depth, reply_language
 from app.core.logging import get_logger
 from app.tools.contracts import OnEvent, ToolAnswer
+from app.tools.programme_facts import current_facts
 from app.tools.turn_context import PreviousTurn, last_human_message, to_chat_messages
 
 logger = get_logger(__name__)
@@ -56,9 +52,15 @@ pre-arrival milestones.
 career-aligned module recommendations.
 - Alumni               : Networking and community engagement opportunities.
 
-Always be professional, warm, and concise. If you are unsure of a specific \
-fact, acknowledge it and recommend the user contact the admissions office. \
-Ask one clarifying question when the user's intent is unclear.
+Always be professional, warm, and concise. Ask one clarifying question when \
+the user's intent is unclear.
+
+Programme facts (fees, dates, requirements, durations, funding, course \
+content) come ONLY from the CURRENT PROGRAMME FACTS below — never from your \
+own memory of NUS or this programme. For anything they don't cover, say you \
+don't have that detail here and invite the user to ask about it directly \
+(e.g. "what courses are in the programme?"), so the right specialist can \
+look it up.
 
 This assistant exists specifically to support NUS MSc DFT students and \
 applicants. If a message is entirely unrelated to the programme or the \
@@ -76,9 +78,10 @@ messages have exactly one intent — only return more than one when the message 
 clearly asks about genuinely separate topics (e.g. "what's the application fee \
 AND what's the tuition?" is admissions + financial). Return at most 3 intents.
 
-"assessment", "course_recommendation", "general", and "off_topic" must NEVER \
-appear together with any other intent — if any of the four applies, it must \
-be the only element in the list.
+"general" and "off_topic" must NEVER appear together with any other intent — \
+if either applies, it must be the only element in the list. The others may be \
+combined, e.g. "which electives should I take for AI, and what's the tuition?" \
+is course_recommendation + financial.
 
 The input may start with a PREVIOUS TURN section: the last exchange in this \
 conversation, for context only. Classify ONLY the LATEST MESSAGE, but read it \
@@ -252,11 +255,6 @@ VALID_INTENTS = {
     "faq", "assessment", "course_recommendation", "general", "off_topic",
 }
 
-# Intents that can be fanned out to in parallel when 2+ are detected
-# together. assessment/course_recommendation/general/off_topic are
-# deliberately excluded — see prompt above.
-FANOUT_INTENTS = {"admissions", "academic", "financial", "career", "comparison", "faq"}
-
 _MAX_INTENTS = 3
 
 # The kinds of course advice course_mode_hint distinguishes (see the prompt).
@@ -384,12 +382,15 @@ def classify_intent(
 def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None,
                      language: str | None = None) -> ToolAnswer:
     """Plain conversational reply — no retrieval, no tool. The orchestrator's
-    own built-in answer for whatever no registered tool covers."""
+    own built-in answer for whatever no registered tool covers, given the
+    programme's current facts so that any fact it states is a checked one."""
     if on_event is not None:
         on_event({"type": "step", "stage": "answering", "agent": "supervisor"})
 
     chunks: list[str] = []
-    prompt = reply_language.with_instruction(answer_depth.with_instruction(SUPERVISOR_SYSTEM_PROMPT, depth), language)
+    facts = current_facts().text or "CURRENT PROGRAMME FACTS: not available right now — state no programme facts."
+    prompt = reply_language.with_instruction(
+        answer_depth.with_instruction(f"{SUPERVISOR_SYSTEM_PROMPT}\n\n{facts}", depth), language)
     for chunk in llm.stream(prompt, to_chat_messages(messages), temperature=0.7, max_tokens=answer_depth.max_tokens(depth, 2000)):
         chunks.append(chunk)
         if on_event is not None:

@@ -35,18 +35,24 @@ result: {violations}. Use only the course codes and unit counts given below."""
 
 def render(
     result: dict, user_message: str, on_event: OnEvent | None = None, depth: str | None = None,
-    language: str | None = None,
+    language: str | None = None, other_tools: tuple[str, ...] = (),
 ) -> tuple[str, list[str]]:
     view = to_render_view(result)
     style = _STYLES.get(view["mode"], COURSE_RECOMMENDATION_STYLE_PROMPT)
-    reply, sources = render_structured_reply(view, user_message, style, on_event=on_event, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, style, on_event=on_event, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message)
     if not violations:
         return reply, sources
 
     logger.warning("course recommendation reply failed the guardrail, re-rendering: %s", violations)
     prompt = style + _CORRECTION.format(violations="; ".join(violations))
-    reply, sources = render_structured_reply(view, user_message, prompt, on_event=None, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, prompt, on_event=None, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message)
     if not violations:
         return reply, sources

@@ -2,7 +2,7 @@
 The user's answer-detail preference (account settings: concise / standard /
 detailed) as one line for a generation prompt and a token budget. Applied
 where an answer is written — knowledge Q&A, the assessment, rendered
-structured replies, general chat and multi-topic synthesis — never by
+structured replies and general chat — never by
 rewriting a finished answer, which would drop facts when shortening or
 invent them when lengthening.
 """

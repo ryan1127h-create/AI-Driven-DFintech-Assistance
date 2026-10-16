@@ -145,3 +145,13 @@ def test_a_failed_rewrite_falls_back_to_the_message(monkeypatch):
         raise RuntimeError("llm down")
     monkeypatch.setattr(qa_agent.llm, "complete", broken)
     assert qa_agent.search_query("学费多少？", [{"role": "user", "content": "学费多少？"}]) == "学费多少？"
+
+
+def test_in_a_shared_turn_the_answer_keeps_to_its_own_part(monkeypatch):
+    calls = _stub_answers(monkeypatch, ["Tuition is S$76,409.", "Tuition is S$76,409."])
+    qa.answer_topic("financial", "electives for AI, and the fee?", [], context=None, facts="Tuition S$76,409",
+                    other_tools=("course_recommendation",))
+    assert "personal course recommendations" in calls[0]["role_prompt"]
+    assert "Answer only your own part" in calls[0]["role_prompt"]
+    qa.answer_topic("financial", "fee?", [], context=None, facts="Tuition S$76,409")
+    assert "Shared message" not in calls[1]["role_prompt"]

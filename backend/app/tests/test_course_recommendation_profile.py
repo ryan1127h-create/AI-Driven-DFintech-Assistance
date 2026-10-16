@@ -97,7 +97,7 @@ def test_other_listed_roles_are_noted(monkeypatch):
 
     monkeypatch.setattr(tool, "recommend_courses", lambda request: {"notes": [], "request": request})
     monkeypatch.setattr(renderer, "render_structured_reply",
-                        lambda view, msg, prompt, on_event=None, depth=None, language=None: (view["notes"][-1], []))
+                        lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): (view["notes"][-1], []))
     answer = tool._handler(TurnState(messages=[HumanMessage("courses?")], user_id="u1"))
     assert answer.text == ("Planned around the main target role; the profile also lists: "
                            "Blockchain, Machine Learning & AI.")
@@ -114,7 +114,7 @@ def test_derived_notes_extend_the_tech_level_and_the_reply_notes(monkeypatch):
     })
     captured = {}
     monkeypatch.setattr(tool, "recommend_courses", lambda request: captured.setdefault("result", {"notes": [], "request": request}))
-    monkeypatch.setattr(renderer, "render_structured_reply", lambda view, msg, prompt, on_event=None, depth=None, language=None: ("ok", []))
+    monkeypatch.setattr(renderer, "render_structured_reply", lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): ("ok", []))
     tool._handler(TurnState(messages=[HumanMessage("courses?")], user_id="u1"))
 
     result = captured["result"]

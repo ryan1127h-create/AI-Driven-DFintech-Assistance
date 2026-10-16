@@ -94,6 +94,11 @@ class TurnState:
     # The conversation's last completed turn (None on a new conversation),
     # loaded by turn_service from the conversation state.
     previous_turn: PreviousTurn | None = None
+    # The other tools answering this same message in a multi-tool turn
+    # (set per branch by orchestrator/dispatch/execution.py; empty when the
+    # tool answers alone). Their replies are joined, so a tool answering
+    # from the whole message (knowledge Q&A) keeps to its own part.
+    other_tools: tuple[str, ...] = ()
 
 
 class ChatToolInput(BaseModel):

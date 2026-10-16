@@ -31,10 +31,13 @@ from typing import Literal
 
 from app.adapters.deepseek_adapter import llm
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
 from app.tools import contracts
 from app.tools.contracts import OnEvent, ToolAnswer
 from app.tools.turn_context import TurnState
+
+logger = get_logger(__name__)
 
 # Matches the Tool.timeout_seconds default every registered tool used
 # before this stage was pulled out of the Tool/registry machinery.
@@ -104,9 +107,8 @@ def evaluate_branch(inp: EvaluateBranchInput, on_event: OnEvent | None = None) -
         if not isinstance(note, str) or not note.strip():
             return BranchVerdict()  # a clarify/retry with no usable note isn't actionable
         return BranchVerdict(action=action, note=note.strip())
-    except Exception as exc:
-        print(f"[evaluation] Warning: evaluation of the {inp.intent!r} draft failed, "
-              f"defaulting to accept — {exc}")
+    except Exception:
+        logger.exception("evaluating the %s draft failed, accepting it", inp.intent)
         return BranchVerdict()
 
 
@@ -149,8 +151,8 @@ def evaluate_and_fix(
             ),
             _TIMEOUT_SECONDS,
         )
-    except Exception as exc:
-        print(f"[evaluation] Warning: evaluating the {tool_name!r} draft failed, keeping it as-is — {exc}")
+    except Exception:
+        logger.exception("evaluating the %s draft failed, keeping it as-is", tool_name)
         return draft
 
     if verdict.action == "clarify":
@@ -161,8 +163,8 @@ def evaluate_and_fix(
             on_event({"type": "step", "stage": "revising", "agent": tool_name})
         try:
             retry_draft = contracts.registry.invoke_typed(tool_name, state, on_event=None)
-        except Exception as exc:
-            print(f"[evaluation] Warning: retrying {tool_name!r} failed, keeping the original draft — {exc}")
+        except Exception:
+            logger.exception("retrying %s failed, keeping the original draft", tool_name)
             return draft
         retry_draft.agent_used = f"{retry_draft.agent_used or tool_name}+revised"
         return retry_draft

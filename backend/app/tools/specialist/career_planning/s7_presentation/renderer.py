@@ -31,6 +31,7 @@ below, and no money figures."""
 def render(
     result: dict, prefetched: Prefetched, user_message: str,
     on_event: OnEvent | None = None, depth: str | None = None, language: str | None = None,
+    other_tools: tuple[str, ...] = (),
     repeat: bool = False,
 ) -> tuple[str, list[str]]:
     """`repeat`: the result is the one the previous reply already gave
@@ -39,14 +40,20 @@ def render(
     style = EXPLORATION_REPEAT_STYLE_PROMPT if repeat else STYLES[view["mode"]]
     role_names = [r["name"] for r in prefetched.role_catalog]
 
-    reply, sources = render_structured_reply(view, user_message, style, on_event=on_event, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, style, on_event=on_event, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message, role_names)
     if not violations:
         return reply, sources
 
     logger.warning("career planning reply failed the guardrail, re-rendering: %s", violations)
     prompt = style + _CORRECTION.format(violations="; ".join(violations))
-    reply, sources = render_structured_reply(view, user_message, prompt, on_event=None, depth=depth, language=language)
+    reply, sources = render_structured_reply(
+        view, user_message, prompt, on_event=None, depth=depth, language=language,
+        other_tools=other_tools,
+    )
     violations = guardrail.check(reply, view, user_message, role_names)
     if not violations:
         return reply, sources

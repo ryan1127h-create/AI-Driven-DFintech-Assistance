@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.core.errors import ForbiddenError
+from app.core.logging import get_logger
 from app.domains.auth.interface import get_current_user_id
 from app.domains.conversation import interface as conversation
 from app.orchestrator import turn_service
@@ -18,6 +19,8 @@ from app.orchestrator.schemas import (
     RollbackRequest,
     RollbackResponse,
 )
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -183,7 +186,7 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
                 if isinstance(exc, ForbiddenError):
                     yield _sse("error", {"detail": str(exc)})
                 else:
-                    print(f"[orchestrator.api] Error: chat turn failed (stream) — {exc!r}")
+                    logger.error("chat turn failed (stream)", exc_info=exc)
                     yield _sse("error", {"detail": "Failed to process the chat message."})
                 return
 
