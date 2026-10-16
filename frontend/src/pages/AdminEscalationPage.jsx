@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle } from "lucide-react"
 import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
@@ -405,12 +404,14 @@ export default function App() {
   const [selected, setSelected] = useState(null)
   const [resolveConfirm, setResolveConfirm] = useState(false)
   const [caseData, setCaseData] = useState([])
+  const [stats, setStats] = useState({ open_cases: 0, urgent_cases: 0, resolved_today: 0, avg_resolution_time: "0h 00m" })
 
   useEffect(() => {
     let active = true
-    getAdminEscalationCases().then(({ items }) => {
+    getAdminEscalationCases().then(({ items, stats: nextStats }) => {
       if (!active) return
       setCaseData(items)
+      setStats(nextStats || stats)
       setIsLoading(false)
     })
     return () => { active = false }
@@ -469,36 +470,36 @@ export default function App() {
 
         <div className="content">
           <PageHeader
-            icon={AlertTriangle}
             title="Escalation Cases"
             subtitle="Review and manage cases escalated by the AI assistant."
+            className="admin-shared-page-header"
           />
           <div className="kpi-grid">
             <KpiCard
               label="Open Cases"
-              value="24"
-              helper="+3 since yesterday"
+              value={stats.open_cases}
+              helper="Live from Supabase"
               icon="cases"
               tone="blue"
             />
             <KpiCard
               label="Urgent Cases"
-              value="6"
-              helper="3 need attention"
+              value={stats.urgent_cases}
+              helper="Live from Supabase"
               icon="bell"
               tone="orange"
             />
             <KpiCard
               label="Resolved Today"
-              value="12"
-              helper="+20% from average"
+              value={stats.resolved_today}
+              helper="Resolved today"
               icon="check"
               tone="green"
             />
             <KpiCard
               label="Avg. Resolution Time"
-              value="2h 14m"
-              helper="18m faster this week"
+              value={stats.avg_resolution_time}
+              helper="Across resolved cases"
               icon="clock"
               tone="purple"
             />
@@ -666,7 +667,7 @@ export default function App() {
                             className="view-button"
                             onClick={() => setSelected(item)}
                           >
-                            View case
+                            View details
                             <Icon name="arrow" size={15} />
                           </FeatureButton>
                         </td>

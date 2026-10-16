@@ -59,9 +59,9 @@ export function LoadingState({ icon: Icon, title = "Loading", subtitle = "Fetchi
   );
 }
 
-export function PageHeader({ icon: Icon, title, subtitle, action }) {
+export function PageHeader({ icon: Icon, title, subtitle, action, className = "" }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className={`flex items-start justify-between gap-4 mb-6 ${className}`.trim()}>
       <div className="flex items-center gap-3">
         {Icon && (
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300">

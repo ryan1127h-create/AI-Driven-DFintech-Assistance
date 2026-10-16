@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronLeft, LayoutDashboard } from "lucide-react";
+import { AlertTriangle, BookOpen, ChevronLeft, ClipboardList, LayoutDashboard, MessageSquare, Users } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useRole } from "../../context/RoleContext";
 import { logout as apiLogout } from "../../../api";
@@ -10,7 +10,11 @@ import nusLogo from "../../assets/nus_logo.png";
 
 const navItems = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/admin/users", label: "Users", icon: Users },
+  { to: "/admin/applications", label: "Applications", icon: ClipboardList },
+  { to: "/admin/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/admin/escalations", label: "Escalation Cases", icon: AlertTriangle },
+  { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
 ];
 
 export default function AdminSidebar() {

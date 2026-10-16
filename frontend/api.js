@@ -4,6 +4,7 @@ const API_BASE = RAW_API_BASE.endsWith("/api/v1") ? RAW_API_BASE : `${RAW_API_BA
 // alumni backend routes/database queries are available. At that point, the
 // mock imports below and each `if (USE_MOCK_DATA)` branch can be removed.
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== "false";
+const USE_ESCALATION_MOCK_DATA = false;
 
 // MOCK DATA ONLY: these imports are temporary adapters for local development.
 // They can be deleted once the real endpoints are connected permanently.
@@ -370,7 +371,7 @@ export async function getAdminEscalationCases({
   sort = "newest",
 } = {}) {
   // MOCK FALLBACK: delete this branch after GET /admin/escalations is live.
-  if (USE_MOCK_DATA) {
+  if (USE_ESCALATION_MOCK_DATA) {
     const query = search.toLowerCase();
     const items = adminEscalationCases.filter((item) =>
       (!query || `${item.shortId} ${item.name} ${item.email} ${item.summary}`.toLowerCase().includes(query)) &&
@@ -403,7 +404,7 @@ export async function getAdminEscalationCases({
 
 export async function getAdminEscalationCase(caseId) {
   // MOCK FALLBACK: delete this branch after GET /admin/escalations/{id} is live.
-  if (USE_MOCK_DATA) return adminEscalationCases.find((item) => item.id === caseId) || null;
+  if (USE_ESCALATION_MOCK_DATA) return adminEscalationCases.find((item) => item.id === caseId) || null;
   const response = await fetch(buildUrl(`/admin/escalations/${encodeURIComponent(caseId)}`), {
     headers: getAuthHeaders(),
   });
@@ -412,13 +413,50 @@ export async function getAdminEscalationCase(caseId) {
 
 export function updateAdminEscalationCase(caseId, updates) {
   // MOCK FALLBACK: delete this branch after PATCH /admin/escalations/{id} is live.
-  if (USE_MOCK_DATA) {
+  if (USE_ESCALATION_MOCK_DATA) {
     const index = adminEscalationCases.findIndex((item) => item.id === caseId);
     if (index >= 0) adminEscalationCases[index] = { ...adminEscalationCases[index], ...updates };
     return Promise.resolve(adminEscalationCases[index] || null);
   }
   return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, updates);
 }
+
+export async function getAdminOverview(days = 7) {
+  const response = await fetch(buildUrl(`/admin/overview?days=${days}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+export function getAdminUsers(search = "") {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return fetch(buildUrl(`/admin/users${query}`), { headers: getAuthHeaders() }).then(handleResponse);
+}
+
+export function getAdminUser(userId) {
+  return fetch(buildUrl(`/admin/users/${encodeURIComponent(userId)}`), { headers: getAuthHeaders() }).then(handleResponse);
+}
+
+export function updateAdminUser(userId, changes) {
+  return jsonRequest("PATCH", `/admin/users/${encodeURIComponent(userId)}`, changes);
+}
+
+export function deleteAdminUser(userId) {
+  return fetch(buildUrl(`/admin/users/${encodeURIComponent(userId)}`), { method: "DELETE", headers: getAuthHeaders() }).then(handleResponse);
+}
+
+export function getAdminApplications() { return fetch(buildUrl("/admin/applications"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function getAdminApplication(id) { return fetch(buildUrl(`/admin/applications/${encodeURIComponent(id)}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function updateAdminApplication(id, changes) { return jsonRequest("PATCH", `/admin/applications/${encodeURIComponent(id)}`, changes); }
+export function updateAdminChecklistItem(id, submitted) { return jsonRequest("PATCH", `/admin/checklist/${encodeURIComponent(id)}`, { submitted }); }
+export function deleteAdminApplication(id) { return fetch(buildUrl(`/admin/applications/${encodeURIComponent(id)}`), { method: "DELETE", headers: getAuthHeaders() }).then(handleResponse); }
+export function getAdminConversations() { return fetch(buildUrl("/admin/conversations"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function getAdminConversation(id) { return fetch(buildUrl(`/admin/conversations/${encodeURIComponent(id)}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function getAdminKnowledge(search = "", mainTable = "all") { const params = new URLSearchParams(); if (search) params.set("search", search); if (mainTable !== "all") params.set("main_table", mainTable); const query = params.toString() ? `?${params}` : ""; return fetch(buildUrl(`/admin/knowledge${query}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function updateAdminKnowledge(category, id, changes) { return jsonRequest("PATCH", `/admin/knowledge/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, changes); }
+export function getAdminKnowledgeCourse(courseCode) { return fetch(buildUrl(`/admin/knowledge/courses/${encodeURIComponent(courseCode)}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function updateAdminKnowledgeCourse(courseCode, changes) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}`, changes); }
+export function updateAdminKnowledgeCourseRelated(courseCode, relation, row) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}/${encodeURIComponent(relation)}`, { row }); }
 
 export function resolveAdminEscalationCase(caseId, resolutionNotes) {
   return updateAdminEscalationCase(caseId, {

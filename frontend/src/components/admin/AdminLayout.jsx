@@ -3,11 +3,11 @@ import AdminSidebar from "./AdminSidebar";
 
 export default function AdminLayout() {
   return (
-    <div className="aurora-bg min-h-screen flex">
+    <div className="admin-platform-shell aurora-bg min-h-screen flex">
       <AdminSidebar />
-      <main className="flex-1 min-w-0">
-        <Outlet />
-      </main>
+      <div className="admin-main-column flex-1 min-w-0">
+        <main className="min-w-0"><Outlet /></main>
+      </div>
     </div>
   );
 }

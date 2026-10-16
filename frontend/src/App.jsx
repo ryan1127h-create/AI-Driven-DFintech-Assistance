@@ -10,8 +10,17 @@ import ProfilePage from "./pages/ProfilePage";
 import ChecklistPage from "./pages/ChecklistPage";
 import LifecyclePage from "./pages/LifecyclePage";
 import AdminPage from "./pages/AdminPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import AdminUserProfilePage from "./pages/AdminUserProfilePage";
+import AdminApplicationsPage from "./pages/AdminApplicationsPage";
+import AdminApplicationPage from "./pages/AdminApplicationPage";
+import AdminConversationsPage from "./pages/AdminConversationsPage";
+import AdminConversationPage from "./pages/AdminConversationPage";
 import AlumniMatchPage from "./pages/AlumniMatchPage";
 import AdminEscalationPage from "./pages/AdminEscalationPage";
+import AdminKnowledgePage from "./pages/AdminKnowledgePage";
+import AdminKnowledgeCoursePage from "./pages/AdminKnowledgeCoursePage";
+import AdminKnowledgeRecordPage from "./pages/AdminKnowledgeRecordPage";
 import StudentLayout from "./components/student/StudentLayout";
 import ChatWorkspace from "./components/student/ChatWorkspace";
 import WorkspaceLayout from "./components/student/WorkspaceLayout";
@@ -57,7 +66,16 @@ export default function App() {
 
               <Route element={<ProtectedRoute staffOnly><AdminLayout /></ProtectedRoute>}>
                 <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/users/:userId" element={<AdminUserProfilePage />} />
+                <Route path="/admin/applications" element={<AdminApplicationsPage />} />
+                <Route path="/admin/applications/:applicationId" element={<AdminApplicationPage />} />
+                <Route path="/admin/conversations" element={<AdminConversationsPage />} />
+                <Route path="/admin/conversations/:conversationId" element={<AdminConversationPage />} />
                 <Route path="/admin/escalations" element={<AdminEscalationPage />} />
+                <Route path="/admin/knowledge" element={<AdminKnowledgePage />} />
+                <Route path="/admin/knowledge/courses/:courseCode" element={<AdminKnowledgeCoursePage />} />
+                <Route path="/admin/knowledge/:category/:itemId" element={<AdminKnowledgeRecordPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
