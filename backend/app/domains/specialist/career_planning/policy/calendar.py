@@ -22,9 +22,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-CAPSTONE_SOURCE = "https://www.comp.nus.edu.sg/programmes/pg/mdft/capstone/"
 CAPSTONE_LOCATION = "SG"  # target_markets key for Singapore
-CAPSTONE_MIN_WEEKS = 16
 
 REFERENCE_CYCLE_YEAR = 2027
 # (month, day) of each Capstone date in its cycle year; applications open
@@ -70,15 +68,6 @@ def parse_term(label: str | None) -> Term | None:
     if (year + 1) % 100 != next_year:
         return None
     return Term(year, semester)
-
-
-def current_or_next_term(today: date) -> Term:
-    """The semester `today` falls in, else (in a special term) the next one."""
-    if today.month >= 8:
-        return Term(today.year, 1)
-    if today.month <= 5:
-        return Term(today.year - 1, 2)
-    return Term(today.year, 1)
 
 
 @dataclass(frozen=True)

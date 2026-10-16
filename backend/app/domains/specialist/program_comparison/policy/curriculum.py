@@ -16,7 +16,6 @@ from dataclasses import dataclass
 
 TECH_SKILLS = ("programming", "ai_ml", "data_engineering", "security", "payments_systems")
 FINANCE_SKILLS = ("finance", "risk_modeling", "regulation")
-TAUGHT = ("required", "core_option", "elective")
 
 
 @dataclass(frozen=True)

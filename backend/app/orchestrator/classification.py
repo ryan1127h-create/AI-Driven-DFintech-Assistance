@@ -2,8 +2,8 @@
 Classification — classifies the latest user message into 1-3 of ten intent
 categories, plus a small set of optional personalisation/localisation
 signals, then either answers directly (no tool matched — plain
-conversation), declines (out of scope), or hands off to dispatch.py for
-the one- or many-tool path.
+conversation), declines (out of scope), or hands off to the dispatch
+package (orchestrator/dispatch/) for the one- or many-tool path.
 
 Eight of the ten categories line up with a registered Tool's
 trigger_intents (see tools/registration.py), and any of them may come

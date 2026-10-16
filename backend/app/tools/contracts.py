@@ -12,8 +12,8 @@ the same "optional, ignored when absent" convention). A tool being run as
 the orchestrator's sole answer to a turn is called with a real callback so
 its answer streams to the user as it's produced; a tool running as one
 branch of a multi-tool dispatch is called with on_event=None, since its
-output is only a draft the orchestrator synthesizes further — never shown
-to the user verbatim.
+output is joined with the other branches' answers (orchestrator/dispatch/
+merge.py) before the user sees it.
 
 Domains and shared utilities register themselves into the module-level
 `registry` at import time; the orchestrator (and anything else that wants

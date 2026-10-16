@@ -249,9 +249,10 @@ function ChatView({ user, profileDone, onOpenProfile }) {
             const classified = (m.steps || []).find((s) => s.stage === "classified");
             return {
               ...m,
-              // Snap to the authoritative final text (includes the Sources
-              // footer, appended server-side only after streaming ends —
-              // see agents/supervisor.py/rag_agent.py).
+              // Snap to the authoritative final text: it includes the
+              // Sources footer (appended server-side after streaming ends,
+              // see backend/app/orchestrator/dispatch/__init__.py), and a
+              // checked answer may replace the streamed draft.
               content: data.reply,
               streaming: false,
               card: data.card || null,
@@ -700,8 +701,8 @@ function ThinkingDots() {
 }
 
 // One entry per {"type":"step", "stage": ..., ...} event from POST
-// /chat/stream (see agents/supervisor.py / rag_agent.py / etc. on the
-// backend for exactly when each stage fires). Renders the "path" the agent
+// /chat/stream (see backend/app/orchestrator/dispatch/ for exactly when
+// each stage fires). Renders the "path" the agent
 // took — expanded while the reply is still streaming in, collapsible into a
 // small toggle once it's done (mirrors Claude's collapsed "Thinking" panel).
 const STEP_LABELS = {

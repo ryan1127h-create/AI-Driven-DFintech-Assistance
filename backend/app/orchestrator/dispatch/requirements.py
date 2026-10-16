@@ -89,7 +89,7 @@ def check_requirements(tool_names: list[str], state: TurnState) -> RequirementsR
 def build_need_input_answer(result: RequirementsResult) -> ToolAnswer:
     """Deterministic, LLM-free reply listing what's still needed — no
     domain/agent call has run yet, so there is nothing to evaluate or
-    synthesize. A single missing field reuses that tool's own prompt text
+    merge. A single missing field reuses that tool's own prompt text
     verbatim (byte-identical to the old single-tool clarify wording); 2+
     missing fields are listed as short bullet points. The missing fields a
     profile field can answer also come back as a quick-fill card (see

@@ -110,15 +110,6 @@ def test_terms_round_trip_with_the_student_record():
     assert calendar.parse_term("AY2027/29 Sem1") is None and calendar.parse_term(None) is None
 
 
-@pytest.mark.parametrize("today, expected", [
-    (date(2026, 10, 13), calendar.Term(2026, 1)),
-    (date(2027, 3, 1), calendar.Term(2026, 2)),
-    (date(2027, 6, 15), calendar.Term(2027, 1)),   # special term -> the coming Semester 1
-])
-def test_current_or_next_term(today, expected):
-    assert calendar.current_or_next_term(today) == expected
-
-
 def test_the_reference_cycle_is_the_capstone_pages_dates():
     cycle = calendar.capstone_cycle(2027)
     assert not cycle.projected

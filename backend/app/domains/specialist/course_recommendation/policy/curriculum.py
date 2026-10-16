@@ -84,8 +84,6 @@ CAPSTONE_UNITS_PER_SEMESTER = 6
 
 # rule:cur_degree_structure
 TOTAL_PROGRAMME_UNITS = 52
-CORE_UNITS = 28
-CAPSTONE_UNITS = 12
 ELECTIVE_UNITS_BASE = 12  # +12 more (24 total) once the elective-alternative path is active
 
 # Typical module credit for one elective — used only to translate a units
