@@ -81,3 +81,28 @@ def test_owner_sql_names_only_its_own_schema(adapter):
             if ref.lower() != schema
         })
         assert foreign == [], f"{module} queries other schemas: {foreign}"
+
+
+def test_endpoints_that_do_blocking_work_are_plain_functions():
+    """An `async def` endpoint runs on the event loop, so a blocking call
+    inside it (psycopg, the Supabase client, an LLM call) stalls every
+    other request, streamed chat replies included. Endpoints are plain
+    `def`, which FastAPI runs in its threadpool; only one that awaits
+    something, or returns a constant, may be async."""
+    import inspect
+
+    # The router, not app.main: importing app.main registers the real tools
+    # into the shared registry, which other tests stub.
+    from app.api.v1.router import router
+
+    constant = {"app.api.v1.endpoints.health.health"}
+    offenders = []
+    for route in router.routes:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None or not endpoint.__module__.startswith("app."):
+            continue
+        name = f"{endpoint.__module__}.{endpoint.__name__}"
+        blocking = "await " not in inspect.getsource(endpoint)
+        if inspect.iscoroutinefunction(endpoint) and name not in constant and blocking:
+            offenders.append(name)
+    assert offenders == []
