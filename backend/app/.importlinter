@@ -36,7 +36,7 @@ layers =
     app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels
     app.domains.auth
     app.domains.profile
-    app.domains.sis | app.domains.knowledge_retrieval | app.domains.conversation
+    app.domains.sis | app.domains.knowledge_retrieval | app.domains.conversation | app.domains.program_catalog
 ignore_imports =
     app.domains.*.api -> app.domains.auth.interface
 
@@ -54,6 +54,7 @@ forbidden_modules =
     app.domains.conversation
     app.domains.knowledge_retrieval
     app.domains.profile
+    app.domains.program_catalog
     app.domains.sis
     app.adapters.postgres_pool
     app.adapters.account_db_adapter
@@ -61,6 +62,7 @@ forbidden_modules =
     app.adapters.sis_db_adapter
     app.adapters.chat_db_adapter
     app.adapters.knowledge_db_adapter
+    app.adapters.program_db_adapter
     app.adapters.redis_cache_adapter
     app.adapters.openai_embedding_adapter
     app.adapters.supabase_auth_adapter
@@ -170,6 +172,43 @@ forbidden_modules =
     app.domains.specialist.career_planning.stages
     app.domains.specialist.career_planning.workflow
 
+; program_comparison's internal structure (see its workflow.py and
+; stages/__init__.py). The domain is pure computation: no adapter at all,
+; not even the LLM - facts, fit and differences are deterministic.
+[importlinter:contract:comparison-domain-pure]
+name = programme comparison domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.program_comparison
+forbidden_modules =
+    app.adapters
+
+; program_comparison's policy holds the rules the stages read (see its
+; policy/__init__.py); it takes plain values and knows nothing else here.
+[importlinter:contract:comparison-policy-leaf]
+name = programme comparison policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.program_comparison.policy
+forbidden_modules =
+    app.domains.specialist.program_comparison.contracts
+    app.domains.specialist.program_comparison.errors
+    app.domains.specialist.program_comparison.interface
+    app.domains.specialist.program_comparison.models
+    app.domains.specialist.program_comparison.schemas
+    app.domains.specialist.program_comparison.stages
+    app.domains.specialist.program_comparison.workflow
+
+; Each stage takes the previous stage's output (models) and reads rules
+; from policy; only workflow.py sequences them.
+[importlinter:contract:comparison-stages-independent]
+name = programme comparison stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.program_comparison.stages.s3_facts
+    app.domains.specialist.program_comparison.stages.s4_fit
+    app.domains.specialist.program_comparison.stages.s6_modes
+
 ; In the career planning tool only s2_assembly/prefetch.py reads the
 ; profile or the knowledge base (gate.py, which the orchestrator calls
 ; before the tool runs, reads the profile too); understanding works from
@@ -189,3 +228,76 @@ forbidden_modules =
     app.adapters.postgres_pool
     app.adapters.profile_db_adapter
     app.adapters.knowledge_db_adapter
+
+; In the programme comparison tool only s2_assembly/prefetch.py reads the
+; catalogue, the profile or the knowledge base (gate.py, which the
+; orchestrator calls before the tool runs, reads the profile too);
+; understanding works from the message and the catalogue it is given, the
+; builder and the presentation from what prefetch gathered.
+[importlinter:contract:comparison-tool-io-boundary]
+name = programme comparison tool reads data only in prefetch and the gate
+type = forbidden
+source_modules =
+    app.tools.specialist.program_comparison.s1_understanding
+    app.tools.specialist.program_comparison.s2_assembly.builder
+    app.tools.specialist.program_comparison.s2_assembly.prefetched
+    app.tools.specialist.program_comparison.s2_assembly.programs
+    app.tools.specialist.program_comparison.s7_presentation
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.domains.program_catalog
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.knowledge_db_adapter
+    app.adapters.program_db_adapter
+
+; assessment's internal structure (see its workflow.py). The domain is pure
+; computation: no adapter at all, not even the LLM - the hard conditions,
+; soft factors and verdict are deterministic.
+[importlinter:contract:assessment-domain-pure]
+name = assessment domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.assessment
+forbidden_modules =
+    app.adapters
+
+; The two stages read the facts and policy; only workflow.py sequences them.
+[importlinter:contract:assessment-stages-independent]
+name = assessment stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.assessment.stages.hard
+    app.domains.specialist.assessment.stages.soft
+
+[importlinter:contract:assessment-policy-leaf]
+name = assessment policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.assessment.policy
+forbidden_modules =
+    app.domains.specialist.assessment.contracts
+    app.domains.specialist.assessment.interface
+    app.domains.specialist.assessment.models
+    app.domains.specialist.assessment.stages
+    app.domains.specialist.assessment.workflow
+
+; In the assessment tool only s2_assembly/prefetch.py reads the profile or
+; the programme catalogue; understanding works from the message alone, the
+; builder and the presentation from what prefetch gathered.
+[importlinter:contract:assessment-tool-io-boundary]
+name = assessment tool reads data only in prefetch
+type = forbidden
+source_modules =
+    app.tools.specialist.assessment.s1_understanding
+    app.tools.specialist.assessment.s2_assembly.builder
+    app.tools.specialist.assessment.s2_assembly.prefetched
+    app.tools.specialist.assessment.s7_presentation
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.domains.program_catalog
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.program_db_adapter

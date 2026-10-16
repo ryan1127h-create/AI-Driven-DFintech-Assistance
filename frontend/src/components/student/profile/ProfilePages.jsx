@@ -12,29 +12,29 @@ export function filledCount(fields, profileFields) {
   return fields.filter((d) => !isEmptyValue(profileFields[d.field_key]?.value)).length;
 }
 
-function ValueView({ definition, value, roleTags }) {
+function ValueView({ definition, value, refOptions }) {
   if (Array.isArray(value) && definition.field_key !== "admission_tests" && definition.field_key !== "application_record") {
     return (
       <div className="flex flex-wrap gap-1.5">
         {value.map((item, i) => (
           <span key={i} className="rounded-md border border-app-subtle bg-app-hover px-2 py-0.5 text-xs text-app-primary">
-            {formatFieldValue(definition, [item], roleTags)}
+            {formatFieldValue(definition, [item], refOptions)}
           </span>
         ))}
       </div>
     );
   }
-  return <span className="text-sm text-app-primary">{formatFieldValue(definition, value, roleTags)}</span>;
+  return <span className="text-sm text-app-primary">{formatFieldValue(definition, value, refOptions)}</span>;
 }
 
-function ConflictInline({ conflict, definition, roleTags, onResolve, busy }) {
+function ConflictInline({ conflict, definition, refOptions, onResolve, busy }) {
   return (
     <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs">
       <p className="flex items-start gap-1.5 text-amber-300">
         <AlertTriangle size={13} className="mt-px flex-shrink-0" />
         <span>
           Your {conflict.candidate_source === "CV" ? "CV" : "records"} say{" "}
-          <span className="font-medium">{formatFieldValue(definition, conflict.candidate_value, roleTags)}</span>
+          <span className="font-medium">{formatFieldValue(definition, conflict.candidate_value, refOptions)}</span>
         </span>
       </p>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -51,7 +51,7 @@ function ConflictInline({ conflict, definition, roleTags, onResolve, busy }) {
   );
 }
 
-function FieldView({ definition, field, conflict, roleTags, onAdd, onResolve, busy, stageValues }) {
+function FieldView({ definition, field, conflict, refOptions, onAdd, onResolve, busy, stageValues }) {
   const hasValue = field && !isEmptyValue(field.value);
   const locked = field ? !field.editable : !definition.editable;
   const lockedReason = field ? field.locked_reason : definition.locked_reason;
@@ -64,7 +64,7 @@ function FieldView({ definition, field, conflict, roleTags, onAdd, onResolve, bu
       <div className="min-w-0 rounded-xl bg-slate-50/70 px-3 py-2.5 dark:bg-slate-900/30">
         {hasValue ? (
           <>
-            <ValueView definition={definition} value={field.value} roleTags={roleTags} />
+            <ValueView definition={definition} value={field.value} refOptions={refOptions} />
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-app-faint">
               <SourceBadge source={field.source} />
               {field.updated_at && <span>Updated {formatDate(field.updated_at)}</span>}
@@ -87,7 +87,7 @@ function FieldView({ definition, field, conflict, roleTags, onAdd, onResolve, bu
           </button>
         )}
         {conflict && (
-          <ConflictInline conflict={conflict} definition={definition} roleTags={roleTags} onResolve={onResolve} busy={busy} />
+          <ConflictInline conflict={conflict} definition={definition} refOptions={refOptions} onResolve={onResolve} busy={busy} />
         )}
       </div>
     </div>
@@ -95,7 +95,7 @@ function FieldView({ definition, field, conflict, roleTags, onAdd, onResolve, bu
 }
 
 export function SectionPage({
-  page, profileFields, definitionsByKey, roleTags, conflicts, editing, draft, setDraft,
+  page, profileFields, definitionsByKey, refOptions, conflicts, editing, draft, setDraft,
   onEdit, onCancel, onSave, onResolve, busy,
 }) {
   const stageValues = Object.fromEntries(Object.entries(profileFields).map(([k, f]) => [k, f.value]));
@@ -144,7 +144,7 @@ export function SectionPage({
                       definitions={definitionsByKey}
                       value={draft[definition.field_key]}
                       answers={draft}
-                      roleTags={roleTags}
+                      refOptions={refOptions}
                       recommended={isRecommended(definition, draft)}
                       onChange={(value) => setDraft((prev) => ({ ...prev, [definition.field_key]: value }))}
                     />
@@ -155,7 +155,7 @@ export function SectionPage({
                     definition={definition}
                     field={profileFields[definition.field_key]}
                     conflict={editing ? null : conflictFor(definition.field_key)}
-                    roleTags={roleTags}
+                    refOptions={refOptions}
                     stageValues={stageValues}
                     onAdd={onEdit}
                     onResolve={onResolve}

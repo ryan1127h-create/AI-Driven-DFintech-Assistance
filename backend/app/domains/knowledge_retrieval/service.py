@@ -24,17 +24,10 @@ from app.adapters.knowledge_db_adapter import knowledge_db
 from app.adapters.openai_embedding_adapter import embedding
 from app.adapters.redis_cache_adapter import cache
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.models import Hit
 
-# Official source URLs cited by both knowledge_qa's admissions topic and the
-# assessment domain's readiness-assessment prompt — lives here (the common
-# dependency both already sit above) rather than in either specialist
-# domain, so neither has to import the other just for this constant.
-ADMISSIONS_OFFICIAL_SOURCES = """\
-- NUS MSc DFinTech Programme Information : https://www.comp.nus.edu.sg/programmes/pg/mdft/
-- NUS MSc DFinTech Application Information: https://www.comp.nus.edu.sg/programmes/pg/mdft/application/
-- NUS MSc DFinTech Fees and Scholarships  : https://www.comp.nus.edu.sg/programmes/pg/mdft/scholarships/
-"""
+logger = get_logger(__name__)
 
 # RRF weights: semantic-first, keyword as a booster for codes/numbers that
 # embeddings tend to blur together (e.g. FT5005 vs FT5009).
@@ -42,7 +35,7 @@ W_SEMANTIC = 0.8
 W_BM25 = 0.2
 
 # Each of vector/BM25 first pulls this many candidates for RRF to fuse.
-# 50 is generous relative to the corpus size (~184 chunks).
+# 50 is generous relative to the corpus size (~160 chunks).
 RECALL_K = 50
 
 # Score multiplier applied to hits whose topic is in a caller's
@@ -54,93 +47,33 @@ TOPIC_BOOST_FACTOR = 1.3
 # distinguishing them — a query like "core course requirements" competes
 # equally between both regardless of which cohort is actually current,
 # risking a stale-rules answer for the prospective/current-intake students
-# who are the overwhelming majority of callers. _CURRENT_INTAKE mirrors
-# course_recommendation/policy/curriculum.py's own hardcoded CURRENT_INTAKE constant
-# (same underlying assumption, kept in sync manually since the two domains
-# don't share this value). Deliberately a soft down-weight (never a filter/
+# who are the overwhelming majority of callers. course_recommendation's
+# policy/curriculum.py keeps the same value in CURRENT_INTAKE (its policy
+# layer may not import this domain); test_knowledge_catalog.py checks the
+# two agree. Deliberately a soft down-weight (never a filter/
 # exclusion) applied to the non-current cohort's course_rules hits — a
 # caller that genuinely needs the older cohort's rules can still surface
 # them, just ranked lower rather than removed outright.
-_CURRENT_INTAKE = "2026-08-onwards"
+CURRENT_CURRICULUM_INTAKE = "2026-08-onwards"
 INTAKE_MISMATCH_PENALTY = 0.5
 
 _CACHE_KEY_PREFIX = "rag:retrieve:"
 
-# Maps a document_chunks row to one of the topic buckets callers filter/
-# boost by. source_table alone is enough for most tables; knowledge_snippets
-# and programme_pages need a metadata field to disambiguate since they mix
-# topics internally.
-_PAGE_TOPIC = {
-    "page_02": "academic",    # programme_overview
-    "page_03": "academic",    # capstone
-    "page_04": "admissions",  # admissions requirements
-    "page_05": "admissions",  # application information
-    "page_06": "financial",   # fees_scholarships
-    "page_07": "faq",         # faq
-}
-
-# Per-snippet override for knowledge_snippets(namespace='faq_web') — these 27
-# chunks are scraped verbatim from the official FAQ webpage and arrive with
-# no topic tag beyond the blanket 'faq_web' namespace; most are
-# substantively about admissions eligibility/documents/test-scores, a
-# couple about career outcomes, and a couple about the student's own
-# costs/payment — not the miscellaneous "faq" catch-all _topic_of() uses
-# for everything else.
-#
-# Keyed by metadata['source_id'] (stable per chunk, e.g.
-# "faq_page#faq_web_cut_off_average_score"). An unlisted source_id (a
-# genuinely miscellaneous FAQ, or a newly-ingested one this override hasn't
-# been updated for) safely falls back to "faq" below — this only feeds a
-# soft boost, never a hard exclusion, so a missed/imperfect classification
-# here only weakens ranking, it never hides the chunk from being found via
-# plain semantic/BM25 relevance.
-_FAQ_WEB_TOPIC_OVERRIDES: dict[str, str] = {
-    "faq_page#faq_web_application_has_closed_still": "admissions",
-    "faq_page#faq_web_apply_programme_gre_gmat": "admissions",
-    "faq_page#faq_web_compulsory_submit_financial_documents": "admissions",
-    "faq_page#faq_web_cut_off_average_score": "admissions",
-    "faq_page#faq_web_fresh_graduate_from_university": "admissions",
-    "faq_page#faq_web_have_fintech_work_experience": "admissions",
-    "faq_page#faq_web_have_more_than_2": "admissions",
-    "faq_page#faq_web_interviews_applicants": "admissions",
-    "faq_page#faq_web_level_finance_computer_science": "admissions",
-    "faq_page#faq_web_many_intakes_you_have": "admissions",
-    "faq_page#faq_web_minimum_gpa_apply_msc": "admissions",
-    "faq_page#faq_web_not_have_experience_programming": "admissions",
-    "faq_page#faq_web_requirement_education_major_master": "admissions",
-    "faq_page#faq_web_toefl_ielts_score_mandatory": "admissions",
-    "faq_page#faq_web_use_parents_bank_account": "admissions",
-    "faq_page#faq_web_who_nominate_as_referees": "admissions",
-    "faq_page#faq_web_would_average_years_experience": "admissions",
-    "faq_page#faq_web_would_know_scores_good": "admissions",
-    "faq_page#faq_web_career_planning_support_provided": "career",
-    "faq_page#faq_web_industry_role_different_vertical": "career",
-    "faq_page#faq_web_estimated_cost_living_singapore": "financial",
-    "faq_page#faq_web_payment_method": "financial",
-    # Left unmapped (fall back to "faq"): apply_entry_visa_student,
-    # find_part_time_job, foreigner_where_find_more, have_accepted_offer_via,
-    # possible_msc_dfintech_students — genuinely general/logistics FAQs, not
-    # anchored on admissions/academic/financial/career/comparison.
+# The topic bucket callers filter/boost by. The web chunks (programme
+# pages and FAQ answers) carry their own in metadata['topic'], set when they
+# are built (scripts/knowledge/rebuild_web_chunks.py); the chunks built from
+# the structured tables follow from their table.
+_TABLE_TOPIC = {
+    "admissions_items": "admissions",
+    "application_status_translations": "admissions",
+    "courses": "academic",
+    "course_rules": "academic",
+    "tags_definition": "career",
 }
 
 
 def _topic_of(source_table: str, metadata: dict | None) -> str:
-    md = metadata or {}
-    if source_table in ("admissions_items", "application_status_translations"):
-        return "admissions"
-    if source_table in ("courses", "course_rules"):
-        return "academic"
-    if source_table == "tags_definition":
-        return "career"
-    if source_table == "competitor_programs":
-        return "comparison"
-    if source_table == "knowledge_snippets":
-        if md.get("namespace") == "admissions":
-            return "admissions"
-        return _FAQ_WEB_TOPIC_OVERRIDES.get(md.get("source_id"), "faq")
-    if source_table == "programme_pages":
-        return _PAGE_TOPIC.get(md.get("page_id"), "faq")
-    return "faq"
+    return (metadata or {}).get("topic") or _TABLE_TOPIC.get(source_table, "faq")
 
 
 def _tokenize(text: str) -> list[str]:
@@ -230,7 +163,7 @@ def _apply_intake_penalty(hits: list[Hit]) -> None:
         if h.source_table != "course_rules":
             continue
         intake = (h.metadata or {}).get("intake")
-        if intake and intake != _CURRENT_INTAKE:
+        if intake and intake != CURRENT_CURRICULUM_INTAKE:
             h.score *= INTAKE_MISMATCH_PENALTY
 
 
@@ -307,7 +240,7 @@ def retrieve(
 
     filter_topics: hard-restrict candidates to these topics before fusion
         (use only for topics with no overlap elsewhere in the corpus, e.g.
-        "career", "comparison" — a bad guess here loses recall entirely).
+        "career" — a bad guess here loses recall entirely).
     boost_topics: soft-boost matching hits after fusion without excluding
         anything else (safe default for topics whose boundaries aren't
         clean, e.g. "admissions", "academic", "financial", "faq").
@@ -319,8 +252,8 @@ def retrieve(
 
     try:
         hits = _retrieve_uncached(query, top_k, filter_topics, boost_topics)
-    except Exception as exc:
-        print(f"[knowledge_retrieval.service] Warning: retrieval failed — {exc}")
+    except Exception:
+        logger.exception("knowledge retrieval failed")
         return []
 
     _cache_set(key, hits)
@@ -336,10 +269,8 @@ _FALLBACK_SOURCE = {
     "course_rules": "Annex A curriculum structure",
     "application_status_translations": "Application status guide (official)",
     "tags_definition": "Role tags — compiled by this project, not official NUS content",
-    "knowledge_snippets": "Programme FAQ (official)",
     "programme_pages": "NUS MSc DFT programme website",
     "courses": "NUSMods course catalogue",
-    "competitor_programs": "Competitor programme comparison — compiled by this project",
 }
 
 
@@ -448,25 +379,15 @@ def list_courses() -> list[dict]:
     return courses
 
 
-def list_chunks() -> list[dict]:
-    """Every knowledge-base chunk (chunk_key, source_table, content, context,
-    conflict_group, authoritative, metadata), unranked — for a caller that
-    assembles its own facts from specific chunks rather than searching."""
-    return knowledge_db.fetch_all_chunks()
-
-
 def list_curriculum_rules() -> list[dict]:
-    """Every course_rules chunk for the current intake (_CURRENT_INTAKE),
+    """Every course_rules chunk for the current intake (CURRENT_CURRICULUM_INTAKE),
     verbatim — a deterministic filter over fetch_all_chunks(), not a
     semantic search, so nothing is missed or reordered by relevance
-    scoring. Same "filter fetch_all_chunks() by source_table" pattern
-    app/domains/specialist/program_comparison/repository.py already uses
-    for its own curriculum-rule lookups, promoted here as a public,
-    reusable capability."""
+    scoring."""
     return [
         c for c in knowledge_db.fetch_all_chunks()
         if c["source_table"] == "course_rules"
-        and (c["metadata"] or {}).get("intake") == _CURRENT_INTAKE
+        and (c["metadata"] or {}).get("intake") == CURRENT_CURRICULUM_INTAKE
     ]
 
 

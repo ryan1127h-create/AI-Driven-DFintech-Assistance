@@ -25,8 +25,7 @@ LOW_CONFIDENCE_UNKNOWN_SHARE = 0.5
 
 # S6 exploration: how many roles to put forward.
 EXPLORATION_TOP_N = 4
-# S6 compare: how many roles one comparison holds.
-COMPARE_MIN_ROLES = 2
+# S6 compare: the most roles one comparison holds.
 COMPARE_MAX_ROLES = 3
 
 # S5 roadmap: a job search "right after" graduating starts this many

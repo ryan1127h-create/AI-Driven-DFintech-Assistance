@@ -27,6 +27,11 @@ class Prefetched:
     # How the reply shows the profile facts evidence is drawn from:
     # field_key -> {"label": ..., "values": {raw value as str: display text}}.
     evidence_labels: dict = field(default_factory=dict)
+    # True only when the whole career profile was read: signed in, consent
+    # given (and confirmed) and the read succeeded. `facts` is {} both when
+    # the profile is empty and when it couldn't be read; only this tells
+    # them apart.
+    profile_read: bool = False
 
     @property
     def profile_roles(self) -> list[str]:

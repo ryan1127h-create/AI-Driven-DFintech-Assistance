@@ -2,7 +2,7 @@
 Resend adapter for EmailPort — a plain HTTPS POST via httpx (already a
 dependency for other adapters; no new SDK needed for one endpoint).
 
-When RESEND_API_KEY isn't set, send() prints the email to the server log
+When RESEND_API_KEY isn't set, send() writes the email to the server log
 instead of raising or silently dropping it — a deliberate dev-mode
 fallback so registration/email-verification is testable without a Resend
 account. This is not a fallback for a delivery failure once a key *is*
@@ -31,8 +31,9 @@ class ResendEmailAdapter(EmailPort):
 
     def send(self, to: str, subject: str, text_body: str) -> None:
         if not self._api_key:
-            logger.info("RESEND_API_KEY not set — printing email instead of sending it.")
-            print(f"\n----- [dev-mode email] to={to} subject={subject!r} -----\n{text_body}\n" + "-" * 40 + "\n")
+            # Development without an email provider: the message (e.g. a
+            # verification code) goes to the log so it can still be used.
+            logger.info("RESEND_API_KEY not set, not sending; email to=%s subject=%r:\n%s", to, subject, text_body)
             return
 
         response = httpx.post(

@@ -28,9 +28,7 @@ def test_a_named_semester_is_the_first_such_from_the_next_one():
     assert terms.resolve(None, today) == terms.resolve("next", today) == Term(2026, 2)
 
 
-def test_labels_round_trip_with_the_student_record():
-    term = terms.parse_label("AY2026/27 Sem1")
-    assert term == Term(2026, 1)
+def test_labels_match_the_student_record():
+    term = Term(2026, 1)
     assert term.label == "AY2026/27 Sem1" and term.schedule_ay == "2026-2027"
     assert term.following() == Term(2026, 2) and Term(2026, 2).following() == Term(2027, 1)
-    assert terms.parse_label("next term") is None

@@ -8,8 +8,8 @@ the student record writes them, "AY2027/28 Sem1".
 
 The Capstone cycle is transcribed from the programme's Capstone page
 (knowledge.programme_pages, label 'Capstone Project'), which gives the
-2026 cycle only: student applications 1 Dec 2025 - 31 Mar 2026, offers by
-15 Apr 2026, internship 18 May - 16 Oct 2026 (at least 16 weeks, located
+2027 cycle only: student applications 1 Dec 2026 - 31 Mar 2027, offers by
+15 Apr 2027, internship 17 May - 15 Oct 2027 (at least 16 weeks, located
 in Singapore, IT/computing related). Other years repeat those dates and
 are marked projected — the school publishes each cycle's dates itself.
 Update REFERENCE_CYCLE_YEAR and the dates together when a newer cycle's
@@ -22,18 +22,16 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-CAPSTONE_SOURCE = "https://www.comp.nus.edu.sg/programmes/pg/mdft/capstone/"
 CAPSTONE_LOCATION = "SG"  # target_markets key for Singapore
-CAPSTONE_MIN_WEEKS = 16
 
-REFERENCE_CYCLE_YEAR = 2026
+REFERENCE_CYCLE_YEAR = 2027
 # (month, day) of each Capstone date in its cycle year; applications open
 # in December of the year before.
 _APPLICATIONS_OPEN = (12, 1)
 _APPLICATIONS_CLOSE = (3, 31)
 _OFFERS_BY = (4, 15)
-_INTERNSHIP_START = (5, 18)
-_INTERNSHIP_END = (10, 16)
+_INTERNSHIP_START = (5, 17)
+_INTERNSHIP_END = (10, 15)
 
 _TERM_LABEL = re.compile(r"^AY(\d{4})/(\d{2}) Sem([12])$")
 
@@ -70,15 +68,6 @@ def parse_term(label: str | None) -> Term | None:
     if (year + 1) % 100 != next_year:
         return None
     return Term(year, semester)
-
-
-def current_or_next_term(today: date) -> Term:
-    """The semester `today` falls in, else (in a special term) the next one."""
-    if today.month >= 8:
-        return Term(today.year, 1)
-    if today.month <= 5:
-        return Term(today.year - 1, 2)
-    return Term(today.year, 1)
 
 
 @dataclass(frozen=True)

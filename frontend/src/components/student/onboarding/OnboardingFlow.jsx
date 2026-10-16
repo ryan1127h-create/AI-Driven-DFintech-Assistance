@@ -197,7 +197,7 @@ export default function OnboardingFlow({ onDone, initialPhase = "entry" }) {
   const [cvImport, setCvImport] = useState(null);
   const [index, setIndex] = useState(0);
   const [definitions, setDefinitions] = useState(null);
-  const [roleTags, setRoleTags] = useState({});
+  const [refOptions, setRefOptions] = useState({});
   const [profileFields, setProfileFields] = useState({});
   const [answers, setAnswers] = useState({});
   const [consented, setConsented] = useState(true);
@@ -210,7 +210,7 @@ export default function OnboardingFlow({ onDone, initialPhase = "entry" }) {
     Promise.all([getProfileDefinitions(), getProfile(), getConsents()])
       .then(([defs, profile, consents]) => {
         setDefinitions(Object.fromEntries(defs.fields.map((d) => [d.field_key, d])));
-        setRoleTags(defs.role_tags || {});
+        setRefOptions(defs.ref_options || {});
         setProfileFields(profile.fields || {});
         setAnswers(Object.fromEntries(Object.entries(profile.fields || {}).map(([k, f]) => [k, f.value])));
         setConsented(consents.some((c) => c.key === "consent_personalized_rec" && c.granted));
@@ -388,7 +388,7 @@ export default function OnboardingFlow({ onDone, initialPhase = "entry" }) {
                         definition={definitions[key]}
                         value={answers[key]}
                         answers={answers}
-                        roleTags={roleTags}
+                        refOptions={refOptions}
                         recommended={isRecommended(definitions[key], answers)}
                         cvQuote={cvFields[key] && sameValue(answers[key], cvFields[key].value) ? cvFields[key].quote : null}
                         onChange={(value) => setAnswers((prev) => ({ ...prev, [key]: value }))}

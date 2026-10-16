@@ -80,7 +80,7 @@ def test_plan_grades_the_roles_skills_and_dates_the_roadmap():
     build_up = result["roadmap"]["phases"][0]
     assert build_up["start"] == "2026-10-13" and build_up["actions"][0]["kind"] == "evidence"
     assert result["roadmap"]["capstone_cycle_year"] == 2027
-    assert any("2027 Capstone dates" in n for n in result["notes"])
+    assert not any("Capstone dates" in n for n in result["notes"])  # the 2027 dates are published
     assert fit["support"] == {"course_codes": ["BMD5302"], "taken": [], "taking": []}
 
 

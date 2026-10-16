@@ -55,7 +55,8 @@ class Settings:
 
     # Chat session storage — which ConversationStore backend the
     # conversation domain uses (see app/domains/conversation/repository.py):
-    # "memory" (default, no Redis required), "redis", or "supabase_cached".
+    # "supabase_cached" (what the app runs on) or "memory" (the default:
+    # development and tests, no database or Redis needed).
     session_store_backend: str = os.getenv("SESSION_STORE_BACKEND", "memory")
     session_ttl_seconds: int = int(os.getenv("SESSION_TTL_SECONDS", "86400"))
 

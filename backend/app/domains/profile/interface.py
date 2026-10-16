@@ -66,6 +66,12 @@ def get_profile_for_purpose(user_id: str, purpose: str) -> dict:
     return service.get_facts_for_purpose(user_id, purpose)
 
 
+def get_fact_sources_for_purpose(user_id: str, purpose: str) -> dict[str, str]:
+    """{field_key: source} ("QA", "CV", "DB", ...) for the same facts as
+    get_profile_for_purpose — where each value came from."""
+    return service.get_fact_sources_for_purpose(user_id, purpose)
+
+
 def describe_facts(facts: dict) -> list[str]:
     """One English "Label: value" line per fact, in field-dictionary order."""
     return service.describe_facts(facts)

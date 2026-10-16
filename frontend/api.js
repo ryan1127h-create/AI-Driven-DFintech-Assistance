@@ -137,8 +137,13 @@ export async function sendMessage(message, extra = {}) {
 // Authorization header), so this parses the SSE wire format by hand off a
 // fetch() ReadableStream — safe to do manually since we control both ends
 // (this frontend and the FastAPI backend that generates these frames).
+// A 423 means the conversation's earlier turns are being summarized in the
+// background (a few seconds, every ~15 turns): wait the Retry-After the
+// server sends and try again, up to this many times, before giving up.
+const SUMMARIZING_RETRIES = 3;
+
 export async function sendMessageStream(message, extra = {}, { onStep, onToken, onDone, onError } = {}) {
-  const response = await fetch(buildUrl("/chat/stream"), {
+  const send = () => fetch(buildUrl("/chat/stream"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -152,6 +157,14 @@ export async function sendMessageStream(message, extra = {}, { onStep, onToken, 
       declined_fields: extra.declined_fields || [],
     }),
   });
+
+  let response = await send();
+  for (let attempt = 0; response.status === 423 && attempt < SUMMARIZING_RETRIES; attempt += 1) {
+    onStep?.({ type: "step", stage: "waiting_for_history" });
+    const seconds = Number(response.headers.get("Retry-After")) || 5;
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    response = await send();
+  }
 
   if (!response.ok) {
     // Pre-stream failures (e.g. 409/423 lock conflicts) — same error shape

@@ -7,9 +7,11 @@ workflow stage, run in order by answer_turn() below:
                              matched tool's required input is present
     execution.py             — run the matched tool(s), in parallel when 2+
     evaluation.py                — judge and, where needed, fix each draft
-    synthesis.py                    — merge 2+ evaluated drafts into one reply
+                                   (tools that check their own answers opt out)
+    merge.py                        — join 2+ evaluated drafts, in order
     localization.py                     — convert the finished answer into
-                                           the user's reply language
+                                           the reply language if it isn't
+                                           in it already
 
 An off-topic message gets a fixed decline (no tool, no LLM call at all —
 see routing.py for why); zero matched (in-scope) tools falls back to plain
@@ -19,16 +21,16 @@ needs from the user, none of them run this turn, and a single consolidated
 request for what's missing is returned instead (see requirements.py for
 why this is all-or-nothing rather than per-tool). Otherwise each matched
 tool produces a draft (in parallel when there are several —
-Orchestrator-Workers), every draft is checked by evaluation.py and, when it
-falls short, fixed (a clarifying question, or one clean retry of that same
-tool), and finally — only when there were 2+ drafts — synthesis.py merges
-them into one coherent reply. A single draft needs no merging, so it's
-returned as-is: no synthesis call is spent on a no-op merge.
+Orchestrator-Workers), every draft from a tool that doesn't check its own
+answers is judged by evaluation.py and, when it falls short, fixed (a
+clarifying question, or one clean retry of that same tool), and finally —
+only when there were 2+ drafts — merge.py joins them in classification
+order, without rewriting what the specialists already checked.
 
 A new specialist becomes reachable here the moment it registers a Tool
 with the right trigger_intents (see app/tools/registration.py) — routing.py
 never names a specific tool, only ever looks one up by intent.
-evaluation/synthesis/localization are NOT registered Tools (see
+evaluation/merge/localization are NOT registered Tools (see
 evaluation.py's own module docstring for why) — this package calls them
 directly, as plain functions.
 
@@ -42,11 +44,14 @@ from dataclasses import replace
 
 from langchain_core.messages import AIMessage
 
+from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
 from app.orchestrator import classification
 from app.orchestrator.dispatch import execution, localization, requirements, routing
 from app.tools.contracts import OnEvent, ToolAnswer
 from app.tools.turn_context import TurnState, last_human_message
+
+logger = get_logger(__name__)
 
 # Matches the Tool.timeout_seconds default localization used before this
 # stage was pulled out of the Tool/registry machinery.
@@ -87,18 +92,19 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
     — the same TurnState is reused across several tool invocations within
     one turn, each wanting a different value (a lone tool streams to the
     user; each multi-tool branch gets None since its output is only
-    synthesis input). Streamed tokens are always in English regardless of
-    state.reply_language — see localization.py, applied below only to the
-    finished text, never to what's streamed mid-generation."""
+    input to the merge). Answers are written, and streamed, in
+    state.reply_language; localization.py below converts the finished text
+    only when it is still in another language."""
     mode, tool_names = routing.route(intents)
 
     if mode == "decline":
         answer = ToolAnswer(text=_OFF_TOPIC_REPLY, agent_used="orchestrator_decline")
     elif mode == "general":
         try:
-            answer = classification.run_general_chat(state.messages, on_event, depth=state.answer_depth)
-        except Exception as exc:
-            print(f"[dispatch] Warning: general chat failed — {exc}")
+            answer = classification.run_general_chat(state.messages, on_event, depth=state.answer_depth,
+                                                    language=state.reply_language)
+        except Exception:
+            logger.exception("general chat failed")
             answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
     else:
         # requirements.check_requirements() never raises (see its own
@@ -110,7 +116,7 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
         else:
             # Nothing in execution.run_tools() is allowed to let an
             # exception escape the turn — any failure in tool/evaluation/
-            # synthesis code that wasn't already caught closer to its
+            # merge code that wasn't already caught closer to its
             # source (a tool's own fallback, a branch's per-future
             # try/except, evaluate_and_fix()'s own try/excepts) becomes a
             # graceful, in-persona reply instead of an uncaught 500. This
@@ -120,17 +126,20 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
             try:
                 answer = execution.run_tools(tool_names, state, on_event)
                 # Offered under a real answer only — not under an error or
-                # a clarifying question.
+                # a clarifying question. A tool that settled its own card
+                # (it knows, after reading the message, what is still open)
+                # keeps it.
                 if not answer.needs_clarification:
-                    answer = replace(answer, supplement_card=requirements.build_supplement_card(gate))
-            except Exception as exc:
-                print(f"[dispatch] Warning: turn failed entirely (tools={tool_names}) — {exc}")
+                    answer = replace(answer, supplement_card=answer.supplement_card
+                                     or requirements.build_supplement_card(gate))
+            except Exception:
+                logger.exception("turn failed entirely (tools=%s)", tool_names)
                 answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
 
     # Applies uniformly regardless of which branch above produced `answer`
-    # — see localization.py's own docstring for why this is a single final
-    # step instead of being pushed into each prompt above. A no-op (no LLM
-    # call) whenever state.reply_language is English/unset. Wrapped in
+    # — a safety net for replies not already in the reply language (see
+    # localization.py's docstring). A no-op (no LLM call) whenever the
+    # reply is already in that language. Wrapped in
     # run_with_timeout here (rather than trusting localize()'s own
     # internal never-raise design alone) because a hard timeout is still
     # possible one layer outside its own try/except — on any failure,
@@ -144,8 +153,8 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
             )),
             _LOCALIZE_TIMEOUT_SECONDS,
         )
-    except Exception as exc:
-        print(f"[dispatch] Warning: localize call failed, returning the answer as-is — {exc}")
+    except Exception:
+        logger.exception("localization failed, returning the answer as written")
 
     # The sources, a quick-fill card and save suggestions ride on the message
     # (not in its text, which is what later turns see as history): the

@@ -1,34 +1,29 @@
 """
-Shared rendering layer: turns a structured result dict from a specialist
-domain (currently program_comparison and career_planning — any future
-domain with the same shape of problem can reuse this too) into one
-natural-language chat reply.
+Shared rendering layer: turns a specialist's render view (a structured
+dict its S7 payload builds — course recommendation's, career planning's,
+programme comparison's)
+into one natural-language chat reply, streamed.
 
-The source domain already writes most of its content in natural language
-(program_comparison's `best_fit_summary`/`program_comments`,
-career_planning's `current_fit`/skill-assessment evidence/phase actions) —
-it just returns that as a structured dict shaped for a REST/frontend
-consumer, not a single chat-ready string. So this is a *reflow* step, not
-a "write from scratch" step: connect already-written material into one
-coherent reply that matches the user's own language, not compose new
-analysis. Kept deliberately cheap (small max_tokens) and with its own
-deterministic fallback — mirrors the fallback discipline every LLM step
-inside those domains already follows.
+The view already holds every fact, figure and judgement; this step only
+connects them into one coherent reply in the reply language (see
+app/core/reply_language.py) under the caller's style prompt — it composes no new analysis. The callers
+check the reply against the view themselves (their guardrail.py) and fall
+back to render_template(), the deterministic walk of the view this module
+also provides.
 """
 
 from __future__ import annotations
 
 from app.adapters.deepseek_adapter import llm
-from app.core import answer_depth
+from app.core import answer_depth, reply_language, shared_turn
+from app.core.logging import get_logger
 from app.tools.contracts import OnEvent
 
-# Headroom above the reflowed reply, as a safety margin against truncation.
-# This step reflows existing prose rather than composing new analysis, so
-# it needs less than the ~4000-12000 max_tokens the upstream domains' own
-# generation steps use — but a rich result (e.g. a multi-programme
-# comparison with per-programme match-score breakdowns) can still be
-# genuinely long. 2200 proved too tight in testing (truncated a
-# 2-programme comparison mid-sentence); 3500 leaves comfortable headroom.
+logger = get_logger(__name__)
+
+# Headroom above the reply, as a safety margin against truncation: a rich
+# view (a three-programme comparison with a table) is genuinely long, and
+# 2200 proved too tight in testing.
 _MAX_TOKENS = 3500
 
 _RENDER_PROMPT = """\
@@ -42,7 +37,6 @@ is to weave it into ONE natural, coherent chat reply to the user's message.
 Hard rules:
 - Preserve every fact, figure, course code, score, and reason EXACTLY as
   given below — do not invent, drop, round, or "improve" anything.
-- Reply in the same language the user's message was written in.
 - Do not mention field names, JSON, "the data shows", or that this was
   assembled from a structured result — write as if you simply know this.
 - If NOTES below contain a caveat (e.g. a role/programme could not be
@@ -103,19 +97,25 @@ def render_template(result: dict) -> str:
 
 def render_structured_reply(
     result: dict, user_message: str, style_prompt: str,
-    on_event: OnEvent | None = None, depth: str | None = None,
+    on_event: OnEvent | None = None, depth: str | None = None, language: str | None = None,
+    other_tools: tuple[str, ...] = (),
 ) -> tuple[str, list[str]]:
     """
-    Renders a program-comparison-shaped result dict into one
+    Renders a specialist's render view into one
     chat reply. Never raises — any failure falls back to
-    render_template(). Returns (reply_text, sources) where `sources` is
-    result.get("sources", []) verbatim.
+    render_template(). `language` is the reply language (an ISO code;
+    None follows the user's message); `other_tools` the tools answering
+    the rest of a shared message. Returns (reply_text, sources) where
+    `sources` is result.get("sources", []) verbatim.
     """
     sources = list(result.get("sources") or [])
     draft = _render_draft_block(result)
 
     try:
-        prompt = answer_depth.with_instruction(_RENDER_PROMPT.format(style_prompt=style_prompt, draft=draft), depth)
+        prompt = reply_language.with_instruction(shared_turn.with_instruction(
+            answer_depth.with_instruction(_RENDER_PROMPT.format(style_prompt=style_prompt, draft=draft), depth),
+            other_tools,
+        ), language)
         chunks: list[str] = []
         for chunk in llm.stream(prompt, [{"role": "user", "content": user_message}], temperature=0.2, max_tokens=answer_depth.max_tokens(depth, _MAX_TOKENS)):
             chunks.append(chunk)
@@ -124,7 +124,7 @@ def render_structured_reply(
         reply = "".join(chunks).strip()
         if reply:
             return reply, sources
-    except Exception as exc:
-        print(f"[structured_reply] Warning: render LLM call failed, using template fallback — {exc}")
+    except Exception:
+        logger.exception("structured reply: the render call failed, using the template")
 
     return render_template(result), sources

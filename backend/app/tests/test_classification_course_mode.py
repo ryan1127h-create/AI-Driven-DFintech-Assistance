@@ -20,19 +20,19 @@ def _classify(monkeypatch, **reply):
 
 @pytest.mark.parametrize("mode", ["degree_overview", "ad_hoc", "semester_plan"])
 def test_a_known_mode_is_kept_for_a_course_recommendation(monkeypatch, mode):
-    assert _classify(monkeypatch, intents=["course_recommendation"], course_mode_hint=mode)[4] == mode
+    assert _classify(monkeypatch, intents=["course_recommendation"], course_mode_hint=mode).course_mode_hint == mode
 
 
 def test_an_unknown_mode_is_dropped(monkeypatch):
-    assert _classify(monkeypatch, intents=["course_recommendation"], course_mode_hint="timetable")[4] is None
+    assert _classify(monkeypatch, intents=["course_recommendation"], course_mode_hint="timetable").course_mode_hint is None
 
 
 def test_a_mode_without_a_course_recommendation_is_dropped(monkeypatch):
-    assert _classify(monkeypatch, intents=["academic"], course_mode_hint="ad_hoc")[4] is None
+    assert _classify(monkeypatch, intents=["academic"], course_mode_hint="ad_hoc").course_mode_hint is None
 
 
 def test_a_missing_mode_is_none(monkeypatch):
-    assert _classify(monkeypatch, intents=["course_recommendation"])[4] is None
+    assert _classify(monkeypatch, intents=["course_recommendation"]).course_mode_hint is None
 
 
 def test_classification_failure_gives_no_mode(monkeypatch):
@@ -40,15 +40,26 @@ def test_classification_failure_gives_no_mode(monkeypatch):
         raise RuntimeError("rate limited")
 
     monkeypatch.setattr(classification.llm, "complete", broken)
-    assert classification.classify_intent([HumanMessage("courses?")]) == (["general"], None, [], None, None, None)
+    assert classification.classify_intent([HumanMessage("courses?")]) == classification.Classification(["general"])
 
 
 @pytest.mark.parametrize("mode", ["exploration", "plan", "compare"])
 def test_a_known_career_mode_is_kept_for_career_advice(monkeypatch, mode):
     result = _classify(monkeypatch, intents=["career"], career_mode_hint=mode)
-    assert result[5] == mode and result[4] is None
+    assert result.career_mode_hint == mode and result.course_mode_hint is None
 
 
 def test_an_unknown_or_misplaced_career_mode_is_dropped(monkeypatch):
-    assert _classify(monkeypatch, intents=["career"], career_mode_hint="roadmap")[5] is None
-    assert _classify(monkeypatch, intents=["course_recommendation"], career_mode_hint="plan")[5] is None
+    assert _classify(monkeypatch, intents=["career"], career_mode_hint="roadmap").career_mode_hint is None
+    assert _classify(monkeypatch, intents=["course_recommendation"], career_mode_hint="plan").career_mode_hint is None
+
+
+@pytest.mark.parametrize("mode", ["compare", "detail", "explore"])
+def test_a_known_comparison_mode_is_kept_for_a_comparison(monkeypatch, mode):
+    result = _classify(monkeypatch, intents=["comparison"], program_hints=["港科大"], comparison_mode_hint=mode)
+    assert result.comparison_mode_hint == mode and result.program_hints == ["港科大"]
+
+
+def test_an_unknown_or_misplaced_comparison_mode_is_dropped(monkeypatch):
+    assert _classify(monkeypatch, intents=["comparison"], comparison_mode_hint="ranking").comparison_mode_hint is None
+    assert _classify(monkeypatch, intents=["financial"], comparison_mode_hint="detail").comparison_mode_hint is None

@@ -103,13 +103,6 @@ class CourseRecommendationErrorResponse(BaseModel):
     retryable: bool
 
 
-class CourseRecommendationFailureResponse(BaseModel):
-    detail: str
-    workflow_status: Literal["failed"]
-    stage_results: list[WorkflowStageResultResponse]
-    error: CourseRecommendationErrorResponse
-
-
 class CourseRecommendationResponse(BaseModel):
     request_id: str
     workflow_status: Literal["ok", "degraded"]

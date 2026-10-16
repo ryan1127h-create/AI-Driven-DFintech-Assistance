@@ -15,7 +15,7 @@ from app.domains.conversation import repository, service
 from app.domains.conversation.models import ConversationState
 from app.orchestrator import classification, turn_service
 from app.orchestrator import dispatch
-from app.orchestrator.dispatch import requirements, synthesis
+from app.orchestrator.dispatch import merge, requirements
 from app.tools.contracts import MissingInputField, ToolAnswer
 from app.tools.turn_context import PreviousTurn, to_chat_messages
 
@@ -113,11 +113,10 @@ def test_a_consent_card_records_the_consent():
     assert context["awaiting"] == {"kind": "consent", "consent_key": "c"}
 
 
-def test_a_merged_reply_keeps_every_tools_context(monkeypatch):
-    monkeypatch.setattr(synthesis.llm, "stream", lambda *a, **k: iter(["merged"]))
+def test_a_merged_reply_keeps_every_tools_context():
     partials = [("career", ToolAnswer(text="a", contexts=[CONTEXT])),
                 ("faq", ToolAnswer(text="b", contexts=[{"tool": "faq"}]))]
-    merged = synthesis.synthesize(synthesis.SynthesizeInput(user_message="q", partials=partials))
+    merged = merge.merge(partials)
     assert merged.contexts == [CONTEXT, {"tool": "faq"}]
 
 
@@ -153,7 +152,7 @@ def test_the_previous_turn_and_its_question_are_sent_before_the_message(monkeypa
     assert "Which one would you like to plan for?" in sent and "Here are four roles. " * 30 not in sent
     assert "Answered by: career, mode exploration" in sent
     assert "choose one of these roles: Software Engineering (software_engineering); Data Analytics" in sent
-    assert result[0] == ["career"] and result[5] == "plan"
+    assert result.intents == ["career"] and result.career_mode_hint == "plan"
 
 
 def test_a_previous_card_question_is_sent(monkeypatch):
@@ -187,7 +186,7 @@ def test_a_turn_hands_the_previous_turn_to_the_classifier_and_the_tools(monkeypa
 
     def classify(messages, on_event=None, previous_turn=None):
         seen["classifier"] = previous_turn
-        return ["career"], None, [], None, None, "plan"
+        return classification.Classification(["career"], career_mode_hint="plan")
     monkeypatch.setattr(turn_service.classification, "classify_intent", classify)
 
     def answer_turn(turn_state, intents, on_event=None):
@@ -257,3 +256,12 @@ def test_a_cache_outage_falls_back_to_the_durable_store(monkeypatch):
     assert store.get_state("s1").raw_tail[0].content == "q"
     store.delete("s1")
     assert durable.get_state("s1").turn_count == 0
+
+
+def test_programmes_offered_to_choose_from_are_sent(monkeypatch):
+    offered = {"tool": "comparison", "mode": "explore", "subjects": ["hku_msc_ftda", "ntu_msc_fintech"],
+               "awaiting": {"kind": "choose_programs", "options": [
+                   {"key": "hku_msc_ftda", "label": "HKU MSc(FTDA)"}, {"key": "ntu_msc_fintech", "label": "NTU MSc FinTech"}]}}
+    previous = PreviousTurn("这个项目和别的学校比怎么样？", "…想挑哪几个对比？", intents=("comparison",), contexts=(offered,))
+    sent, _ = _sent(monkeypatch, previous)
+    assert "choose programmes to compare with MSc DFT from: HKU MSc(FTDA) (hku_msc_ftda); NTU MSc FinTech" in sent

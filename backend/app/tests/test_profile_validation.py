@@ -8,19 +8,21 @@ from datetime import date
 import pytest
 
 from app.domains.profile.validation import (
+    PROGRAMS_REF,
+    ROLE_TAGS_REF,
     FieldValueError,
     drop_expired_items,
     is_displayed,
     lock_reason,
     validate_value,
 )
-from app.tests.profile_fixtures import DEFINITIONS, ROLE_TAGS, entry
+from app.tests.profile_fixtures import DEFINITIONS, PROGRAM_OPTIONS, ROLE_TAGS, entry
 
-TAGS = set(ROLE_TAGS)
+REF_KEYS = {ROLE_TAGS_REF: set(ROLE_TAGS), PROGRAMS_REF: set(PROGRAM_OPTIONS)}
 
 
 def check(key, value):
-    return validate_value(key, value, DEFINITIONS, TAGS)
+    return validate_value(key, value, DEFINITIONS, REF_KEYS)
 
 
 # --- visibility / editability -----------------------------------------------
@@ -88,8 +90,24 @@ def test_multi_checks_allowed_values_duplicates_and_max_items():
 
 def test_role_tags_come_from_the_tag_table():
     assert check("target_role_families", ["blockchain"]) == ["blockchain"]
-    with pytest.raises(FieldValueError, match="role tag"):
+    with pytest.raises(FieldValueError, match="options"):
         check("target_role_families", ["astrology"])
+    with pytest.raises(FieldValueError, match="options"):  # a programme isn't a role
+        check("target_role_families", ["hkust_msc_fintech"])
+
+
+def test_competing_programmes_come_from_the_catalogue():
+    assert check("competing_programs", ["ntu_msc_fintech", "hkust_msc_fintech"]) == [
+        "ntu_msc_fintech", "hkust_msc_fintech"]
+    with pytest.raises(FieldValueError, match="options"):  # free text is no longer accepted
+        check("competing_programs", ["NTU MSc FinTech"])
+    with pytest.raises(FieldValueError, match="options"):  # nor MSc DFT itself
+        check("competing_programs", ["nus_msc_dft"])
+
+
+def test_a_table_missing_from_the_options_accepts_nothing():
+    with pytest.raises(FieldValueError, match="options"):
+        validate_value("competing_programs", ["ntu_msc_fintech"], DEFINITIONS, {ROLE_TAGS_REF: set(ROLE_TAGS)})
 
 
 def test_multi_item_attributes():
@@ -103,9 +121,9 @@ def test_multi_item_attributes():
 
 
 def test_free_text_items_are_capped():
-    assert check("competing_programs", ["NTU MSc FinTech"]) == ["NTU MSc FinTech"]
+    assert check("languages", ["Cantonese"]) == ["Cantonese"]
     with pytest.raises(FieldValueError, match="longer"):
-        check("competing_programs", ["x" * 121])
+        check("languages", ["x" * 121])
 
 
 def test_scalar_types():

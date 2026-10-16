@@ -25,11 +25,11 @@ Storage shape per session, in the `chat` schema:
     service.py::freeze_and_unlock). Never read on the per-turn hot path,
     kept for audit.
 
-Three backends are available, selected via settings.session_store_backend:
-  "memory"          — process-local dict. Lost on restart, not shared across workers.
-  "redis"           — the whole ConversationState cached in Redis (no durable backing).
+Two backends are available, selected via settings.session_store_backend:
   "supabase_cached" — durable storage in the `chat` schema, with a cache
-                       in front as a cache-aside layer.
+                       in front as a cache-aside layer (what the app runs on).
+  "memory"          — process-local dict, for development and tests. Lost on
+                       restart, not shared across workers.
 
 Usage:
     from app.domains.conversation.repository import get_session_store
@@ -113,7 +113,7 @@ class ConversationStore(ABC):
         — treated as a crashed/hung holder) to `status`. `user_id` is the
         authenticated caller — only SupabaseConversationStore uses it (to
         stamp ownership on a session_id that doesn't have a row yet; see its
-        override), the in-memory/Redis-only backends accept and ignore it.
+        override), the in-memory backend accepts and ignores it.
         Two distinct lock reasons currently exist:
           - "processing": a turn for this session is being handled — guards
             the whole read-modify-write orchestrator/turn_service.py's
@@ -147,8 +147,7 @@ class ConversationStore(ABC):
         arguments archive_block() takes:
         {"start_turn": int, "end_turn": int, "frozen_at": str, "raw_messages": [...], "turn_intents": [...]}
         (raw_messages is still in messages_to_dict() form — callers should
-        run it through messages_from_dict() themselves, same as raw_tail).
-        Backends with no durable archive (redis) return []."""
+        run it through messages_from_dict() themselves, same as raw_tail)."""
         ...
 
     @abstractmethod
@@ -157,8 +156,7 @@ class ConversationStore(ABC):
         first, as plain dicts: {"session_id": str, "turn_count": int,
         "last_frozen_end": int, "updated_at": <timestamp or None>,
         "preview": str}. `preview` is the most recent human message in the
-        raw tail, truncated. Backends with no per-user index (redis)
-        return []."""
+        raw tail, truncated."""
         ...
 
 
@@ -234,61 +232,6 @@ class InMemoryConversationStore(ConversationStore):
     def unlock_after_freeze(self, session_id: str, state: ConversationState) -> None:
         self._states[session_id] = state
         self._locks.pop(session_id, None)
-
-
-class RedisConversationStore(ConversationStore):
-    """Whole ConversationState cached in Redis, no durable backing store."""
-
-    def _key(self, session_id: str) -> str:
-        return f"{_KEY_PREFIX}{session_id}"
-
-    def get_state(self, session_id: str) -> ConversationState:
-        raw = cache.get(self._key(session_id))
-        if not raw:
-            return ConversationState()
-        return state_from_json(json.loads(raw))
-
-    def save_state(self, session_id: str, state: ConversationState) -> None:
-        cache.set(self._key(session_id), json.dumps(state_to_json(state)), ttl_seconds=settings.session_ttl_seconds)
-
-    def archive_block(
-        self, session_id: str, block: HistoryBlock, raw_messages: list, turn_intents: list[dict]
-    ) -> None:
-        pass  # redis-only backend has no durable archive; state itself already holds summaries
-
-    def get_archived_blocks(self, session_id: str) -> list[dict]:
-        return []  # same reasoning as archive_block() above — nothing to read back
-
-    def list_sessions(self, user_id: str) -> list[dict]:
-        return []  # no per-user index over cache keys on this backend
-
-    def delete(self, session_id: str) -> None:
-        cache.delete(self._key(session_id))
-
-    def _lock_key(self, session_id: str) -> str:
-        return f"{_KEY_PREFIX}{session_id}:lock"
-
-    def try_lock(self, session_id: str, status: str, user_id: str) -> str | None:
-        # An atomic NX-SET is the whole point here — only one caller can
-        # ever win this, and the TTL is the cache's own enforced expiry, no
-        # separate staleness check needed. The lock key's value is the
-        # status string itself, so a losing caller can read back what's
-        # blocking it without a second lookup racing against the lock
-        # expiring in between.
-        key = self._lock_key(session_id)
-        if cache.set_if_not_exists(key, status, ttl_seconds=settings.freeze_lock_ttl_seconds):
-            return None
-        # "unknown" only if the key expired in the instant between the
-        # failed set and this get — vanishingly rare, and safe to treat as
-        # still-blocked rather than risk reporting a false success.
-        return cache.get(key) or "unknown"
-
-    def release_lock(self, session_id: str) -> None:
-        cache.delete(self._lock_key(session_id))
-
-    def unlock_after_freeze(self, session_id: str, state: ConversationState) -> None:
-        self.save_state(session_id, state)
-        self.release_lock(session_id)
 
 
 class SupabaseConversationStore(ConversationStore):
@@ -403,10 +346,9 @@ class SupabaseConversationStore(ConversationStore):
         since archive_block() only ever grows it via jsonb `||`
         concatenation, so no further sorting is needed here (callers may
         still sort defensively by start_turn if they want to be
-        independent of that guarantee). archived_blocks and turn_intents
-        are two parallel arrays — each archive_block() call appends exactly
-        one entry to both in the same statement, so they zip elementwise by
-        position."""
+        independent of that guarantee). turn_intents is one flat list of
+        per-turn entries — jsonb `||` appends each block's entries to it —
+        so each block gets the entries within its own turn range."""
         row = chat_db.fetch_one(
             "select archived_blocks, turn_intents from chat.messages where conversation_id = %s",
             (session_id,),
@@ -415,8 +357,9 @@ class SupabaseConversationStore(ConversationStore):
             return []
         blocks, intents = row[0], (row[1] or [])
         return [
-            {**block, "turn_intents": intents[i] if i < len(intents) else []}
-            for i, block in enumerate(blocks)
+            {**block, "turn_intents": [e for e in intents
+                                       if block["start_turn"] <= e.get("turn", 0) <= block["end_turn"]]}
+            for block in blocks
         ]
 
     def list_sessions(self, user_id: str) -> list[dict]:
@@ -555,8 +498,10 @@ class CachedConversationStore(ConversationStore):
         return state
 
     def save_state(self, session_id: str, state: ConversationState) -> None:
-        self._cache_set(session_id, state)
+        # Durable first: if the database write fails the turn fails, and the
+        # cache must not keep a turn the database never got.
         self._durable.save_state(session_id, state)
+        self._cache_set(session_id, state)
 
     def archive_block(
         self, session_id: str, block: HistoryBlock, raw_messages: list, turn_intents: list[dict]
@@ -606,8 +551,6 @@ def get_session_store() -> ConversationStore:
         backend = settings.session_store_backend
         if backend == "supabase_cached":
             _store = CachedConversationStore(SupabaseConversationStore())
-        elif backend == "redis":
-            _store = RedisConversationStore()
         else:
             _store = InMemoryConversationStore()
     return _store

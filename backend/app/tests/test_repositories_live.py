@@ -257,7 +257,7 @@ def test_adapter_transaction_commits_and_rolls_back(adapter):
 
 # --- profile service / validation against the live dictionary and trigger ---
 
-def _sample(key: str, d: dict, tags: list[str]):
+def _sample(key: str, d: dict, tags: list[str], programs: list[str]):
     """One valid value per editable field, built from its definition."""
     allowed = d["allowed_values"]
     if key == "admission_tests":
@@ -278,17 +278,23 @@ def _sample(key: str, d: dict, tags: list[str]):
     if vt == "single":
         return allowed[0] if allowed else tags[0]
     if vt == "multi":
-        return [allowed[0]] if allowed else (tags[:2] if d["values_ref"] else ["NTU MSc FinTech"])
+        if allowed:
+            return [allowed[0]]
+        refs = {"knowledge.tags_definition": tags, "program.programs": programs}
+        return refs[d["values_ref"]][:2] if d["values_ref"] else ["free text"]
     raise AssertionError(f"no sample for {key} ({vt})")
 
 
 def test_every_editable_field_passes_validation_and_the_trigger(db):
     user = str(db.fetch_one("select user_id from account.accounts order by created_at limit 1")[0])
     defs = profile_repo.load_field_definitions()
-    tags = sorted(profile_service._role_tags())
+    options = profile_service._ref_options()
+    tags = sorted(options["knowledge.tags_definition"])
+    programs = sorted(options["program.programs"])
     editable = {k: d for k, d in defs.items() if is_displayed(d) and lock_reason(d, None) is None}
     assert len(editable) == 49  # the 51 field_values fields minus lifecycle_stage and sub_stage
-    values = {k: validate_value(k, _sample(k, d, tags), defs, set(tags)) for k, d in editable.items()}
+    ref_keys = {ref: set(keys) for ref, keys in options.items()}
+    values = {k: validate_value(k, _sample(k, d, tags, programs), defs, ref_keys) for k, d in editable.items()}
     profile_repo.set_fields(user, values, source="QA", actor="test:live")
     stored = {k: profile_repo.get_field_value(user, k)["value"] for k in values}
     assert stored == values

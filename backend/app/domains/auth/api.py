@@ -25,7 +25,7 @@ _bearer_scheme = HTTPBearer(auto_error=True)
 
 
 @router.post("/register", response_model=AuthResponse | RegistrationStartedResponse)
-async def register(request: RegisterRequest):
+def register(request: RegisterRequest):
     """An applicant (any email) is registered and logged in immediately —
     the response is an AuthResponse with a usable token. An enrolled
     student (@u.nus.edu address required) is instead emailed a 6-digit
@@ -37,7 +37,7 @@ async def register(request: RegisterRequest):
 
 
 @router.post("/verify-email", response_model=AuthResponse)
-async def verify_email(request: VerifyEmailRequest):
+def verify_email(request: VerifyEmailRequest):
     """Completes registration and logs the new account in immediately —
     the returned token is usable right away, no separate login call
     required."""
@@ -45,17 +45,17 @@ async def verify_email(request: VerifyEmailRequest):
 
 
 @router.post("/resend-code", response_model=RegistrationStartedResponse)
-async def resend_code(request: ResendCodeRequest):
+def resend_code(request: ResendCodeRequest):
     return service.resend_code(request.email)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(request: LoginRequest):
+def login(request: LoginRequest):
     return service.login(request.email, request.password, request.role)
 
 
 @router.post("/logout")
-async def logout(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)):
+def logout(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)):
     service.logout(credentials.credentials)
     return {"status": "logged_out"}
 
@@ -67,7 +67,7 @@ def update_me(request: AccountUpdate, user_id: str = Depends(get_current_user_id
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user_id: str = Depends(get_current_user_id)):
+def me(user_id: str = Depends(get_current_user_id)):
     user = service.get_user(user_id)
     if user is None:
         raise NotFoundError("User not found.")

@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardList, Lightbulb, Loader2, RefreshCw, SkipForward
 import { updateProfile } from "../../../../api";
 import { cn } from "../../../utils/cn";
 import QuestionField from "../onboarding/QuestionField";
+import { ROLE_TAGS_REF } from "../profile/ProfileFields";
 import { loadDictionary, loadProfileValues, profileChanges } from "./profileWrites";
 
 const isEmpty = (value) => value === null || value === undefined || (Array.isArray(value) && !value.length);
@@ -96,7 +97,7 @@ export default function QuickFillCard({ card, active, onAnswered, onSkip, onDism
   // Every role tag is a choice for the main target role here
   // (QuestionField otherwise offers only the roles already listed);
   // saving adds the chosen one to the list (see profileChanges).
-  const answers = { ...current, ...values, target_role_families: Object.keys(dictionary?.roleTags || {}) };
+  const answers = { ...current, ...values, target_role_families: Object.keys(dictionary?.refOptions?.[ROLE_TAGS_REF] || {}) };
   const Icon = look.icon;
   const subtle = level === "supplementary";
 
@@ -168,7 +169,7 @@ export default function QuickFillCard({ card, active, onAnswered, onSkip, onDism
               value={values[field.field_key]}
               onChange={(value) => setValues((prev) => ({ ...prev, [field.field_key]: value }))}
               answers={answers}
-              roleTags={dictionary.roleTags}
+              refOptions={dictionary.refOptions}
               definitions={dictionary.definitions}
             />
           ))}

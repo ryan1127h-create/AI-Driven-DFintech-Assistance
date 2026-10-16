@@ -74,7 +74,8 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     note = other_roles_note(prefetched)
     if note:
         result["notes"].append(note)
-    answer, sources = renderer.render(result, user_message, on_event=on_event, depth=state.answer_depth)
+    answer, sources = renderer.render(result, user_message, on_event=on_event, depth=state.answer_depth,
+                                      language=state.reply_language, other_tools=state.other_tools)
     return ToolAnswer(
         text=answer, sources=sources, agent_used="course_recommendation_agent",
         save_suggestions=save_suggestions(parsed, prefetched),

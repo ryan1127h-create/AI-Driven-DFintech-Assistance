@@ -4,8 +4,8 @@ kind of gap. Each skill's action is anchored on the profile's level
 descriptions (field_definitions.value_labels) where one exists, so a
 milestone can be checked against the same scale the student rates
 themselves on. The career channels are the ones the programme's FAQ
-names (knowledge.knowledge_snippets faq_web_career_planning_support_provided
-and faq_web_find_part_time_job).
+names (knowledge.document_chunks faq:career_planning_support_provided_students
+and faq:find_part_time_job_nus).
 
 English text; the reply is localised at rendering.
 """

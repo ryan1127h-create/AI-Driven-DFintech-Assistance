@@ -40,9 +40,21 @@ export function isEmptyValue(value) {
   return false;
 }
 
+// values_ref of the role tag table (current_position and currently_hiring
+// pick role families from it too).
+export const ROLE_TAGS_REF = "knowledge.tags_definition";
+
+// The options (key -> display name) of a field that takes its values from
+// another table (definition.values_ref) — `refOptions` is the dictionary's
+// ref_options; null for any other field.
+export function refChoices(definition, refOptions) {
+  return definition.values_ref ? refOptions?.[definition.values_ref] || {} : null;
+}
+
 // The display name of one enum value (falls back to the raw value).
-function optionLabel(definition, value, roleTags) {
-  if (definition.values_ref && roleTags?.[value]) return roleTags[value];
+function optionLabel(definition, value, refOptions) {
+  const ref = refChoices(definition, refOptions);
+  if (ref?.[value]) return ref[value];
   return definition.value_labels?.[String(value)] || String(value);
 }
 
@@ -52,7 +64,7 @@ function itemKey(item) {
 
 // --- display ------------------------------------------------------------------
 
-export function formatFieldValue(definition, value, roleTags) {
+export function formatFieldValue(definition, value, refOptions) {
   if (isEmptyValue(value)) return "—";
   const key = definition.field_key;
   if (key === "application_record" && Array.isArray(value)) {
@@ -74,9 +86,9 @@ export function formatFieldValue(definition, value, roleTags) {
         if (item && typeof item === "object") {
           if (item.course_code) return item.course_code;
           const extras = Object.entries(item).filter(([k]) => k !== "key").map(([k, v]) => `${k}: ${v}`);
-          return optionLabel(definition, item.key, roleTags) + (extras.length ? ` (${extras.join(", ")})` : "");
+          return optionLabel(definition, item.key, refOptions) + (extras.length ? ` (${extras.join(", ")})` : "");
         }
-        return optionLabel(definition, item, roleTags);
+        return optionLabel(definition, item, refOptions);
       })
       .join(", ");
   }
@@ -85,7 +97,7 @@ export function formatFieldValue(definition, value, roleTags) {
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
       .join(" · ");
   }
-  return optionLabel(definition, value, roleTags);
+  return optionLabel(definition, value, refOptions);
 }
 
 // --- inputs -------------------------------------------------------------------
@@ -115,7 +127,7 @@ function ChoiceChips({ options, selected, onToggle, labelOf }) {
   );
 }
 
-function SelectInput({ definition, value, onChange, options, roleTags }) {
+function SelectInput({ definition, value, onChange, options, refOptions }) {
   const numeric = options.some((o) => typeof o === "number");
   return (
     <select
@@ -130,14 +142,14 @@ function SelectInput({ definition, value, onChange, options, roleTags }) {
       <option value="">—</option>
       {options.map((o) => (
         <option key={String(o)} value={String(o)}>
-          {optionLabel(definition, o, roleTags)}
+          {optionLabel(definition, o, refOptions)}
         </option>
       ))}
     </select>
   );
 }
 
-function MultiChoiceInput({ definition, value, onChange, options, roleTags }) {
+function MultiChoiceInput({ definition, value, onChange, options, refOptions }) {
   const items = Array.isArray(value) ? value : [];
   const selected = items.map(itemKey);
   const toggle = (opt) => {
@@ -152,7 +164,7 @@ function MultiChoiceInput({ definition, value, onChange, options, roleTags }) {
   return (
     <div>
       <ChoiceChips options={options} selected={selected} onToggle={toggle}
-        labelOf={(o) => optionLabel(definition, o, roleTags)} />
+        labelOf={(o) => optionLabel(definition, o, refOptions)} />
       {definition.max_items && (
         <p className="text-xs text-app-faint mt-1">Pick up to {definition.max_items}.</p>
       )}
@@ -239,7 +251,8 @@ function TextListInput({ value, onChange, placeholder }) {
   );
 }
 
-function CurrentPositionInput({ value, onChange, definitions, roleTags }) {
+function CurrentPositionInput({ value, onChange, definitions, refOptions }) {
+  const roles = refOptions?.[ROLE_TAGS_REF] || {};
   const v = value || {};
   const set = (k, x) => {
     const next = { ...v, [k]: x || undefined };
@@ -252,7 +265,7 @@ function CurrentPositionInput({ value, onChange, definitions, roleTags }) {
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
       <select className="input" value={v.role_family || ""} onChange={(e) => set("role_family", e.target.value)}>
         <option value="">Role family —</option>
-        {Object.entries(roleTags || {}).map(([tag, name]) => <option key={tag} value={tag}>{name || tag}</option>)}
+        {Object.entries(roles).map(([tag, name]) => <option key={tag} value={tag}>{name || tag}</option>)}
       </select>
       <select className="input" value={v.region || ""} onChange={(e) => set("region", e.target.value)}>
         <option value="">Region —</option>
@@ -266,7 +279,8 @@ function CurrentPositionInput({ value, onChange, definitions, roleTags }) {
   );
 }
 
-function CurrentlyHiringInput({ value, onChange, roleTags }) {
+function CurrentlyHiringInput({ value, onChange, refOptions }) {
+  const names = refOptions?.[ROLE_TAGS_REF] || {};
   const v = value || {};
   const roles = v.role_families || [];
   const update = (next) => onChange(next.hiring === undefined && !(next.role_families || []).length ? null : next);
@@ -277,17 +291,17 @@ function CurrentlyHiringInput({ value, onChange, roleTags }) {
         Currently hiring
       </label>
       <ChoiceChips
-        options={Object.keys(roleTags || {})}
+        options={Object.keys(names)}
         selected={roles}
         onToggle={(tag) => update({ ...v, role_families: roles.includes(tag) ? roles.filter((r) => r !== tag) : [...roles, tag] })}
-        labelOf={(tag) => roleTags[tag] || tag}
+        labelOf={(tag) => names[tag] || tag}
       />
     </div>
   );
 }
 
 // One input for one field; onChange(null) clears it.
-export function FieldInput({ definition, value, onChange, roleTags, definitions }) {
+export function FieldInput({ definition, value, onChange, refOptions, definitions }) {
   const key = definition.field_key;
   const type = definition.value_type;
   const allowed = definition.allowed_values;
@@ -295,9 +309,9 @@ export function FieldInput({ definition, value, onChange, roleTags, definitions 
   if (key === "admission_tests") return <AdmissionTestsInput definition={definition} value={value} onChange={onChange} />;
   if (key === "languages") return <LanguagesInput value={value} onChange={onChange} />;
   if (key === "current_position") {
-    return <CurrentPositionInput value={value} onChange={onChange} definitions={definitions} roleTags={roleTags} />;
+    return <CurrentPositionInput value={value} onChange={onChange} definitions={definitions} refOptions={refOptions} />;
   }
-  if (key === "currently_hiring") return <CurrentlyHiringInput value={value} onChange={onChange} roleTags={roleTags} />;
+  if (key === "currently_hiring") return <CurrentlyHiringInput value={value} onChange={onChange} refOptions={refOptions} />;
 
   if (type === "bool") {
     return (
@@ -321,16 +335,17 @@ export function FieldInput({ definition, value, onChange, roleTags, definitions 
         onChange={(e) => onChange(e.target.value.trim() === "" ? null : e.target.value)} />
     );
   }
-  const options = allowed || (definition.values_ref ? Object.keys(roleTags || {}) : null);
+  const ref = refChoices(definition, refOptions);
+  const options = allowed || (ref ? Object.keys(ref) : null);
   if (type === "single") {
     return options
-      ? <SelectInput definition={definition} value={value} onChange={onChange} options={options} roleTags={roleTags} />
+      ? <SelectInput definition={definition} value={value} onChange={onChange} options={options} refOptions={refOptions} />
       : <input className="input" value={value ?? ""} maxLength={120}
           onChange={(e) => onChange(e.target.value.trim() === "" ? null : e.target.value)} />;
   }
   if (type === "multi") {
     return options
-      ? <MultiChoiceInput definition={definition} value={value} onChange={onChange} options={options} roleTags={roleTags} />
+      ? <MultiChoiceInput definition={definition} value={value} onChange={onChange} options={options} refOptions={refOptions} />
       : <TextListInput value={value} onChange={onChange} />;
   }
   return <p className="text-xs text-app-faint">Not editable here.</p>;

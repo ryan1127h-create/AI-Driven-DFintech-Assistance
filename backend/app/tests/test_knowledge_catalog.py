@@ -95,6 +95,16 @@ def test_role_tag_chunks_are_career_topic():
     assert service._topic_of("courses", {}) == "academic"
 
 
+def test_web_chunks_carry_their_own_topic():
+    assert service._topic_of("programme_pages", {"topic": "financial"}) == "financial"
+    assert service._topic_of("programme_pages", {}) == "faq"
+
+
+def test_course_recommendation_uses_the_same_curriculum_cohort():
+    from app.domains.specialist.course_recommendation.policy import curriculum
+    assert curriculum.CURRENT_INTAKE == service.CURRENT_CURRICULUM_INTAKE
+
+
 def test_course_skills_are_the_union_of_their_tags_skills():
     skills = mappers.course_skills(
         {"FT5005": ["data_analytics", "machine_learning_ai"], "IT5006": ["blockchain"]}, ROLE_TAGS)

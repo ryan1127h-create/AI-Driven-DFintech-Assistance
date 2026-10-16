@@ -77,7 +77,7 @@ def test_guardrail_ignores_numbers_on_the_next_line():
 def test_renderer_rerenders_once_then_uses_the_template(monkeypatch):
     calls = []
 
-    def _render(view, msg, prompt, on_event=None, depth=None):
+    def _render(view, msg, prompt, on_event=None, depth=None, language=None, other_tools=()):
         calls.append((prompt, on_event))
         return "Take FT9999.", view["sources"]
 
@@ -95,14 +95,14 @@ def test_renderer_rerenders_once_then_uses_the_template(monkeypatch):
 def test_renderer_keeps_a_corrected_retry(monkeypatch):
     replies = iter(["Take FT9999.", "Take IT5006 (4 units)."])
     monkeypatch.setattr(renderer, "render_structured_reply",
-                        lambda view, msg, prompt, on_event=None, depth=None: (next(replies), []))
+                        lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): (next(replies), []))
     assert renderer.render(RESULT, "courses?")[0] == "Take IT5006 (4 units)."
 
 
 def test_the_ad_hoc_mode_renders_under_its_own_style(monkeypatch):
     prompts = []
     monkeypatch.setattr(renderer, "render_structured_reply",
-                        lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("Take IT5006.", []))
+                        lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): prompts.append(prompt) or ("Take IT5006.", []))
     renderer.render({**RESULT, "mode": "ad_hoc"}, "python courses?")
     renderer.render(RESULT, "what should I take?")
     assert prompts[0] == renderer.AD_HOC_STYLE_PROMPT
@@ -161,7 +161,7 @@ def test_a_plans_total_must_match():
 def test_a_plan_renders_under_its_own_style(monkeypatch):
     prompts = []
     monkeypatch.setattr(renderer, "render_structured_reply",
-                        lambda view, msg, prompt, on_event=None, depth=None: prompts.append(prompt) or ("ok", []))
+                        lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): prompts.append(prompt) or ("ok", []))
     renderer.render(PLAN_RESULT, "plan my next semester")
     assert prompts == [renderer.SEMESTER_PLAN_STYLE_PROMPT]
 

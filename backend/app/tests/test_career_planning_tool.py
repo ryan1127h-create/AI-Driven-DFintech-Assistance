@@ -222,7 +222,7 @@ def reads(monkeypatch):
 
 def test_prefetch_gathers_the_turns_data(reads):
     got = prefetch.prefetch("u1")
-    assert got.facts == {"code_level": 2} and got.stage == "current"
+    assert got.facts == {"code_level": 2} and got.stage == "current" and got.profile_read
     assert [r["tag"] for r in got.role_catalog] == ["data_analytics"]   # roles without skills are left out
     assert got.course_links == [{"code": "FT5005", "title": "ML", "tags": ["data_analytics"]}]
     assert got.notes == ()
@@ -234,11 +234,26 @@ def test_a_profile_read_failure_is_noted_not_fatal(reads):
     reads.setattr(prefetch, "get_profile_for_purpose", broken)
     got = prefetch.prefetch("u1")
     assert got.facts == {} and any("couldn't be read" in n for n in got.notes)
+    assert not got.profile_read
 
 
 def test_missing_consent_is_noted(reads):
     reads.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: "consent_personalized_rec")
-    assert any("turned off" in n for n in prefetch.prefetch("u1").notes)
+    got = prefetch.prefetch("u1")
+    assert any("turned off" in n for n in got.notes) and not got.profile_read
+
+
+def test_an_unknown_consent_state_does_not_count_as_read(reads):
+    def broken(*a):
+        raise RuntimeError("db down")
+    reads.setattr(prefetch, "missing_purpose_consent", broken)
+    got = prefetch.prefetch("u1")
+    assert got.facts == {"code_level": 2} and not got.profile_read
+    assert not any("turned off" in n for n in got.notes)
+
+
+def test_signed_out_users_have_no_profile_read(reads):
+    assert not prefetch.prefetch(None).profile_read
 
 
 def test_a_knowledge_base_failure_propagates(reads):
@@ -255,10 +270,11 @@ def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
     monkeypatch.setattr(tool, "role_catalog", lambda: CATALOG)
     monkeypatch.setattr(tool.parser, "parse",
                         lambda message, catalog, options: ParsedCareerRequest(roles=["data_analytics"]))
-    monkeypatch.setattr(tool, "prefetch", lambda uid: _prefetched({"code_level": 3}, notes=("Profile note.",)))
+    monkeypatch.setattr(tool, "prefetch",
+                        lambda uid: _prefetched({"code_level": 3}, notes=("Profile note.",), profile_read=True))
     seen = {}
 
-    def render(result, prefetched, message, on_event=None, depth=None, repeat=False):
+    def render(result, prefetched, message, on_event=None, depth=None, language=None, other_tools=(), repeat=False):
         seen["result"], seen["repeat"] = result, repeat
         return "reply", ["src"]
     monkeypatch.setattr(tool.renderer, "render", render)

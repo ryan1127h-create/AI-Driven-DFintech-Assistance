@@ -4,6 +4,7 @@ validation/service tests — same keys and shapes as the live dictionary."""
 from __future__ import annotations
 
 ROLE_TAGS = {"data_analytics": "Data Analytics", "blockchain": "Blockchain", "product_business": "Product & Business"}
+PROGRAM_OPTIONS = {"hkust_msc_fintech": "HKUST MSc(FinTech)", "ntu_msc_fintech": "NTU MSc FinTech"}
 
 
 def _d(key, value_type, *, module="E", storage="value", layer="declared", sources=("QA",),
@@ -42,7 +43,8 @@ DEFINITIONS = {d["field_key"]: d for d in [
        label="Main target role"),
     _d("career_goal_clarity", "single", module="F", allowed=["clear", "few_options", "exploring"]),
     _d("decision_factors", "multi", module="H", allowed=["cost", "duration", "tech_depth", "scholarship"], max_items=3),
-    _d("competing_programs", "multi", module="H"),
+    _d("competing_programs", "multi", module="H", values_ref="program.programs", max_items=5,
+       label="Programmes being compared"),
     _d("current_position", "structured", module="J", sources=("QA", "CV")),
     _d("currently_hiring", "structured", module="J"),
     _d("application_record", "structured", module="H", storage="sis", layer="evidence", sources=("DB",),

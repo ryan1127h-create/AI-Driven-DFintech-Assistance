@@ -13,11 +13,8 @@ Pure functions, no I/O.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import date
-
-_LABEL = re.compile(r"AY\s*(\d{4})\s*/\s*(\d{2,4})\s*Sem\s*([12])", re.IGNORECASE)
 
 
 @dataclass(frozen=True, order=True)
@@ -39,12 +36,6 @@ class Term:
 
     def following(self) -> "Term":
         return Term(self.start_year, 2) if self.semester == 1 else Term(self.start_year + 1, 1)
-
-
-def parse_label(text: str) -> Term | None:
-    """"AY2026/27 Sem1" -> Term(2026, 1); None when it isn't a term."""
-    match = _LABEL.search(text or "")
-    return Term(int(match.group(1)), int(match.group(3))) if match else None
 
 
 def next_term(today: date) -> Term:

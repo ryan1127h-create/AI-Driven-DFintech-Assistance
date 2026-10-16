@@ -106,16 +106,16 @@ def run_turn(
     llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + [new_message]
     previous_turn = _previous_turn(state)
 
-    (
-        intents, target_role_hint, program_hints, detected_language, course_mode_hint, career_mode_hint,
-    ) = classification.classify_intent(llm_messages, on_event, previous_turn=previous_turn)
+    classified = classification.classify_intent(llm_messages, on_event, previous_turn=previous_turn)
+    intents = classified.intents
     preferences = get_assistant_preferences(user_id)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
-        target_role_hint=target_role_hint, program_hints=program_hints,
-        course_mode_hint=course_mode_hint, career_mode_hint=career_mode_hint,
+        target_role_hint=classified.target_role_hint, program_hints=classified.program_hints,
+        course_mode_hint=classified.course_mode_hint, career_mode_hint=classified.career_mode_hint,
+        comparison_mode_hint=classified.comparison_mode_hint,
         declined_fields=frozenset(state.declined_fields),
-        reply_language=resolve_reply_language(detected_language, preferences["language_pref"]),
+        reply_language=resolve_reply_language(classified.reply_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
         previous_turn=previous_turn,
     )
