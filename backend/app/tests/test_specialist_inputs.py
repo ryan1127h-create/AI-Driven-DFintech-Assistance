@@ -85,7 +85,7 @@ def test_codes_urls_and_small_counts_are_ignored():
 def _stub_answers(monkeypatch, replies):
     calls = []
 
-    def answer(role_prompt, msg, history, *, context, facts=None, on_event=None, depth=None):
+    def answer(role_prompt, msg, history, *, context, facts=None, on_event=None, depth=None, language=None):
         calls.append({"role_prompt": role_prompt, "context": context, "facts": facts, "streamed": on_event is not None})
         return replies[len(calls) - 1]
     monkeypatch.setattr(qa.qa_agent, "answer", answer)

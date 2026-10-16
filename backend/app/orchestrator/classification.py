@@ -20,16 +20,12 @@ answers it with a fixed decline, no LLM call at all, since this assistant
 exists only to support NUS MSc DFT students and applicants (see the module
 docstring's rationale in dispatch/routing.py::route).
 
-This same call also detects reply_language — the language the final reply
-should end up in (see orchestrator/dispatch/localization.py, which acts on
-it as the very last step of a turn, after every tool/business-logic prompt
-below has generated its answer in English as usual). Detecting it here, in
-the one call that already reads the latest message, costs nothing extra;
-piggybacking it onto every generation prompt instead would not only cost
-more, it would be less reliable — a prompt already carrying this many
-domain rules can easily bury one more instruction (see
-orchestrator/dispatch/localization.py's docstring for why the two concerns
-are kept apart like this).
+This same call also detects reply_language — the language the reply is
+written in. Detecting it here, in the one call that already reads the
+latest message, costs nothing extra. turn_service resolves it (falling back
+to the user's preference), the generation steps write in it (see
+app/core/reply_language.py), and dispatch/localization.py converts only a
+finished reply found in another language.
 """
 
 from __future__ import annotations
@@ -38,7 +34,7 @@ import json
 from dataclasses import asdict, dataclass, field
 
 from app.adapters.deepseek_adapter import llm
-from app.core import answer_depth
+from app.core import answer_depth, reply_language
 from app.core.logging import get_logger
 from app.tools.contracts import OnEvent, ToolAnswer
 from app.tools.turn_context import PreviousTurn, last_human_message, to_chat_messages
@@ -385,14 +381,15 @@ def classify_intent(
     return classified
 
 
-def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None) -> ToolAnswer:
+def run_general_chat(messages: list, on_event: OnEvent | None = None, depth: str | None = None,
+                     language: str | None = None) -> ToolAnswer:
     """Plain conversational reply — no retrieval, no tool. The orchestrator's
     own built-in answer for whatever no registered tool covers."""
     if on_event is not None:
         on_event({"type": "step", "stage": "answering", "agent": "supervisor"})
 
     chunks: list[str] = []
-    prompt = answer_depth.with_instruction(SUPERVISOR_SYSTEM_PROMPT, depth)
+    prompt = reply_language.with_instruction(answer_depth.with_instruction(SUPERVISOR_SYSTEM_PROMPT, depth), language)
     for chunk in llm.stream(prompt, to_chat_messages(messages), temperature=0.7, max_tokens=answer_depth.max_tokens(depth, 2000)):
         chunks.append(chunk)
         if on_event is not None:

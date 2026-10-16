@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.adapters.deepseek_adapter import llm
-from app.core import answer_depth
+from app.core import answer_depth, reply_language
 from app.core.logging import get_logger
 from app.domains.specialist.knowledge_qa.facts import ENQUIRY_URL
 
@@ -114,19 +114,20 @@ def search_query(user_message: str, chat_history: list[dict]) -> str:
 def answer(
     role_prompt: str, user_message: str, chat_history: list[dict],
     *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
-    depth: str | None = None,
+    depth: str | None = None, language: str | None = None,
 ) -> str:
     """
     Core generation step: call the LLM with `role_prompt` layered onto the
     shared rules above, the programme's current `facts` and the caller's
-    reference `context` (None = nothing was found). Streams tokens through
+    reference `context` (None = nothing was found), written in the reply
+    `language` (None: the user's message's). Streams tokens through
     `on_event` when given. Returns the answer text.
     """
-    system_prompt = answer_depth.with_instruction(
+    system_prompt = reply_language.with_instruction(answer_depth.with_instruction(
         _BASE_SYSTEM_PROMPT.format(role_prompt=role_prompt, enquiry_url=ENQUIRY_URL,
                                    facts=facts or _NO_FACTS, context=context or _NO_CONTEXT),
         depth,
-    )
+    ), language)
     # max_tokens is generous relative to the expected answer length as a
     # safety margin against truncation.
     chunks: list[str] = []

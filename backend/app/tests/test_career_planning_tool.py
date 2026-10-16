@@ -274,7 +274,7 @@ def test_the_handler_runs_the_steps_and_puts_the_notes_first(monkeypatch):
                         lambda uid: _prefetched({"code_level": 3}, notes=("Profile note.",), profile_read=True))
     seen = {}
 
-    def render(result, prefetched, message, on_event=None, depth=None, repeat=False):
+    def render(result, prefetched, message, on_event=None, depth=None, language=None, repeat=False):
         seen["result"], seen["repeat"] = result, repeat
         return "reply", ["src"]
     monkeypatch.setattr(tool.renderer, "render", render)

@@ -56,13 +56,14 @@ def fact_source_urls(program: dict) -> list[str]:
 def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
     *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
-    depth: str | None = None,
+    depth: str | None = None, language: str | None = None,
 ) -> str:
     """Knowledge-base Q&A for one of the four fixed topics, grounded in the
     current `facts` block and the caller's retrieved `context`; `depth` is
-    the user's answer-detail preference. Returns the answer text (checked:
-    figures it cites come from the facts or the context)."""
+    the user's answer-detail preference, `language` the reply language.
+    Returns the answer text (checked: figures it cites come from the facts
+    or the context)."""
     return service.answer_topic(
         topic, user_message, chat_history,
-        context=context, facts=facts, on_event=on_event, depth=depth,
+        context=context, facts=facts, on_event=on_event, depth=depth, language=language,
     )

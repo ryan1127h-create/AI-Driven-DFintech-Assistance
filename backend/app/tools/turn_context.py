@@ -80,15 +80,15 @@ class TurnState:
     # or supplementary field here isn't asked for again this session.
     declined_fields: frozenset[str] = frozenset()
     # Also set by the intent classifier (see orchestrator/classification.py)
-    # — the language the FINAL reply should end up in. Every generation
-    # prompt in this app (RAG, assessment, general chat, evaluation)
-    # ignores this field entirely and answers in English as usual; only
-    # orchestrator/dispatch/localization.py reads it, as the very last step
-    # of a turn. "en" (the default) means "no conversion needed".
+    # (resolved by turn_service) — the language the reply is written in.
+    # The tools that write the final text pass it to their generation
+    # prompts (app/core/reply_language.py); orchestrator/dispatch/
+    # localization.py converts a finished reply only if it is still in
+    # another language (fixed English replies, the assessment).
     reply_language: str = "en"
     # The user's answer-detail preference (concise / standard / detailed,
     # see app/core/answer_depth.py), read from their settings once per
-    # turn. Unlike reply_language it is applied while answers are written,
+    # turn. Like reply_language it is applied while answers are written,
     # by every tool that writes the final text.
     answer_depth: str = "standard"
     # The conversation's last completed turn (None on a new conversation),

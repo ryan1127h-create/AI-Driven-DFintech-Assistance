@@ -9,7 +9,8 @@ workflow stage, run in order by answer_turn() below:
     evaluation.py                — judge and, where needed, fix each draft
     synthesis.py                    — merge 2+ evaluated drafts into one reply
     localization.py                     — convert the finished answer into
-                                           the user's reply language
+                                           the reply language if it isn't
+                                           in it already
 
 An off-topic message gets a fixed decline (no tool, no LLM call at all —
 see routing.py for why); zero matched (in-scope) tools falls back to plain
@@ -87,16 +88,17 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
     — the same TurnState is reused across several tool invocations within
     one turn, each wanting a different value (a lone tool streams to the
     user; each multi-tool branch gets None since its output is only
-    synthesis input). Streamed tokens are always in English regardless of
-    state.reply_language — see localization.py, applied below only to the
-    finished text, never to what's streamed mid-generation."""
+    synthesis input). Answers are written, and streamed, in
+    state.reply_language; localization.py below converts the finished text
+    only when it is still in another language."""
     mode, tool_names = routing.route(intents)
 
     if mode == "decline":
         answer = ToolAnswer(text=_OFF_TOPIC_REPLY, agent_used="orchestrator_decline")
     elif mode == "general":
         try:
-            answer = classification.run_general_chat(state.messages, on_event, depth=state.answer_depth)
+            answer = classification.run_general_chat(state.messages, on_event, depth=state.answer_depth,
+                                                    language=state.reply_language)
         except Exception as exc:
             print(f"[dispatch] Warning: general chat failed — {exc}")
             answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
@@ -128,9 +130,9 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
                 answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
 
     # Applies uniformly regardless of which branch above produced `answer`
-    # — see localization.py's own docstring for why this is a single final
-    # step instead of being pushed into each prompt above. A no-op (no LLM
-    # call) whenever state.reply_language is English/unset. Wrapped in
+    # — a safety net for replies not already in the reply language (see
+    # localization.py's docstring). A no-op (no LLM call) whenever the
+    # reply is already in that language. Wrapped in
     # run_with_timeout here (rather than trusting localize()'s own
     # internal never-raise design alone) because a hard timeout is still
     # possible one layer outside its own try/except — on any failure,

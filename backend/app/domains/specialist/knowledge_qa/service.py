@@ -102,7 +102,7 @@ def retrieval_scope(topic: str) -> set[str]:
 def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
     *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
-    depth: str | None = None,
+    depth: str | None = None, language: str | None = None,
 ) -> str:
     """Answers for one of the four fixed topics from the current `facts`
     block and the retrieved `context` (either may be None)."""
@@ -113,14 +113,15 @@ def answer_topic(
     sources = f"{facts or ''}\n{context or ''}"
 
     reply = qa_agent.answer(role_prompt, user_message, chat_history,
-                            context=context, facts=facts, on_event=on_event, depth=depth)
+                            context=context, facts=facts, on_event=on_event, depth=depth, language=language)
     problems = guardrail.check(reply, sources, user_message)
     if not problems:
         return reply
 
     logger.warning("knowledge qa (%s) answer failed the check, regenerating: %s", topic, problems)
     reply = qa_agent.answer(role_prompt + _CORRECTION.format(problems="; ".join(problems)), user_message,
-                            chat_history, context=context, facts=facts, on_event=None, depth=depth)
+                            chat_history, context=context, facts=facts, on_event=None, depth=depth,
+                            language=language)
     problems = guardrail.check(reply, sources, user_message)
     if not problems:
         return reply

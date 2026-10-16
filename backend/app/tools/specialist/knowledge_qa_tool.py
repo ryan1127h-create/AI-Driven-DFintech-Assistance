@@ -49,6 +49,7 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
         text = knowledge_qa.answer_topic(
             topic, user_message, chat_history,
             context=retrieved.text, facts=facts, on_event=on_event, depth=state.answer_depth,
+            language=state.reply_language,
         )
         fact_sources = knowledge_qa.fact_source_urls(target) if target else []
         sources = list(dict.fromkeys([*retrieved.sources, *fact_sources]))

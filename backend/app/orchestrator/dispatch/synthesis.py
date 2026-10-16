@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.adapters.deepseek_adapter import llm
-from app.core import answer_depth
+from app.core import answer_depth, reply_language
 from app.tools.contracts import OnEvent, ToolAnswer
 
 _SYNTHESIS_PROMPT = """\
@@ -34,7 +34,6 @@ Combine them into a single, coherent reply that:
 - Reads naturally, not like a list of disconnected fragments stitched together.
 - Preserves every fact, figure, date, and hedging/advisory wording EXACTLY as \
 given in the drafts below — do not invent, drop, soften, or "correct" anything.
-- Replies in the same language the user's question was asked in.
 
 Do not mention that this answer was assembled from multiple drafts or advisors. \
 The drafts below may contain internal citation markers such as "SOURCE 1", \
@@ -56,11 +55,14 @@ class SynthesizeInput:
     partials: list[tuple[str, ToolAnswer]]
     # The user's answer-detail preference (app/core/answer_depth.py).
     depth: str | None = None
+    # The reply language (app/core/reply_language.py).
+    language: str | None = None
 
 
 def synthesize(inp: SynthesizeInput, on_event: OnEvent | None = None) -> ToolAnswer:
     drafts = "\n\n".join(f"[{answer.agent_used or name} draft]\n{answer.text}" for name, answer in inp.partials)
-    prompt = answer_depth.with_instruction(_SYNTHESIS_PROMPT.format(drafts=drafts), inp.depth)
+    prompt = reply_language.with_instruction(
+        answer_depth.with_instruction(_SYNTHESIS_PROMPT.format(drafts=drafts), inp.depth), inp.language)
 
     chunks: list[str] = []
     for chunk in llm.stream(prompt, [{"role": "user", "content": inp.user_message}], temperature=0.2, max_tokens=answer_depth.max_tokens(inp.depth, 2000)):

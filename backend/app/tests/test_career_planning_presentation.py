@@ -126,7 +126,7 @@ def test_a_role_name_that_is_also_a_skill_is_not_stray():
 def test_a_failing_reply_is_rendered_again_then_templated(monkeypatch):
     calls = []
 
-    def fake(view, message, style, on_event=None, depth=None):
+    def fake(view, message, style, on_event=None, depth=None, language=None):
         calls.append(style)
         return "Consider FT9999.", ["src"]
     monkeypatch.setattr(renderer, "render_structured_reply", fake)
