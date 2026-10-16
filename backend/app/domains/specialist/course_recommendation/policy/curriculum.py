@@ -3,15 +3,16 @@ S3/S4 shared knowledge — the NUS MSc DFinTech programme structure,
 transcribed 1:1 from knowledge.document_chunks (source_table='course_rules',
 intake='2026-08-onwards') into executable constants.
 
-Mirrors knowledge_retrieval/service.py::_CURRENT_INTAKE — update both
-together when a new cohort's rules ship (see rule:cur_cohort_2026_vs_2025;
+Mirrors knowledge_retrieval/service.py::CURRENT_CURRICULUM_INTAKE (a
+test keeps the two equal) — update both together when a new cohort's
+rules ship (see rule:cur_cohort_2026_vs_2025;
 the previous cohort's mandatory set was BMD5301/BMD5302/IT5001/IT5003
 instead of BMD5301/BMD5302/IT5001X/IT5006).
 
 This is programme POLICY, not a physical property of a course row viewed in
 isolation — it lives here (in the domain that interprets it), not as a new
-database column, deliberately mirroring the existing _CURRENT_INTAKE
-precedent rather than reopening the "who owns this data" question already
+database column, deliberately mirroring CURRENT_CURRICULUM_INTAKE
+rather than reopening the "who owns this data" question already
 on hold pending the external pipeline maintainer.
 """
 

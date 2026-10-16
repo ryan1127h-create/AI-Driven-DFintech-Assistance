@@ -120,12 +120,12 @@ def test_current_or_next_term(today, expected):
 
 
 def test_the_reference_cycle_is_the_capstone_pages_dates():
-    cycle = calendar.capstone_cycle(2026)
+    cycle = calendar.capstone_cycle(2027)
     assert not cycle.projected
-    assert cycle.applications_open == date(2025, 12, 1) and cycle.applications_close == date(2026, 3, 31)
-    assert cycle.offers_by == date(2026, 4, 15)
-    assert (cycle.internship_start, cycle.internship_end) == (date(2026, 5, 18), date(2026, 10, 16))
-    assert calendar.capstone_cycle(2027).projected
+    assert cycle.applications_open == date(2026, 12, 1) and cycle.applications_close == date(2027, 3, 31)
+    assert cycle.offers_by == date(2027, 4, 15)
+    assert (cycle.internship_start, cycle.internship_end) == (date(2027, 5, 17), date(2027, 10, 15))
+    assert calendar.capstone_cycle(2028).projected
 
 
 @pytest.mark.parametrize("today, year", [

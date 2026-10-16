@@ -48,7 +48,7 @@ _PHASE_NAMES = {
 
 _NOTES = {
     "projected": (
-        "The {year} Capstone dates repeat the 2026 cycle's published dates; the school publishes each "
+        "The {year} Capstone dates repeat the {reference} cycle's published dates; the school publishes each "
         "year's dates, so check them when they come out."
     ),
     "graduation_estimated": (
@@ -213,7 +213,7 @@ def build_roadmap(
         capstone = _capstone_phases(ctx, anchors, queue, cursor)
         phases += capstone
         if capstone and cycle.projected:
-            notes.append(_NOTES["projected"].format(year=cycle.year))
+            notes.append(_NOTES["projected"].format(year=cycle.year, reference=calendar.REFERENCE_CYCLE_YEAR))
     elif ctx.capstone_intent in _NO_INTERNSHIP_INTENTS:
         notes.append(_NOTES[ctx.capstone_intent])
     else:

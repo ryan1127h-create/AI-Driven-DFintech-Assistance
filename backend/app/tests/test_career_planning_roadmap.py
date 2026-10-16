@@ -40,7 +40,7 @@ def _actions(roadmap):
 
 def test_a_current_student_graduating_dec_2027_does_the_2027_capstone():
     a = anchors.resolve(_ctx(stage="current", expected_grad_term="AY2027/28 Sem1"))
-    assert not a.pre_programme and a.cycle.year == 2027 and a.cycle.projected
+    assert not a.pre_programme and a.cycle.year == 2027 and not a.cycle.projected
     assert a.graduation.label == "AY2027/28 Sem1" and not a.graduation_estimated
 
 
@@ -75,13 +75,13 @@ def test_a_current_students_roadmap_runs_from_build_up_through_job_search():
     assert (applications.start, applications.end) == (date(2026, 12, 1), date(2027, 3, 31))
     assert [m.kind for m in applications.milestones] == [
         "capstone_applications_open", "capstone_applications_close", "capstone_offers_by"]
-    assert all(m.projected for m in applications.milestones)
-    assert (internship.start, internship.end) == (date(2027, 5, 18), date(2027, 10, 16))
+    assert not any(m.projected for m in applications.milestones)
+    assert (internship.start, internship.end) == (date(2027, 5, 17), date(2027, 10, 15))
     # Right after graduating (the default): 4 months before the term ends, 3 after.
     assert (search.start, search.end) == (date(2027, 9, 1), date(2028, 3, 31))
     assert search.milestones[0].kind == "graduation"
     assert roadmap.capstone_cycle_year == 2027
-    assert any("2027 Capstone dates" in n for n in roadmap.notes)
+    assert not any("Capstone dates" in n for n in roadmap.notes)  # the 2027 dates are published
 
 
 def test_gaps_come_missing_first_and_unknown_skills_ask_for_evidence():
@@ -122,7 +122,7 @@ def test_once_applications_close_an_internship_is_only_planned_if_secured():
                                          internship_status="secured"), GAPS)
     assert _kinds(unsure) == ["job_search"]
     assert _kinds(secured) == ["capstone_internship", "job_search"]
-    assert secured.phases[0].start == date(2027, 5, 18)
+    assert secured.phases[0].start == date(2027, 5, 17)
 
 
 def test_gaps_left_over_join_the_first_phase():

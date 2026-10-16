@@ -1,103 +1,97 @@
 """
-Fixed-topic registry for Knowledge QA: one role prompt + soft topic-boost
-per topic (retrieval_scope() tells the caller how to retrieve). The caller
-retrieves and passes the context in.
+Knowledge QA for the four fixed topics (admissions, academic, financial,
+faq): one advisor prompt with a per-topic focus, a soft retrieval boost
+per topic (retrieval_scope() tells the caller how to retrieve), and a
+check of the answer's figures.
+
+No programme fact is written into the prompts: every figure comes from
+what the caller passes in — the current facts block (facts.py) and the
+retrieved reference material — so a new intake's fees or dates only need
+the catalogue and the knowledge base updated.
+
+An answer is streamed, then checked (guardrail.py). One that cites a
+figure or date neither source holds is generated once more, silently,
+with the problem spelled out; if that still fails, a reply that points to
+the official pages replaces it. The client swaps the streamed draft for
+the final text.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.domains.specialist.knowledge_qa import qa_agent
+from app.core.logging import get_logger
+from app.domains.specialist.knowledge_qa import guardrail, qa_agent
+from app.domains.specialist.knowledge_qa.facts import ENQUIRY_URL
 from app.domains.specialist.knowledge_qa.qa_agent import OnEvent
+
+logger = get_logger(__name__)
+
+_ADVISOR = """\
+You are the {role} for the NUS Master of Science in Digital Financial Technology \
+(MSc DFT, also written MSc DFinTech) programme.
+
+Your focus:
+{focus}"""
 
 
 @dataclass(frozen=True)
 class _TopicSpec:
-    role_prompt: str
-    boost_topics: set[str]
+    role: str
+    focus: str
+    boost_topics: frozenset[str]
 
 
 _TOPICS: dict[str, _TopicSpec] = {
     "admissions": _TopicSpec(
-        role_prompt="""\
-You are the Admissions Advisor for the NUS Master of Science in Digital \
-Financial Technology (MSc DFT) programme.
-
-Your expertise covers:
-- Academic admission requirements (bachelor's degree, STEM / Finance / Economics \
-backgrounds)
-- Work experience and programming proficiency expectations
-- Standardised test guidelines (GRE, GMAT) and English proficiency requirements \
-(TOEFL, IELTS)
-- Application method, application fee, opening and closing dates, and outcome timelines
-- The NUS Graduate Admission System
-
-Official information sources (cite when helpful):
-{official_sources}
-""",
-        boost_topics={"admissions"},
+        "Admissions Advisor",
+        "- Who can apply: degree background, programming and quantitative preparation, work experience\n"
+        "- Test scores: GRE/GMAT, TOEFL/IELTS\n"
+        "- How and when to apply: the application portal, documents, application fee, opening and "
+        "closing dates, outcome timing, offer acceptance",
+        frozenset({"admissions"}),
     ),
     "academic": _TopicSpec(
-        role_prompt="""\
-You are the Academic Advisor for the NUS Master of Science in Digital \
-Financial Technology (MSc DFT) programme.
-
-Your expertise covers:
-- Programme structure: total units (52), core courses, elective courses, and \
-the FT5007 Capstone Project
-- Individual course descriptions, semester availability, prerequisites, and \
-preclusions
-- The three elective tracks: Computing Technologies; Financial Data Analytics \
-and Intelligence; Digital Financial Transactions and Risk Management
-- Suggested full-time (1.5-year) and part-time (2.5-year) course plans
-- Graduation requirements (minimum GPA 3.0, all programme requirements fulfilled)
-- Core course replacement and waiver options
-- Workload limits per semester for full-time and part-time students
-
-Official information source (cite when helpful):
-- NUS MSc DFinTech Programme Information: https://www.comp.nus.edu.sg/programmes/pg/mdft/
-- Live course availability: https://nusmods.com
-""",
-        boost_topics={"academic"},
+        "Academic Advisor",
+        "- Programme structure: units, core and elective courses, the capstone project or internship\n"
+        "- Individual courses: content, prerequisites, preclusions, when they run (nusmods.com has live "
+        "availability)\n"
+        "- Course plans for full-time and part-time study, workload limits, continuation and "
+        "graduation requirements, course replacement and waivers",
+        frozenset({"academic"}),
     ),
     "financial": _TopicSpec(
-        role_prompt="""\
-You are the Financial Advisor for the NUS Master of Science in Digital \
-Financial Technology (MSc DFT) programme.
-
-Your expertise covers:
-- Tuition fees (S$74,120 for up to 52 units) and the acceptance fee (S$7,412)
-- NUS Master's Degree by Coursework Enhanced Tuition Fee Rebate: eligibility \
-(Singapore Citizens and PRs only), rebate amount (40%), and key conditions
-- Singapore Digital (SG Digital) Scholarship: coverage, eligibility, bond \
-obligations, and study tracks
-- NUS GRTII Master's Scholarship: amount (S$45,000 lump sum), eligibility, \
-bond obligations, disbursement process, and application steps
-- General guidance on comparing financial options and where to seek further help
-
-Official information source (cite when helpful):
-- NUS MSc DFinTech Fees and Scholarships: https://www.comp.nus.edu.sg/programmes/pg/mdft/scholarships/
-""",
-        boost_topics={"financial"},
+        "Financial Advisor",
+        "- Tuition and other fees, and how they are paid\n"
+        "- Tuition fee rebates and scholarships: who qualifies, amounts, bonds, how to apply\n"
+        "- Where to find further financial help",
+        frozenset({"financial"}),
     ),
     "faq": _TopicSpec(
-        role_prompt="""\
-You are the General Programme Assistant for the NUS Master of Science in \
-Digital Financial Technology (MSc DFT) programme.
-
-Your expertise covers general programme information that doesn't fit a more \
-specific category — student life, frequently asked questions, and other \
-miscellaneous programme details.
-
-If a question turns out to be specifically about admissions requirements, \
-tuition/scholarships, course curriculum, career pathways, or comparisons with \
-other universities, answer it if the reference material covers it, but keep in \
-mind a more specialised advisor may give a more complete answer.
-""",
-        boost_topics={"faq"},
+        "General Programme Assistant",
+        "- General programme questions that fit no narrower topic: student life, visas and "
+        "accommodation, part-time work, and other practical matters\n"
+        "- If a question is really about admissions, fees, courses or careers, answer it from the "
+        "material all the same",
+        frozenset({"faq"}),
     ),
 }
+
+_CORRECTION = """
+
+A previous draft of this answer was rejected: {problems}. Use only the figures and \
+dates that appear in the CURRENT PROGRAMME FACTS or the REFERENCE MATERIAL, exactly as \
+written, or one-step calculations on them with the working shown (both figures and \
+the result); leave out anything else."""
+
+_UNVERIFIED_REPLY = (
+    "I couldn't confirm every detail of this answer against the official programme information, "
+    "so rather than risk giving you a wrong figure, please check the official pages:\n\n"
+    "- Programme website: {official_url}\n"
+    "- Enquiries: {enquiry_url}"
+)
+
+_OFFICIAL_URL = "https://www.comp.nus.edu.sg/programmes/pg/mdft/"
 
 
 def retrieval_scope(topic: str) -> set[str]:
@@ -107,12 +101,30 @@ def retrieval_scope(topic: str) -> set[str]:
 
 def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
-    *, context: str | None, official_sources: str, on_event: OnEvent | None = None,
+    *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
     depth: str | None = None,
 ) -> str:
-    """Answers for one of the four fixed topics above from the caller's
-    retrieved `context`; `official_sources` fills the admissions prompt's
-    source list."""
-    role_prompt = _TOPICS[topic].role_prompt.replace("{official_sources}", official_sources)
-    return qa_agent.answer(role_prompt, user_message, chat_history, context=context, on_event=on_event, depth=depth)
+    """Answers for one of the four fixed topics from the current `facts`
+    block and the retrieved `context` (either may be None)."""
+    if not user_message:
+        return "I couldn't identify your question. Could you please rephrase it?"
+    spec = _TOPICS[topic]
+    role_prompt = _ADVISOR.format(role=spec.role, focus=spec.focus)
+    sources = f"{facts or ''}\n{context or ''}"
 
+    reply = qa_agent.answer(role_prompt, user_message, chat_history,
+                            context=context, facts=facts, on_event=on_event, depth=depth)
+    problems = guardrail.check(reply, sources, user_message)
+    if not problems:
+        return reply
+
+    logger.warning("knowledge qa (%s) answer failed the check, regenerating: %s", topic, problems)
+    reply = qa_agent.answer(role_prompt + _CORRECTION.format(problems="; ".join(problems)), user_message,
+                            chat_history, context=context, facts=facts, on_event=None, depth=depth)
+    problems = guardrail.check(reply, sources, user_message)
+    if not problems:
+        return reply
+
+    logger.warning("knowledge qa (%s) answer failed the check twice, pointing to the official pages: %s",
+                   topic, problems)
+    return _UNVERIFIED_REPLY.format(official_url=_OFFICIAL_URL, enquiry_url=ENQUIRY_URL)
