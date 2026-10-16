@@ -24,15 +24,16 @@ def _escalation_row(row: dict) -> dict:
         "createdDate": row["created_at"].strftime("%d %b %Y") if row.get("created_at") else "—",
         "createdTime": row["created_at"].strftime("%H:%M") if row.get("created_at") else "—",
         "resolvedAt": row["resolved_at"].isoformat() if row.get("resolved_at") else None,
-        "resolvedBy": str(row["resolved_by"]) if row.get("resolved_by") else None,
+        "resolvedBy": row.get("resolved_by_name") or (str(row["resolved_by"]) if row.get("resolved_by") else None),
         "resolutionNotes": None,
     }
 
 
 def list_escalations() -> dict:
     rows = reporting_db.fetch_all_dict("""
-        select c.*, a.email, a.full_name
+        select c.*, a.email, a.full_name, coalesce(ra.full_name, ra.email) as resolved_by_name
           from chat.cases c left join account.accounts a on a.user_id = c.user_id
+          left join account.accounts ra on ra.user_id = c.resolved_by
          order by c.created_at desc
     """)
     stats = reporting_db.fetch_one_dict("""
@@ -64,8 +65,9 @@ def list_escalations() -> dict:
 
 def get_escalation(case_id: str) -> dict | None:
     row = reporting_db.fetch_one_dict("""
-        select c.*, a.email, a.full_name
+        select c.*, a.email, a.full_name, coalesce(ra.full_name, ra.email) as resolved_by_name
           from chat.cases c left join account.accounts a on a.user_id = c.user_id
+          left join account.accounts ra on ra.user_id = c.resolved_by
          where c.id = %s
     """, (case_id,))
     return _escalation_row(row) if row else None
@@ -316,8 +318,7 @@ def fetch_overview(days: int = 7) -> dict:
         (days,),
     )
     applications = reporting_db.fetch_all_dict(
-        "select coalesce(status, '<unknown>') as status, count(*)::int as total from sis.applications where submission_date >= now() - (%s * interval '1 day') group by status order by status",
-        (days,),
+        "select coalesce(status, '<unknown>') as status, count(*)::int as total from sis.applications group by status order by status",
     )
     checklist = reporting_db.fetch_one_dict(
         "select count(*)::int as total, count(*) filter (where submitted)::int as submitted, count(*) filter (where not submitted)::int as outstanding from sis.application_checklist_items"
@@ -346,11 +347,9 @@ def fetch_overview(days: int = 7) -> dict:
         select 'application' as type, application_id::text as id,
                status as detail, updated_at
           from sis.applications
-         where updated_at >= now() - (%s * interval '1 day')
          order by updated_at desc nulls last
          limit 5
-        """,
-        (days,),
+        """
     )
     return {
         "users": users or {"total": 0, "active": 0},
