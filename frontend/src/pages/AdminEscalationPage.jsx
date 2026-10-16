@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
@@ -151,7 +152,8 @@ function mailto(caseItem) {
 function CaseDrawer({
   caseItem,
   onClose,
-  onResolve
+  onResolve,
+  onViewUser
 }) {
   return (
     <>
@@ -183,7 +185,6 @@ function CaseDrawer({
           <section className="detail-section">
             <div className="section-title">Case Information</div>
             <div className="info-grid">
-              <Info label="Case ID" value={caseItem.id} wide mono />
               <Info label="Category" value={caseItem.category} />
               <Info
                 label="Priority"
@@ -217,10 +218,13 @@ function CaseDrawer({
                   <Icon name="mail" size={16} />
                   Reply via Outlook
                 </a>
-                <FeatureButton variant="secondary">
+                {caseItem.user_id ? <Link className="feature-button feature-button-secondary" to={`/admin/users/${caseItem.user_id}`}>
                   <Icon name="user" size={16} />
                   View User Profile
-                </FeatureButton>
+                </Link> : <FeatureButton variant="secondary" disabled>
+                  <Icon name="user" size={16} />
+                  View User Profile
+                </FeatureButton>}
               </div>
             </div>
           </section>
@@ -392,6 +396,7 @@ function LoadingRows() {
 }
 
 export default function App() {
+  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("All")
@@ -717,6 +722,7 @@ export default function App() {
           caseItem={selected}
           onClose={() => setSelected(null)}
           onResolve={() => setResolveConfirm(true)}
+          onViewUser={() => navigate(`/admin/users/${caseItem.user_id}`)}
         />
       )}
       {resolveConfirm && (
