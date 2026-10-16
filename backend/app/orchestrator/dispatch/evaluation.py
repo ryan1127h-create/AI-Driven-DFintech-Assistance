@@ -119,6 +119,17 @@ def _skips_evaluation(tool_name: str) -> bool:
         return False
 
 
+def will_evaluate(tool_name: str, draft: ToolAnswer) -> bool:
+    """Whether evaluate_and_fix() would judge this draft: not when the tool
+    already asks for clarification, opted out with skip_evaluation, or the
+    setting is off."""
+    return (
+        not draft.needs_clarification
+        and settings.enable_answer_evaluation
+        and not _skips_evaluation(tool_name)
+    )
+
+
 def evaluate_and_fix(
     tool_name: str, state: TurnState, user_message: str, draft: ToolAnswer, on_event: OnEvent | None,
 ) -> ToolAnswer:
@@ -137,11 +148,7 @@ def evaluate_and_fix(
     that it's short of what it needs (see app/tools/contracts.py::
     ToolAnswer.needs_clarification) — when the tool opted out with
     skip_evaluation, or when the setting is off."""
-    if (
-        draft.needs_clarification
-        or not settings.enable_answer_evaluation
-        or _skips_evaluation(tool_name)
-    ):
+    if not will_evaluate(tool_name, draft):
         return draft
 
     try:

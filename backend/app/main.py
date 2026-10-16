@@ -57,6 +57,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # The chat client reads it on a 423 to know when to send again.
+    expose_headers=["Retry-After"],
 )
 
 app.include_router(v1_router)

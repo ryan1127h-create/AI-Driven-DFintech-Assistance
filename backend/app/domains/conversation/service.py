@@ -31,8 +31,11 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, messag
 from app.adapters.deepseek_adapter import llm
 from app.core.config import settings
 from app.core.errors import ForbiddenError, NotFoundError, ValidationError
+from app.core.logging import get_logger
 from app.domains.conversation.models import ConversationState, HistoryBlock
 from app.domains.conversation.repository import get_session_store
+
+logger = get_logger(__name__)
 
 _SUMMARY_PROMPT = """\
 Summarize the following portion of a conversation between a user and the \
@@ -197,8 +200,8 @@ def summarize_block(messages: list[BaseMessage], turn_log: list[dict] | None = N
         # max_tokens is generous relative to the desired 2-4 sentence
         # summary as a safety margin against truncation.
         return llm.complete(_SUMMARY_PROMPT, transcript, temperature=0, max_tokens=1000).strip()
-    except Exception as exc:
-        print(f"[conversation.service] Warning: summarize_block failed — {exc}")
+    except Exception:
+        logger.exception("summarizing a history block failed")
         return "(summary unavailable for this portion of the conversation)"
 
 
@@ -238,8 +241,8 @@ def freeze_and_unlock(session_id: str) -> None:
     store = get_session_store()
     try:
         state = store.get_state(session_id)
-    except Exception as exc:
-        print(f"[conversation.service] Warning: freeze_and_unlock failed to read state — {exc}")
+    except Exception:
+        logger.exception("freeze: reading the conversation state failed")
         return  # nothing safe to write back; the TTL will recover the lock
 
     try:
@@ -274,13 +277,13 @@ def freeze_and_unlock(session_id: str) -> None:
             state.raw_tail = state.raw_tail[n_msgs:]
             state.history_summaries = state.history_summaries + [block]
             state.pending_turn_intents = remaining_intents
-    except Exception as exc:
-        print(f"[conversation.service] Warning: freeze_and_unlock failed — {exc}")
+    except Exception:
+        logger.exception("freeze: archiving the history block failed")
     finally:
         try:
             store.unlock_after_freeze(session_id, state)
-        except Exception as exc:
-            print(f"[conversation.service] Warning: freeze_and_unlock failed to unlock — {exc}")
+        except Exception:
+            logger.exception("freeze: releasing the lock failed")
 
 
 # ---- read-side: listing, full transcript, rollback -------------------------
@@ -302,8 +305,7 @@ def _check_conversation(state: ConversationState, session_id: str, user_id: str)
 
 def list_conversations(user_id: str) -> list[dict]:
     """All of `user_id`'s conversations, most recently active first — see
-    ConversationStore.list_sessions() for the exact shape. Backends with no
-    per-user index (redis) return an empty list rather than raising."""
+    ConversationStore.list_sessions() for the exact shape."""
     return get_session_store().list_sessions(user_id)
 
 

@@ -317,3 +317,15 @@ def test_general_chat_is_given_the_programmes_current_facts(monkeypatch):
 def test_knowledge_qa_answers_skip_the_draft_evaluation():
     from app.tools.specialist.knowledge_qa_tool import ADMISSIONS_TOOL, FAQ_TOOL
     assert ADMISSIONS_TOOL.skip_evaluation and FAQ_TOOL.skip_evaluation
+
+
+def test_the_evaluating_step_is_shown_only_when_a_draft_is_evaluated(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(Tool(name="checked", description="c", input_model=_Input, skip_evaluation=True,
+                      handler=lambda inp, on_event=None: ToolAnswer(text="ok", agent_used="checked"),
+                      trigger_intents=frozenset({"c"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    events = []
+    dispatch.execution.run_tools(["checked"], _state(), events.append)
+    assert not any(e.get("stage") == "evaluating" for e in events)
+    assert not dispatch.evaluation.will_evaluate("checked", ToolAnswer(text="ok"))

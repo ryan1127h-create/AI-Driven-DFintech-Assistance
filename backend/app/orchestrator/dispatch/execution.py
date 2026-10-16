@@ -31,7 +31,7 @@ def run_tools(tool_names: list[str], state: TurnState, on_event: OnEvent | None)
         if on_event is not None:
             on_event({"type": "step", "stage": "answering", "agent": name})
         draft = contracts.registry.invoke_typed(name, state, on_event=on_event)
-        if on_event is not None:
+        if on_event is not None and evaluation.will_evaluate(name, draft):
             on_event({"type": "step", "stage": "evaluating", "agent": name})
         return evaluation.evaluate_and_fix(name, state, user_message, draft, on_event)
 
@@ -108,7 +108,7 @@ def run_and_merge(
     # single-tool case above, just fanned out. A branch that already
     # failed/timed out is left untouched: it's already an honest
     # placeholder, nothing to check.
-    if on_event is not None:
+    if on_event is not None and any(evaluation.will_evaluate(name, results[name]) for name in tool_names):
         on_event({"type": "step", "stage": "evaluating"})
     eval_pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(tool_names))
     eval_future_to_name = {
