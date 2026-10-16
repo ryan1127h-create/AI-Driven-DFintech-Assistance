@@ -126,9 +126,12 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
             try:
                 answer = execution.run_tools(tool_names, state, on_event)
                 # Offered under a real answer only — not under an error or
-                # a clarifying question.
+                # a clarifying question. A tool that settled its own card
+                # (it knows, after reading the message, what is still open)
+                # keeps it.
                 if not answer.needs_clarification:
-                    answer = replace(answer, supplement_card=requirements.build_supplement_card(gate))
+                    answer = replace(answer, supplement_card=answer.supplement_card
+                                     or requirements.build_supplement_card(gate))
             except Exception:
                 logger.exception("turn failed entirely (tools=%s)", tool_names)
                 answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")

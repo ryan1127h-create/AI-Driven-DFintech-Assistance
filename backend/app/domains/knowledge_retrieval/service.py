@@ -29,16 +29,6 @@ from app.domains.knowledge_retrieval.models import Hit
 
 logger = get_logger(__name__)
 
-# Official source URLs cited by both knowledge_qa's admissions topic and the
-# assessment domain's readiness-assessment prompt — lives here (the common
-# dependency both already sit above) rather than in either specialist
-# domain, so neither has to import the other just for this constant.
-ADMISSIONS_OFFICIAL_SOURCES = """\
-- NUS MSc DFinTech Programme Information : https://www.comp.nus.edu.sg/programmes/pg/mdft/
-- NUS MSc DFinTech Application Information: https://www.comp.nus.edu.sg/programmes/pg/mdft/application/
-- NUS MSc DFinTech Fees and Scholarships  : https://www.comp.nus.edu.sg/programmes/pg/mdft/scholarships/
-"""
-
 # RRF weights: semantic-first, keyword as a booster for codes/numbers that
 # embeddings tend to blur together (e.g. FT5005 vs FT5009).
 W_SEMANTIC = 0.8

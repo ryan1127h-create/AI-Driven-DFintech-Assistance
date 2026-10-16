@@ -474,6 +474,13 @@ def get_facts_for_purpose(user_id: str, purpose: str) -> dict:
     return facts
 
 
+def get_fact_sources_for_purpose(user_id: str, purpose: str) -> dict[str, str]:
+    """{field_key: source} for the facts get_facts_for_purpose() returns."""
+    facts = get_facts_for_purpose(user_id, purpose)
+    entries = repository.get_profile_for_purpose(user_id, purpose)
+    return {key: entries[key]["source"] for key in facts if key in entries}
+
+
 def describe_value(field_key: str, value) -> str:
     """A field value as English display text (option labels, the names
     of role tags and programmes), e.g. code_level 3 -> "Has built a

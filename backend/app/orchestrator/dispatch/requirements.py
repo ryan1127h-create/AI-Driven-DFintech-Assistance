@@ -10,7 +10,7 @@ declared input_needs for the current TurnState and sorts them by level
     optional ones may be skipped; skipping re-sends the message with them
     declined.
   - supplementary ones never block: the tools run, and up to
-    MAX_SUPPLEMENTARY of them are offered in a card under the answer.
+    two of them (quick_fill.MAX_SUPPLEMENTARY) are offered in a card under the answer.
 
 Blocking is all-or-nothing over the WHOLE batch routing.py matched, not
 per tool: letting some tools spend a real domain/LLM call while another is
@@ -33,15 +33,12 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.tools import contracts
 from app.tools.contracts import MissingInputField, ToolAnswer
+from app.tools.quick_fill import supplement_card
 from app.tools.turn_context import TurnState
 
 logger = get_logger(__name__)
 
 
-# The most supplementary fields offered under one answer.
-MAX_SUPPLEMENTARY = 2
-
-_SUPPLEMENTARY_REASON = "A couple more details would help me tailor this to you (optional)."
 
 
 @dataclass(frozen=True)
@@ -145,7 +142,4 @@ def _blocking_card(missing: tuple[MissingInputField, ...], reason: str) -> dict 
 def build_supplement_card(result: RequirementsResult) -> dict | None:
     """The non-blocking card under an answer: at most MAX_SUPPLEMENTARY
     supplementary profile fields."""
-    fields = [item for item in result.supplementary if item.field_key][:MAX_SUPPLEMENTARY]
-    if not fields:
-        return None
-    return {"kind": "quick_fill", "level": "supplementary", "reason": _SUPPLEMENTARY_REASON, "fields": _fields(fields)}
+    return supplement_card(list(result.supplementary))

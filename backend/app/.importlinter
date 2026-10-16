@@ -251,3 +251,53 @@ forbidden_modules =
     app.adapters.profile_db_adapter
     app.adapters.knowledge_db_adapter
     app.adapters.program_db_adapter
+
+; assessment's internal structure (see its workflow.py). The domain is pure
+; computation: no adapter at all, not even the LLM - the hard conditions,
+; soft factors and verdict are deterministic.
+[importlinter:contract:assessment-domain-pure]
+name = assessment domain uses no adapter
+type = forbidden
+source_modules =
+    app.domains.specialist.assessment
+forbidden_modules =
+    app.adapters
+
+; The two stages read the facts and policy; only workflow.py sequences them.
+[importlinter:contract:assessment-stages-independent]
+name = assessment stages do not import each other
+type = independence
+modules =
+    app.domains.specialist.assessment.stages.hard
+    app.domains.specialist.assessment.stages.soft
+
+[importlinter:contract:assessment-policy-leaf]
+name = assessment policy depends on nothing in its domain
+type = forbidden
+source_modules =
+    app.domains.specialist.assessment.policy
+forbidden_modules =
+    app.domains.specialist.assessment.contracts
+    app.domains.specialist.assessment.interface
+    app.domains.specialist.assessment.models
+    app.domains.specialist.assessment.stages
+    app.domains.specialist.assessment.workflow
+
+; In the assessment tool only s2_assembly/prefetch.py reads the profile or
+; the programme catalogue; understanding works from the message alone, the
+; builder and the presentation from what prefetch gathered.
+[importlinter:contract:assessment-tool-io-boundary]
+name = assessment tool reads data only in prefetch
+type = forbidden
+source_modules =
+    app.tools.specialist.assessment.s1_understanding
+    app.tools.specialist.assessment.s2_assembly.builder
+    app.tools.specialist.assessment.s2_assembly.prefetched
+    app.tools.specialist.assessment.s7_presentation
+forbidden_modules =
+    app.domains.knowledge_retrieval
+    app.domains.profile
+    app.domains.program_catalog
+    app.adapters.postgres_pool
+    app.adapters.profile_db_adapter
+    app.adapters.program_db_adapter

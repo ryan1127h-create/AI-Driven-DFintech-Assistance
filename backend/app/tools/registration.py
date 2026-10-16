@@ -14,7 +14,7 @@ real trigger_intents and is reachable via intent classification.
 from __future__ import annotations
 
 from app.tools.contracts import registry
-from app.tools.specialist.assessment_tool import ASSESSMENT_TOOL
+from app.tools.specialist.assessment.tool import ASSESSMENT_TOOL
 from app.tools.specialist.career_planning import CAREER_TOOL
 from app.tools.specialist.course_recommendation import COURSE_RECOMMENDATION_TOOL
 from app.tools.specialist.knowledge_qa_tool import ACADEMIC_TOOL, ADMISSIONS_TOOL, FAQ_TOOL, FINANCIAL_TOOL

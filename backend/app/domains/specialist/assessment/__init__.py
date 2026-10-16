@@ -1,8 +1,6 @@
 """
-Assessment — provides a structured, personalised Application Readiness
-Assessment for a prospective applicant, from their shared academic/
-professional background plus broad (unscoped) context pulled from the
-shared knowledge base. Unlike knowledge_qa's four fixed topics, this is a
-single bespoke capability with its own long, highly structured prompt —
-not a case of "same mechanism, different role prompt".
+Assessment — MSc DFT application readiness: the hard conditions an
+application must meet and the soft factors that decide how competitive it
+is, decided by code from the applicant's facts and the programme's checked
+requirements. Import from interface.py only.
 """
