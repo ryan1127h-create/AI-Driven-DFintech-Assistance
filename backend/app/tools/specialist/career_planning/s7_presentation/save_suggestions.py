@@ -3,7 +3,10 @@ S7 — profile facts the user stated this turn that their profile doesn't
 hold yet, offered under the reply for saving (see ToolAnswer
 .save_suggestions): the role they plan for, the roles they compare, when
 they'll look for work, their internship status and where they want to
-work. Only what the message itself said is offered.
+work. Only what the message itself said is offered, and only when the
+whole profile was read: list fields are offered as the stored list plus
+the new items, so a suggestion built on a profile that couldn't be read
+would replace what is stored.
 
 Pure function: it compares what S1 parsed with what S2 prefetched.
 """
@@ -15,6 +18,8 @@ from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetch
 
 
 def save_suggestions(parsed: ParsedCareerRequest, prefetched: Prefetched, mode: str) -> list[dict]:
+    if not prefetched.profile_read:
+        return []
     facts = prefetched.facts
     suggestions: list[dict] = []
 

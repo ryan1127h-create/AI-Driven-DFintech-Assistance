@@ -102,10 +102,11 @@ def prefetch(user_id: str | None) -> Prefetched:
         gaps = pool.submit(derived_readiness_gaps, user_id) if user_id else None
         consent = pool.submit(missing_purpose_consent, user_id, "career") if user_id else None
 
-        facts_value = _result(facts, {}, "the profile", notes, _PROFILE_UNAVAILABLE_NOTE)
+        facts_value = _result(facts, None, "the profile", notes, _PROFILE_UNAVAILABLE_NOTE)
         stage_value = _result(stage, None, "the lifecycle stage", notes)
         gaps_value = _result(gaps, [], "readiness gaps", notes)
-        if _result(consent, None, "consent", notes):
+        consent_missing = _result(consent, "unknown", "consent", notes)
+        if consent_missing and consent_missing != "unknown":
             notes.append(_CONSENT_OFF_NOTE)
         catalog_value = catalog.result(timeout=_READ_TIMEOUT_SECONDS)
         links_value = links.result(timeout=_READ_TIMEOUT_SECONDS)
@@ -113,16 +114,17 @@ def prefetch(user_id: str | None) -> Prefetched:
         pool.shutdown(wait=False)
 
     try:
-        labels = evidence_labels(facts_value)
+        labels = evidence_labels(facts_value or {})
     except Exception:
         logger.exception("career planning: labelling the profile facts failed, showing raw values")
         labels = {}
     return Prefetched(
         evidence_labels=labels,
-        facts=facts_value,
+        facts=facts_value or {},
         stage=stage_value,
         readiness_gaps=gaps_value,
         role_catalog=catalog_value,
         course_links=links_value,
         notes=tuple(dict.fromkeys(notes)),
+        profile_read=bool(user_id) and facts_value is not None and consent_missing is None,
     )

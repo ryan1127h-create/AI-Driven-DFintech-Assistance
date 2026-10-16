@@ -34,9 +34,9 @@ LABELS = {
 }
 
 
-def _prefetched(facts=FACTS) -> Prefetched:
+def _prefetched(facts=FACTS, profile_read=True) -> Prefetched:
     return Prefetched(facts=facts, stage="current", readiness_gaps=[], role_catalog=CATALOG,
-                      course_links=LINKS, evidence_labels=LABELS)
+                      course_links=LINKS, evidence_labels=LABELS, profile_read=profile_read)
 
 
 def _result(mode="plan", roles=("data_analytics",)):
@@ -174,6 +174,14 @@ def test_nothing_is_offered_when_the_profile_already_says_it():
     facts = {"main_target_role": "data_analytics", "internship_status": "secured"}
     assert save_suggestions(parsed, _prefetched(facts), "plan") == []
     assert save_suggestions(ParsedCareerRequest(roles=["data_analytics"]), _prefetched({}), "exploration") == []
+
+
+def test_nothing_is_offered_when_the_profile_was_not_read():
+    # No consent or a failed read leaves facts empty; offering ["GB"] or
+    # ["cybersecurity"] then would replace the lists actually stored.
+    parsed = ParsedCareerRequest(roles=["cybersecurity"], target_markets=["GB"], internship_status="secured")
+    for mode in ("plan", "compare"):
+        assert save_suggestions(parsed, _prefetched({}, profile_read=False), mode) == []
 
 
 # --- follow-up ---
