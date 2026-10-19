@@ -15,9 +15,18 @@ Usage:
 from __future__ import annotations
 
 from app.domains.auth import repository
-from app.domains.auth.service import get_current_user_id
+from app.domains.auth.service import delete_account, get_current_user_id, update_full_name
 
-__all__ = ["get_assistant_preferences", "get_current_user_id", "get_login_email"]
+__all__ = [
+    "delete_account", "get_assistant_preferences", "get_current_user_id",
+    "get_login_email", "is_admin", "update_full_name",
+]
+
+
+def is_admin(user_id: str) -> bool:
+    """True when the account exists, is active and has the admin role."""
+    account = repository.get_account(user_id)
+    return bool(account) and account.get("role") == "admin" and account.get("account_status") == "active"
 
 
 def get_login_email(user_id: str) -> str | None:

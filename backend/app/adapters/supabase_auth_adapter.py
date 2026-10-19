@@ -48,6 +48,9 @@ class SupabaseAuthAdapter(AuthPort):
             user_id, {"user_metadata": {"full_name": full_name}}
         )
 
+    def delete_user(self, user_id: str) -> None:
+        self._get_admin_client().auth.admin.delete_user(user_id)
+
     def sign_in(self, email: str, password: str) -> AuthSession:
         try:
             response = self._get_anon_client().auth.sign_in_with_password({

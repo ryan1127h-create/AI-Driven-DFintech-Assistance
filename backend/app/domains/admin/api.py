@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.domains.admin import service
-from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList
+from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate
 from app.domains.auth.interface import get_current_user_id
 
 router = APIRouter(prefix="/admin")
@@ -18,8 +18,8 @@ def get_admin_escalation(case_id: str, user_id: str = Depends(get_current_user_i
 
 
 @router.patch("/escalations/{case_id}", response_model=AdminEscalationCase)
-def update_admin_escalation(case_id: str, payload: dict, user_id: str = Depends(get_current_user_id)):
-    return service.update_escalation(user_id, case_id, payload)
+def update_admin_escalation(case_id: str, update: AdminEscalationUpdate, user_id: str = Depends(get_current_user_id)):
+    return service.resolve_escalation(user_id, case_id)
 
 
 @router.get("/overview", response_model=AdminOverview)
@@ -59,7 +59,8 @@ def get_admin_application(application_id: str, user_id: str = Depends(get_curren
 
 @router.patch("/applications/{application_id}")
 def update_admin_application(application_id: str, update: AdminApplicationUpdate, user_id: str = Depends(get_current_user_id)):
-    return service.update_application(user_id, application_id, update.model_dump(exclude_none=True))
+    # exclude_unset, not exclude_none: an explicit null clears final_decision.
+    return service.update_application(user_id, application_id, update.model_dump(exclude_unset=True))
 
 
 @router.patch("/checklist/{item_id}")
@@ -87,11 +88,6 @@ def list_admin_knowledge(search: str = "", main_table: str = "all", user_id: str
     return service.list_knowledge(user_id, search, main_table)
 
 
-@router.patch("/knowledge/{category}/{item_id}")
-def update_admin_knowledge(category: str, item_id: str, update: AdminKnowledgeUpdate, user_id: str = Depends(get_current_user_id)):
-    return service.update_knowledge(user_id, item_id, category, update.model_dump(exclude_none=True))
-
-
 @router.get("/knowledge/courses/{course_code}")
 def get_admin_knowledge_course(course_code: str, user_id: str = Depends(get_current_user_id)):
     return service.get_knowledge_course(user_id, course_code)
@@ -105,3 +101,10 @@ def update_admin_knowledge_course(course_code: str, update: AdminCourseUpdate, u
 @router.patch("/knowledge/courses/{course_code}/{relation}")
 def update_admin_knowledge_course_related(course_code: str, relation: str, payload: dict, user_id: str = Depends(get_current_user_id)):
     return service.update_knowledge_course_related(user_id, course_code, relation, payload.get("row", {}))
+
+
+# Declared after the /knowledge/courses/... routes: FastAPI matches in order,
+# and this pattern would otherwise capture PATCH /knowledge/courses/{code}.
+@router.patch("/knowledge/{category}/{item_id}")
+def update_admin_knowledge(category: str, item_id: str, update: AdminKnowledgeUpdate, user_id: str = Depends(get_current_user_id)):
+    return service.update_knowledge(user_id, item_id, category, update.model_dump(exclude_none=True))

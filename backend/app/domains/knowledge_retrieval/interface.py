@@ -15,6 +15,8 @@ Current consumers:
       with list_admissions_items() / explain_application_status().
     - profile reads the role tags (list_role_tags()) for validation and
       display names.
+    - admin calls reload_catalogue() after the staff console edits a
+      knowledge table.
 
 Usage:
     from app.domains.knowledge_retrieval.interface import retrieve, cited_sources
@@ -36,6 +38,7 @@ from app.domains.knowledge_retrieval.service import (
     list_curriculum_rules,
     list_role_tags,
     match_role_tag,
+    reload_catalogue,
     retrieve,
     warm_cache,
 )
@@ -55,5 +58,6 @@ __all__ = [
     "list_role_tags",
     "get_role_profile",
     "match_role_tag",
+    "reload_catalogue",
     "warm_cache",
 ]

@@ -38,6 +38,11 @@ class AuthPort(Protocol):
         """Updates the name kept in the provider's user metadata."""
         ...
 
+    def delete_user(self, user_id: str) -> None:
+        """Deletes the provider's user. The account row and everything that
+        references it go with it through ON DELETE CASCADE."""
+        ...
+
     def sign_in(self, email: str, password: str) -> AuthSession:
         """Verifies the password and returns a new session. Raises
         AuthenticationError for invalid credentials."""

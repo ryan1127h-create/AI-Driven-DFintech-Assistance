@@ -136,6 +136,16 @@ def update_full_name(user_id: str, full_name: str) -> UserOut:
     return get_user(user_id)
 
 
+def delete_account(user_id: str) -> None:
+    """Deletes the Supabase user, which cascades to the account row and
+    every row that references it. Deleting only the account row would leave
+    a Supabase user that can still sign in and whose email can never be
+    registered again."""
+    if repository.get_account(user_id) is None:
+        raise NotFoundError("User not found.")
+    auth_provider.delete_user(user_id)
+
+
 def get_settings(user_id: str) -> dict:
     settings_row = repository.get_settings(user_id)
     if settings_row is None:

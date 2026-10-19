@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class AdminStat(BaseModel):
@@ -57,9 +58,19 @@ class AdminUserList(BaseModel):
 
 
 class AdminUserUpdate(BaseModel):
-    full_name: str | None = None
+    full_name: str | None = Field(default=None, max_length=255)
     account_status: str | None = None
     role: str | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("full_name can't be blank")
+        return value
 
 
 class AdminApplication(BaseModel):
@@ -103,11 +114,19 @@ class AdminEscalationCase(BaseModel):
     priority: str
     summary: str
     status: str
+    createdAt: str | None = None
     createdDate: str
     createdTime: str
     resolvedAt: str | None = None
     resolvedBy: str | None = None
     resolutionNotes: str | None = None
+
+
+class AdminEscalationUpdate(BaseModel):
+    # Resolving is the only change the console makes to a case; the notes
+    # are accepted but not stored yet (chat.cases has no column for them).
+    status: Literal["Resolved"]
+    resolution_notes: str | None = None
 
 
 class AdminEscalationCaseList(BaseModel):
@@ -128,5 +147,5 @@ class AdminCourseUpdate(BaseModel):
     title: str | None = None
     annex_section: str | None = None
     annex_intake: str | None = None
-    module_credit: int | None = None
+    module_credit: float | None = None
     status: str | None = None

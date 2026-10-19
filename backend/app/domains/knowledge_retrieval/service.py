@@ -350,6 +350,14 @@ def _split_requirements(text: str | None) -> tuple[str | None, str | None]:
     return " | ".join(prereqs) or None, "; ".join(coreqs) or None
 
 
+def reload_catalogue() -> None:
+    """Drops this process's cached copy of the knowledge tables after the
+    staff console edits them. Only the structured tables are re-read: the
+    retrieval chunks (and their embeddings) were built from those rows
+    offline and are not rebuilt here."""
+    knowledge_db.invalidate()
+
+
 def warm_cache() -> None:
     """Loads the cached catalogue tables (courses, chunks, course tags,
     role tags, electives) so the first request in a process doesn't pay

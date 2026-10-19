@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from app.adapters.postgres_pool import SchemaDB, pool
-
-# Reporting queries intentionally span schemas. This adapter is read-only and
-# keeps the admin dashboard independent from the ownership adapters used by
-# transactional domains.
-reporting_db = SchemaDB("admin_reporting", pool)
+from app.adapters.admin_reporting_db_adapter import reporting_db
 
 
 def _escalation_row(row: dict) -> dict:
@@ -21,6 +16,7 @@ def _escalation_row(row: dict) -> dict:
         "priority": (row.get("priority") or "normal").title(),
         "summary": row.get("summary") or "",
         "status": (row.get("status") or "open").title(),
+        "createdAt": row["created_at"].isoformat() if row.get("created_at") else None,
         "createdDate": row["created_at"].strftime("%d %b %Y") if row.get("created_at") else "—",
         "createdTime": row["created_at"].strftime("%H:%M") if row.get("created_at") else "—",
         "resolvedAt": row["resolved_at"].isoformat() if row.get("resolved_at") else None,
@@ -73,9 +69,12 @@ def get_escalation(case_id: str) -> dict | None:
     return _escalation_row(row) if row else None
 
 
-def update_escalation(case_id: str, changes: dict, resolved_by: str) -> dict | None:
-    if changes.get("status") == "Resolved":
-        reporting_db.execute("update chat.cases set status = 'resolved', resolved_at = now(), resolved_by = %s where id = %s", (resolved_by, case_id))
+def resolve_escalation(case_id: str, resolved_by: str) -> dict | None:
+    """Resolving an already-resolved case keeps its original resolver and time."""
+    reporting_db.execute(
+        "update chat.cases set status = 'resolved', resolved_at = now(), resolved_by = %s where id = %s and status <> 'resolved'",
+        (resolved_by, case_id),
+    )
     return get_escalation(case_id)
 
 
@@ -124,7 +123,7 @@ def get_user(user_id: str) -> dict | None:
 def update_user(user_id: str, changes: dict) -> dict | None:
     assignments = []
     values = []
-    for column in ("full_name", "account_status", "role"):
+    for column in ("account_status", "role"):
         if column in changes:
             assignments.append(f"{column} = %s")
             values.append(changes[column])
@@ -142,13 +141,6 @@ def update_user(user_id: str, changes: dict) -> dict | None:
     )
 
 
-def delete_user(user_id: str) -> bool:
-    row = reporting_db.execute_returning(
-        "delete from account.accounts where user_id = %s returning user_id", (user_id,)
-    )
-    return row is not None
-
-
 def list_applications() -> dict:
     items = reporting_db.fetch_all_dict("""
         select a.application_id::text, a.application_no, a.applicant_email,
@@ -158,7 +150,7 @@ def list_applications() -> dict:
                count(c.id)::int as checklist_total,
                count(c.id) filter (where c.submitted)::int as checklist_submitted
           from sis.applications a
-          left join account.accounts u on lower(u.email) = lower(a.applicant_email)
+          left join account.accounts u on u.user_id = a.user_id
           left join sis.application_checklist_items c on c.application_id = a.application_id
          group by a.application_id, a.application_no, a.applicant_email, u.user_id, u.full_name, u.email,
                   a.application_type, a.admission_term, a.submission_date, a.status, a.final_decision, a.updated_at
@@ -168,22 +160,37 @@ def list_applications() -> dict:
 
 
 def get_application(application_id: str) -> dict | None:
-    app = reporting_db.fetch_one_dict("select a.application_id::text, a.application_no, a.applicant_email, u.user_id::text as user_id, coalesce(nullif(u.full_name, ''), a.applicant_email) as user_name, a.application_type, a.admission_term, a.submission_date, a.status, a.final_decision, a.updated_at from sis.applications a left join account.accounts u on lower(u.email) = lower(a.applicant_email) where a.application_id = %s", (application_id,))
+    app = reporting_db.fetch_one_dict("select a.application_id::text, a.application_no, a.applicant_email, u.user_id::text as user_id, coalesce(nullif(u.full_name, ''), a.applicant_email) as user_name, a.application_type, a.admission_term, a.submission_date, a.status, a.final_decision, a.updated_at from sis.applications a left join account.accounts u on u.user_id = a.user_id where a.application_id = %s", (application_id,))
     if not app:
         return None
     app["checklist"] = reporting_db.fetch_all_dict("select id::text, item_key, submitted, updated_at from sis.application_checklist_items where application_id = %s order by item_key", (application_id,))
     return app
 
 
-def update_application(application_id: str, changes: dict) -> dict | None:
+def update_application(application_id: str, changes: dict, changed_by: str) -> dict | None:
+    """A status change also appends to the status history the student's
+    application tracker shows, in the same transaction."""
     assignments, values = [], []
     for column in ("status", "final_decision"):
         if column in changes:
             assignments.append(f"{column} = %s"); values.append(changes[column])
-    if not assignments:
-        return get_application(application_id)
-    values.append(application_id)
-    reporting_db.execute(f"update sis.applications set {', '.join(assignments)}, updated_at = now() where application_id = %s", values)
+    with reporting_db.transaction() as tx:
+        current = tx.fetch_one_dict(
+            "select status from sis.applications where application_id = %s for update", (application_id,)
+        )
+        if current is None:
+            return None
+        if assignments:
+            tx.execute(
+                f"update sis.applications set {', '.join(assignments)}, updated_at = now() where application_id = %s",
+                [*values, application_id],
+            )
+        if "status" in changes and changes["status"] != current["status"]:
+            tx.execute(
+                "insert into sis.application_status_history (application_id, old_status, new_status, changed_by)"
+                " values (%s, %s, %s, %s)",
+                (application_id, current["status"], changes["status"], changed_by),
+            )
     return get_application(application_id)
 
 
@@ -261,9 +268,8 @@ def get_knowledge_course(course_code: str) -> dict | None:
         "electives": "select * from knowledge.course_electives where course_code = %s",
         "metadata": "select * from knowledge.course_meta where course_code = %s",
         "workload": "select * from knowledge.course_workload where course_code = %s",
-        "rules": "select * from knowledge.course_rules order by intake, category, id",
     }.items():
-        course["related"][name] = reporting_db.fetch_all_dict(query, () if name == "rules" else (course_code,))
+        course["related"][name] = reporting_db.fetch_all_dict(query, (course_code,))
     return course
 
 
@@ -280,19 +286,34 @@ def update_knowledge_course(course_code: str, changes: dict) -> dict | None:
     return get_knowledge_course(course_code)
 
 
+# Relations the course editor may change, keyed by the name the course page
+# uses. course_tags and course_electives are left out: every column there is
+# part of the primary key, so a row can only be added or removed, not edited.
+# course_rules is per intake, not per course, so it isn't edited from a course.
+EDITABLE_COURSE_RELATIONS = {
+    "description": "course_descriptions", "requirements": "course_requirements", "schedule": "course_schedule",
+    "metadata": "course_meta", "workload": "course_workload",
+}
+_AUDIT_COLUMNS = {"created_at", "updated_at"}
+
+
 def update_knowledge_course_related(course_code: str, relation: str, row: dict) -> dict | None:
-    tables = {"description": "course_descriptions", "requirements": "course_requirements", "schedule": "course_schedule", "tags": "course_tags", "electives": "course_electives", "metadata": "course_meta", "workload": "course_workload", "rules": "course_rules"}
-    table = tables.get(relation)
+    table = EDITABLE_COURSE_RELATIONS.get(relation)
     if not table:
         return None
     columns = reporting_db.fetch_all_dict("select column_name from information_schema.columns where table_schema = 'knowledge' and table_name = %s", (table,))
     valid = {item["column_name"] for item in columns}
     key_rows = reporting_db.fetch_all_dict("select kcu.column_name, tc.constraint_type from information_schema.table_constraints tc join information_schema.key_column_usage kcu on kcu.constraint_name = tc.constraint_name and kcu.table_schema = tc.table_schema where tc.table_schema = 'knowledge' and tc.table_name = %s and tc.constraint_type in ('PRIMARY KEY', 'FOREIGN KEY')", (table,))
     protected = {item["column_name"] for item in key_rows}
-    assignments = [f"{column} = %s" for column in row if column in valid and column not in protected]
-    values = [row[column] for column in row if column in valid and column not in protected]
+    editable = [column for column in row if column in valid and column not in protected and column not in _AUDIT_COLUMNS]
+    assignments = [f"{column} = %s" for column in editable]
+    # The editor's inputs send "" for a cleared field; store that as null
+    # (an empty string is not a valid numeric for the workload columns).
+    values = [None if row[column] == "" else row[column] for column in editable]
     if not assignments:
         return None
+    if "updated_at" in valid:
+        assignments.append("updated_at = now()")
     where_columns = [column for column in protected if column in row]
     if "course_code" in valid and "course_code" not in where_columns:
         where_columns.append("course_code")
@@ -336,7 +357,10 @@ def fetch_overview(days: int = 7) -> dict:
         "average_processing_days": processing.get("value") or 0,
     }
     cases = reporting_db.fetch_one_dict(
-        "select count(*)::int as total, count(*) filter (where status not in ('resolved', 'closed'))::int as open from chat.cases where created_at >= now() - (%s * interval '1 day')",
+        # total: cases raised in the window; open: every case still open,
+        # however old — an old unresolved case still needs attention.
+        "select count(*) filter (where created_at >= now() - (%s * interval '1 day'))::int as total,"
+        " count(*) filter (where status <> 'resolved')::int as open from chat.cases",
         (days,),
     )
     catalogue = reporting_db.fetch_one_dict(

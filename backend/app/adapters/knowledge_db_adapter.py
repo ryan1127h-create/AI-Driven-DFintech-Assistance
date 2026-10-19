@@ -71,6 +71,10 @@ class KnowledgeDBAdapter(KnowledgeBasePort):
     def _query(self, sql: str, params=()) -> list[dict]:
         return self._db.fetch_all_dict(sql, params)
 
+    def invalidate(self) -> None:
+        with self._cache_lock:
+            self._cache.clear()
+
     def _cached(self, key: str, load: Callable[[], list[dict]]) -> list[dict]:
         if key not in self._cache:
             with self._cache_lock:

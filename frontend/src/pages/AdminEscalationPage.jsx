@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
@@ -149,11 +149,40 @@ function mailto(caseItem) {
   return `mailto:${caseItem.email}?subject=${encodeURIComponent(`Follow-up regarding your support request – Case #${caseItem.shortId}`)}`
 }
 
+const PAGE_SIZE = 20
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// The API's createdDate/createdTime are formatted in the server's time zone;
+// createdAt (ISO) is formatted here in the viewer's own.
+function formatCreated(item) {
+  if (!item.createdAt) return [item.createdDate, item.createdTime]
+  const at = new Date(item.createdAt)
+  return [
+    at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
+    at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+  ]
+}
+
+function formatDateTime(value) {
+  return value ? new Date(value).toLocaleString() : "—"
+}
+
+function inDateRange(item, range) {
+  if (range === "All Time" || !item.createdAt) return true
+  const created = new Date(item.createdAt).getTime()
+  if (range === "Today") {
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    return created >= midnight.getTime()
+  }
+  const days = range === "Last 7 Days" ? 7 : 30
+  return created >= Date.now() - days * DAY_MS
+}
+
 function CaseDrawer({
   caseItem,
   onClose,
   onResolve,
-  onViewUser
 }) {
   return (
     <>
@@ -199,9 +228,9 @@ function CaseDrawer({
               />
               <Info
                 label="Created"
-                value={`${caseItem.createdDate}, ${caseItem.createdTime}`}
+                value={formatCreated(caseItem).join(", ")}
               />
-              <Info label="Resolved At" value={caseItem.resolvedAt ?? "—"} />
+              <Info label="Resolved At" value={formatDateTime(caseItem.resolvedAt)} />
             </div>
           </section>
 
@@ -271,7 +300,7 @@ function CaseDrawer({
                   Resolved by: <strong>{caseItem.resolvedBy}</strong>
                 </div>
                 <div className="resolved-meta">
-                  Resolved at: <strong>{caseItem.resolvedAt}</strong>
+                  Resolved at: <strong>{formatDateTime(caseItem.resolvedAt)}</strong>
                 </div>
                 <div className="resolution-label">Resolution Notes</div>
                 <div className="resolution-copy">
@@ -292,7 +321,7 @@ function CaseDrawer({
                   placeholder="Add internal notes about how this case was handled..."
                 />
                 <div className="resolution-footer">
-                  <span>Only admins can view these notes.</span>
+                  <span>Notes are not saved yet.</span>
                   <FeatureButton onClick={onResolve}>
                     <Icon name="check" size={16} />
                     Mark as Resolved
@@ -396,7 +425,6 @@ function LoadingRows() {
 }
 
 export default function App() {
-  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("All")
@@ -411,16 +439,27 @@ export default function App() {
   const [caseData, setCaseData] = useState([])
   const [stats, setStats] = useState({ open_cases: 0, urgent_cases: 0, resolved_today: 0, avg_resolution_time: "0h 00m" })
 
+  const [loadError, setLoadError] = useState("")
+  const [actionError, setActionError] = useState("")
+  const [page, setPage] = useState(1)
+
   useEffect(() => {
     let active = true
-    getAdminEscalationCases().then(({ items, stats: nextStats }) => {
-      if (!active) return
-      setCaseData(items)
-      setStats(nextStats || stats)
-      setIsLoading(false)
-    })
+    getAdminEscalationCases()
+      .then(({ items, stats: nextStats }) => {
+        if (!active) return
+        setCaseData(items)
+        if (nextStats) setStats(nextStats)
+      })
+      .catch((error) => { if (active) setLoadError(error.message) })
+      .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
   }, [])
+
+  const specialists = useMemo(
+    () => [...new Set(caseData.map((item) => item.origin).filter(Boolean))].sort(),
+    [caseData],
+  )
 
   const filteredCases = useMemo(() => {
     const query = search.toLowerCase()
@@ -436,7 +475,8 @@ export default function App() {
         (priority === "All" || item.priority === priority) &&
         (category === "All Categories" || item.category === category) &&
         (source === "All Sources" || item.trigger === source) &&
-        (specialist === "All Specialists" || item.origin === specialist)
+        (specialist === "All Specialists" || item.origin === specialist) &&
+        inDateRange(item, date)
       )
     })
     if (sort === "Priority")
@@ -446,7 +486,12 @@ export default function App() {
       )
     if (sort === "Oldest") result = [...result].reverse()
     return result
-  }, [search, status, priority, category, source, specialist, sort, caseData])
+  }, [search, status, priority, category, source, specialist, date, sort, caseData])
+
+  useEffect(() => { setPage(1) }, [search, status, priority, category, source, specialist, date, sort])
+  const pageCount = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pagedCases = filteredCases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const resetFilters = () => {
     setSearch("")
@@ -461,11 +506,14 @@ export default function App() {
 
   const confirmResolve = () => {
     if (!selected) return
-    resolveAdminEscalationCase(selected.id, "Resolved by admin").then((resolved) => {
-      setCaseData((items) => items.map((item) => (item.id === resolved.id ? resolved : item)))
-      setSelected(resolved)
-      setResolveConfirm(false)
-    })
+    setActionError("")
+    resolveAdminEscalationCase(selected.id)
+      .then((resolved) => {
+        setCaseData((items) => items.map((item) => (item.id === resolved.id ? resolved : item)))
+        setSelected(resolved)
+      })
+      .catch((error) => setActionError(`Could not resolve the case: ${error.message}`))
+      .finally(() => setResolveConfirm(false))
   }
 
   return (
@@ -479,6 +527,8 @@ export default function App() {
             subtitle="Review and manage cases escalated by the AI assistant."
             className="admin-shared-page-header"
           />
+          {loadError && <p role="alert" className="admin-subline">Unable to load escalation cases: {loadError}</p>}
+          {actionError && <p role="alert" className="admin-subline">{actionError}</p>}
           <div className="kpi-grid">
             <KpiCard
               label="Open Cases"
@@ -562,17 +612,13 @@ export default function App() {
                 onChange={setSpecialist}
               >
                 <option>All Specialists</option>
-                <option>Admission</option>
-                <option>Career Planning</option>
-                <option>Course Recommendation</option>
-                <option>Other</option>
+                {specialists.map((name) => <option key={name}>{name}</option>)}
               </Select>
               <Select label="Date" value={date} onChange={setDate}>
                 <option>All Time</option>
                 <option>Today</option>
                 <option>Last 7 Days</option>
                 <option>Last 30 Days</option>
-                <option>Custom Range</option>
               </Select>
               <FeatureButton variant="ghost" onClick={resetFilters}>
                 Reset
@@ -608,7 +654,7 @@ export default function App() {
                   {isLoading ? (
                     <LoadingRows />
                   ) : (
-                    filteredCases.map((item) => (
+                    pagedCases.map((item) => (
                       <tr
                         key={item.id}
                         className={
@@ -652,8 +698,8 @@ export default function App() {
                         </td>
                         <td>
                           <div className="date-cell">
-                            <strong>{item.createdDate}</strong>
-                            <span>{item.createdTime}</span>
+                            <strong>{formatCreated(item)[0]}</strong>
+                            <span>{formatCreated(item)[1]}</span>
                           </div>
                         </td>
                         <td>
@@ -681,7 +727,7 @@ export default function App() {
                   )}
                 </tbody>
               </table>
-              {!isLoading && filteredCases.length === 0 && (
+              {!isLoading && !loadError && filteredCases.length === 0 && (
                 <div className="empty-state">
                   <div className="empty-icon">
                     <Icon name="search" size={23} />
@@ -697,18 +743,14 @@ export default function App() {
 
             <div className="pagination">
               <span>
-                Showing <strong>1–20</strong> of <strong>124</strong> cases
+                Showing <strong>{filteredCases.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredCases.length)}` : "0"}</strong> of <strong>{filteredCases.length}</strong> cases
               </span>
               <div className="page-buttons">
-                <FeatureButton variant="secondary" disabled>
+                <FeatureButton variant="secondary" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>
                   <Icon name="arrow" size={14} /> Previous
                 </FeatureButton>
-                <FeatureButton variant="primary">1</FeatureButton>
-                <FeatureButton variant="secondary">2</FeatureButton>
-                <FeatureButton variant="secondary">3</FeatureButton>
-                <span>…</span>
-                <FeatureButton variant="secondary">7</FeatureButton>
-                <FeatureButton variant="secondary">
+                <FeatureButton variant="primary">{currentPage} / {pageCount}</FeatureButton>
+                <FeatureButton variant="secondary" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>
                   Next <Icon name="arrow" size={14} />
                 </FeatureButton>
               </div>
@@ -722,7 +764,6 @@ export default function App() {
           caseItem={selected}
           onClose={() => setSelected(null)}
           onResolve={() => setResolveConfirm(true)}
-          onViewUser={() => navigate(`/admin/users/${caseItem.user_id}`)}
         />
       )}
       {resolveConfirm && (

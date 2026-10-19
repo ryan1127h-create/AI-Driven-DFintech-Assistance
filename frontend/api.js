@@ -1,14 +1,11 @@
 const RAW_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 const API_BASE = RAW_API_BASE.endsWith("/api/v1") ? RAW_API_BASE : `${RAW_API_BASE}/api/v1`;
-// MOCK DATA SWITCH: set VITE_USE_MOCK_DATA=false after the real admin and
-// alumni backend routes/database queries are available. At that point, the
-// mock imports below and each `if (USE_MOCK_DATA)` branch can be removed.
+// MOCK DATA SWITCH: the alumni endpoints don't exist on the backend yet, so
+// Alumni Match runs on mock data unless VITE_USE_MOCK_DATA=false. Once they
+// do, remove this switch, the import below and each `if (USE_MOCK_DATA)` branch.
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== "false";
-const USE_ESCALATION_MOCK_DATA = false;
 
-// MOCK DATA ONLY: these imports are temporary adapters for local development.
-// They can be deleted once the real endpoints are connected permanently.
-import { adminEscalationCases } from "./src/data/adminEscalationCases";
+// MOCK DATA ONLY: a temporary adapter for local development.
 import { alumniMatchData } from "./src/data/alumniMatch";
 
 function buildUrl(path) {
@@ -350,75 +347,21 @@ export function bindApplication(applicationNo) {
 // ---------------------------------------------------------------------------
 // Admin escalation cases
 // ---------------------------------------------------------------------------
-// These functions define the frontend contract for the future staff API.
-// Expected backend routes:
-//   GET   /admin/escalations
-//   GET   /admin/escalations/{caseId}
-//   PATCH /admin/escalations/{caseId}
-// The list endpoint can return { items, total, page, page_size } or a plain
-// array; the page can normalize the response shape while the backend is built.
+// GET /admin/escalations returns every case with { items, total, stats };
+// the page filters and paginates them itself.
 
-export async function getAdminEscalationCases({
-  page = 1,
-  pageSize = 20,
-  search = "",
-  status = "",
-  priority = "",
-  category = "",
-  source = "",
-  specialist = "",
-  date = "",
-  sort = "newest",
-} = {}) {
-  // MOCK FALLBACK: delete this branch after GET /admin/escalations is live.
-  if (USE_ESCALATION_MOCK_DATA) {
-    const query = search.toLowerCase();
-    const items = adminEscalationCases.filter((item) =>
-      (!query || `${item.shortId} ${item.name} ${item.email} ${item.summary}`.toLowerCase().includes(query)) &&
-      (!status || status === "All" || item.status === status) &&
-      (!priority || priority === "All" || item.priority === priority) &&
-      (!category || category === "All Categories" || item.category === category) &&
-      (!source || source === "All Sources" || item.trigger === source) &&
-      (!specialist || specialist === "All Specialists" || item.origin === specialist),
-    );
-    const start = (page - 1) * pageSize;
-    return { items: items.slice(start, start + pageSize), total: items.length, page, page_size: pageSize };
-  }
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize),
-    ...(search && { search }),
-    ...(status && status !== "All" && { status }),
-    ...(priority && priority !== "All" && { priority }),
-    ...(category && category !== "All Categories" && { category }),
-    ...(source && source !== "All Sources" && { source }),
-    ...(specialist && specialist !== "All Specialists" && { specialist }),
-    ...(date && date !== "All Time" && { date }),
-    ...(sort && { sort }),
-  });
-  const response = await fetch(buildUrl(`/admin/escalations?${params}`), {
+export async function getAdminEscalationCases() {
+  const response = await fetch(buildUrl("/admin/escalations"), {
     headers: getAuthHeaders(),
   });
   return handleResponse(response);
 }
 
 export async function getAdminEscalationCase(caseId) {
-  // MOCK FALLBACK: delete this branch after GET /admin/escalations/{id} is live.
-  if (USE_ESCALATION_MOCK_DATA) return adminEscalationCases.find((item) => item.id === caseId) || null;
   const response = await fetch(buildUrl(`/admin/escalations/${encodeURIComponent(caseId)}`), {
     headers: getAuthHeaders(),
   });
   return handleResponse(response);
-}
-
-export function updateAdminEscalationCase(caseId, updates) {
-  // MOCK FALLBACK: delete this branch after PATCH /admin/escalations/{id} is live.
-  if (USE_ESCALATION_MOCK_DATA) {
-    const index = adminEscalationCases.findIndex((item) => item.id === caseId);
-    if (index >= 0) adminEscalationCases[index] = { ...adminEscalationCases[index], ...updates };
-    return Promise.resolve(adminEscalationCases[index] || null);
-  }
-  return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, updates);
 }
 
 export async function getAdminOverview(days = 7) {
@@ -458,10 +401,12 @@ export function getAdminKnowledgeCourse(courseCode) { return fetch(buildUrl(`/ad
 export function updateAdminKnowledgeCourse(courseCode, changes) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}`, changes); }
 export function updateAdminKnowledgeCourseRelated(courseCode, relation, row) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}/${encodeURIComponent(relation)}`, { row }); }
 
+// PATCH /admin/escalations/{id} only resolves a case. resolution_notes is
+// accepted but not stored yet (chat.cases has no column for it).
 export function resolveAdminEscalationCase(caseId, resolutionNotes) {
-  return updateAdminEscalationCase(caseId, {
+  return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, {
     status: "Resolved",
-    resolution_notes: resolutionNotes,
+    ...(resolutionNotes && { resolution_notes: resolutionNotes }),
   });
 }
 

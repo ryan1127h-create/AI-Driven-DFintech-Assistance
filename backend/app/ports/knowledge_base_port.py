@@ -11,6 +11,11 @@ from typing import Protocol
 
 
 class KnowledgeBasePort(Protocol):
+    def invalidate(self) -> None:
+        """Drops whatever the adapter has cached, so the next read sees
+        rows edited since (the staff console's knowledge editor)."""
+        ...
+
     def fetch_all_chunks(self) -> list[dict]:
         """Returns every chunk in the corpus (small and static enough to
         load in full — callers that need a subset filter it themselves)."""

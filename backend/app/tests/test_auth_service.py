@@ -111,6 +111,7 @@ class _FakeAuthProvider:
         self.names: dict[str, str] = {}
         self.fail_name_update = False
         self.created_users: list[tuple[str, str, str]] = []
+        self.deleted: list[str] = []
         self._accounts: dict[str, tuple[str, str]] = {}  # email -> (user_id, password)
         self._next_id = 0
         self._account_store = accounts
@@ -134,6 +135,11 @@ class _FakeAuthProvider:
         if self.fail_name_update:
             raise RuntimeError("supabase down")
         self.names[user_id] = full_name
+
+    def delete_user(self, user_id: str) -> None:
+        # The real cascade: deleting the provider's user removes the account.
+        self.deleted.append(user_id)
+        self._account_store.rows.pop(user_id, None)
 
     def sign_out(self, access_token: str) -> None:
         pass
@@ -441,6 +447,19 @@ def test_renaming_updates_the_account_even_if_the_provider_copy_fails(
     fake_auth_provider.fail_name_update = provider_fails
     assert service.update_full_name(user_id, "Someone Else").full_name == "Someone Else"
     assert fake_auth_provider.names.get(user_id) == (None if provider_fails else "Someone Else")
+
+
+def test_deleting_an_account_deletes_the_provider_user(fake_cache, fake_email, fake_auth_provider, accounts):
+    user_id = service.start_registration("someone@gmail.com", "password123", "Some One", "applicant", False).user.user_id
+    service.delete_account(user_id)
+    assert fake_auth_provider.deleted == [user_id]
+    assert user_id not in accounts.rows
+
+
+def test_deleting_a_missing_account_is_not_found(fake_auth_provider):
+    with pytest.raises(NotFoundError):
+        service.delete_account("nobody")
+    assert fake_auth_provider.deleted == []
 
 
 def test_account_names_are_trimmed_and_not_blank():

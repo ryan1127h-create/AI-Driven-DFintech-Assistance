@@ -16,7 +16,6 @@ import { isRecommended } from "../data/onboarding";
 import { profilePages } from "../data/profileSections";
 import { cn } from "../utils/cn";
 import { ErrorBanner, LoadingSpinner, SuccessBanner } from "../components/student/apiWidgets";
-import { ProgressBar } from "../components/ui";
 import { changedFields, formatFieldValue } from "../components/student/profile/ProfileFields";
 import { OverviewPage, SectionPage, filledCount } from "../components/student/profile/ProfilePages";
 

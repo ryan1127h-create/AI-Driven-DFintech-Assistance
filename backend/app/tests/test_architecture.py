@@ -26,7 +26,13 @@ _OWNERS = {
     "app.adapters.knowledge_db_adapter": ("knowledge", "app.domains.knowledge_retrieval.service"),
     "app.adapters.program_db_adapter": ("program", "app.domains.program_catalog.repository"),
 }
-_SCHEMA_ADAPTERS = set(_OWNERS)
+# The staff console spans every schema, so its adapter is exempt from the
+# one-schema SQL check but is still usable only by its owner.
+_CROSS_SCHEMA_OWNERS = {
+    "app.adapters.admin_reporting_db_adapter": "app.domains.admin.repository",
+}
+_SCHEMA_ADAPTERS = set(_OWNERS) | set(_CROSS_SCHEMA_OWNERS)
+_OWNER_OF = {adapter: owner for adapter, (_, owner) in _OWNERS.items()} | _CROSS_SCHEMA_OWNERS
 _SCHEMAS = ("account", "profile", "sis", "chat", "knowledge", "program")
 _SQL = re.compile(r"\b(select|insert\s+into|update|delete\s+from)\b", re.IGNORECASE)
 _TABLE_REF = re.compile(r"\b(?:from|join|into|update)\s+(" + "|".join(_SCHEMAS) + r")\.", re.IGNORECASE)
@@ -60,7 +66,7 @@ def test_schema_adapters_are_used_only_by_their_owner():
     violations = []
     for name, path in _modules():
         for imported in _imports(path):
-            if imported in _SCHEMA_ADAPTERS and name != _OWNERS[imported][1]:
+            if imported in _SCHEMA_ADAPTERS and name != _OWNER_OF[imported]:
                 violations.append(f"{name} imports {imported}")
             if imported == "app.adapters.postgres_pool" and name not in _SCHEMA_ADAPTERS:
                 violations.append(f"{name} imports the shared pool directly")

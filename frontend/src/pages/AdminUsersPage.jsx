@@ -14,7 +14,14 @@ export default function AdminUsersPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setLoading(true); getAdminUsers(search).then((data) => setUsers(roleFilter === "all" ? data.items : data.items.filter((user) => user.role === roleFilter))).catch((err) => setError(err.message)).finally(() => setLoading(false));
+    // Debounced, and a response that arrives after a newer search started is
+    // dropped, so a slow early request can't overwrite the latest results.
+    let active = true;
+    setLoading(true); setError("");
+    const timer = setTimeout(() => {
+      getAdminUsers(search.trim()).then((data) => { if (active) setUsers(roleFilter === "all" ? data.items : data.items.filter((user) => user.role === roleFilter)); }).catch((err) => { if (active) setError(err.message); }).finally(() => { if (active) setLoading(false); });
+    }, 300);
+    return () => { active = false; clearTimeout(timer); };
   }, [search, roleFilter]);
 
   const sortedUsers = useMemo(() => [...users].sort((left, right) => {
