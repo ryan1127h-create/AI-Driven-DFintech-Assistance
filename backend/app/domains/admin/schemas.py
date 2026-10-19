@@ -37,7 +37,7 @@ class AdminOverview(BaseModel):
     users: AdminStat
     conversations: AdminStat
     applications: dict[str, int]
-    checklist: dict[str, int]
+    checklist: dict[str, int | str | None]
     application_insights: dict
     cases: dict[str, int]
     catalogue: dict[str, int]
@@ -171,4 +171,16 @@ class AdminCourseUpdate(BaseModel):
     annex_section: str | None = None
     annex_intake: str | None = None
     module_credit: float | None = None
+    status: str | None = None
+
+
+class AdminProgramUpdate(BaseModel):
+    name: str | None = None
+    short_name: str | None = None
+    faculty: str | None = None
+    degree_type: str | None = None
+    category: str | None = None
+    delivery: str | None = None
+    summary: str | None = None
+    official_url: str | None = None
     status: str | None = None

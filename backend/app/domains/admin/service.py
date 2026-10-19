@@ -241,6 +241,22 @@ def get_knowledge_course(user_id: str, course_code: str) -> dict:
     return result
 
 
+def get_knowledge_program(user_id: str, program_id: str) -> dict:
+    _require_admin(user_id)
+    result = repository.get_knowledge_program(program_id)
+    if not result:
+        raise NotFoundError("Program not found.")
+    return result
+
+
+def update_knowledge_program(user_id: str, program_id: str, changes: dict) -> dict:
+    _require_admin(user_id)
+    result = repository.update_knowledge_program(program_id, changes)
+    if not result:
+        raise NotFoundError("Program not found.")
+    return result
+
+
 def update_knowledge_course(user_id: str, course_code: str, changes: dict) -> dict:
     _require_admin(user_id)
     if changes.get("status") not in (None, *COURSE_STATUSES):

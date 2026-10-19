@@ -35,12 +35,15 @@ def _escalation_row(row: dict) -> dict:
         "resolvedAt": row["resolved_at"].isoformat() if row.get("resolved_at") else None,
         "resolvedBy": row.get("resolved_by_name") or (str(row["resolved_by"]) if row.get("resolved_by") else None),
         "resolutionNotes": row.get("resolution_notes"),
+        "conversation_id": row.get("conversation_id"),
     }
 
 
 def list_escalations() -> dict:
     rows = reporting_db.fetch_all_dict("""
-        select c.*, a.email, a.full_name, coalesce(ra.full_name, ra.email) as resolved_by_name
+        select c.*, a.email, a.full_name,
+               coalesce(ra.full_name, ra.email) as resolved_by_name,
+               c.conversation_id::text as conversation_id
           from chat.cases c left join account.accounts a on a.user_id = c.user_id
           left join account.accounts ra on ra.user_id = c.resolved_by
          order by c.created_at desc
@@ -74,7 +77,9 @@ def list_escalations() -> dict:
 
 def get_escalation(case_id: str) -> dict | None:
     row = reporting_db.fetch_one_dict("""
-        select c.*, a.email, a.full_name, coalesce(ra.full_name, ra.email) as resolved_by_name
+        select c.*, a.email, a.full_name,
+               coalesce(ra.full_name, ra.email) as resolved_by_name,
+               c.conversation_id::text as conversation_id
           from chat.cases c left join account.accounts a on a.user_id = c.user_id
           left join account.accounts ra on ra.user_id = c.resolved_by
          where c.id = %s
@@ -249,14 +254,19 @@ def list_knowledge(search: str = "", main_table: str = "all") -> dict:
         "select status_code as id, 'application_status' as category, human_status as title, next_step as description, true as published from knowledge.application_status_translations where (%s = '%%' or status_code ilike %s or human_status ilike %s or next_step ilike %s) order by status_code",
         (term, term, term, term),
     )
+    programs = reporting_db.fetch_all_dict(
+        "select p.program_id as id, 'programs' as category, coalesce(p.short_name, p.name) as title, coalesce(u.name, '') || case when p.faculty is not null then ' · ' || p.faculty else '' end as description, p.status, p.category as program_category, p.delivery, p.summary, (p.status = 'active') as published from program.programs p left join program.universities u on u.university_id = p.university_id where (%s = '%%' or p.program_id ilike %s or p.name ilike %s or p.short_name ilike %s) order by title",
+        (term, term, term, term),
+    )
     courses = reporting_db.fetch_all_dict(
-        "select course_code as id, 'courses' as category, course_code || ' — ' || title as title, coalesce(annex_section, '') as description, status, (status = 'active') as published from knowledge.courses where (%s = '%%' or course_code ilike %s or title ilike %s) order by course_code",
+        "select course_code as id, 'courses' as category, course_code || ' — ' || title as title, coalesce(annex_section, '') as description, annex_section, department, status, (status = 'active') as published from knowledge.courses where (%s = '%%' or course_code ilike %s or title ilike %s) order by course_code",
         (term, term, term),
     )
     groups = {
         "courses": {"label": "Courses", "items": courses, "related": [{"name": "course_descriptions", "count": reporting_db.fetch_one_dict("select count(*)::int as value from knowledge.course_descriptions")["value"]}, {"name": "course_requirements", "count": reporting_db.fetch_one_dict("select count(*)::int as value from knowledge.course_requirements")["value"]}, {"name": "course_rules", "count": reporting_db.fetch_one_dict("select count(*)::int as value from knowledge.course_rules")["value"]}, {"name": "course_schedule", "count": reporting_db.fetch_one_dict("select count(*)::int as value from knowledge.course_schedule")["value"]}, {"name": "course_tags", "count": reporting_db.fetch_one_dict("select count(*)::int as value from knowledge.course_tags")["value"]}]},
         "admissions_items": {"label": "Admission requirements", "items": admissions, "related": []},
         "application_status_translations": {"label": "Application statuses", "items": statuses, "related": []},
+        "programs": {"label": "Programs", "items": programs, "related": []},
     }
     counts = reporting_db.fetch_one_dict("select (select count(*)::int from knowledge.courses) as courses, (select count(*)::int from knowledge.document_chunks) as sources") or {}
     selected = groups.get(main_table)
@@ -294,6 +304,40 @@ def get_knowledge_course(course_code: str) -> dict | None:
     }.items():
         course["related"][name] = reporting_db.fetch_all_dict(query, (course_code,))
     return course
+
+
+def get_knowledge_program(program_id: str) -> dict | None:
+    program = reporting_db.fetch_one_dict("""
+        select p.*, row_to_json(u) as university, row_to_json(d) as destination,
+               row_to_json(f) as facts
+          from program.programs p
+          left join program.universities u using (university_id)
+          left join program.destinations d using (country_code)
+          left join lateral (select * from program.facts f where f.program_id = p.program_id order by f.intake_year desc limit 1) f on true
+         where p.program_id = %s
+    """, (program_id,))
+    if not program:
+        return None
+    program["related"] = {}
+    queries = {
+        "fees": ("select * from program.fees where program_id = %s order by intake_year desc, student_category", (program_id,)),
+        "deadlines": ("select * from program.deadlines where program_id = %s order by intake_year desc, round_no", (program_id,)),
+        "fact_sources": ("select * from program.fact_sources where program_id = %s order by field_key, role desc", (program_id,)),
+        "funding": ("select * from program.funding where program_id = %s or university_id = %s order by funding_id", (program_id, program.get("university_id"))),
+        "curriculum": ("select * from program.curriculum_areas where program_id = %s order by skill_id", (program_id,)),
+    }
+    for name, (query, params) in queries.items():
+        program["related"][name] = reporting_db.fetch_all_dict(query, params)
+    return program
+
+
+def update_knowledge_program(program_id: str, changes: dict) -> dict | None:
+    allowed = {"name", "short_name", "faculty", "degree_type", "category", "delivery", "summary", "official_url", "status"}
+    changes = {key: value for key, value in changes.items() if key in allowed}
+    if changes:
+        assignments = ", ".join(f"{key} = %s" for key in changes)
+        reporting_db.execute(f"update program.programs set {assignments}, updated_at = now() where program_id = %s", [*changes.values(), program_id])
+    return get_knowledge_program(program_id)
 
 
 def update_knowledge_course(course_code: str, changes: dict) -> dict | None:
@@ -395,7 +439,6 @@ def store_chunk(chunk, embedding: list[float]) -> bool:
     )
     return row is not None
 
-
 def fetch_overview(days: int = 7) -> dict:
     users = reporting_db.fetch_one_dict(
         """
@@ -405,14 +448,30 @@ def fetch_overview(days: int = 7) -> dict:
         """
     )
     conversations = reporting_db.fetch_one_dict(
-        "select count(*)::int as total, count(*) filter (where status = 'normal')::int as active from chat.conversations where status_updated_at >= now() - (%s * interval '1 day')",
-        (days,),
+        "select count(*)::int as total, count(*) filter (where status = 'normal')::int as active from chat.conversations",
     )
     applications = reporting_db.fetch_all_dict(
         "select coalesce(status, '<unknown>') as status, count(*)::int as total from sis.applications group by status order by status",
     )
     checklist = reporting_db.fetch_one_dict(
-        "select count(*)::int as total, count(*) filter (where submitted)::int as submitted, count(*) filter (where not submitted)::int as outstanding from sis.application_checklist_items"
+        """
+        with latest_term as (
+            select admission_term
+              from sis.applications
+             where admission_term is not null
+             order by submission_date desc nulls last, updated_at desc nulls last
+             limit 1
+        )
+        select
+            count(*)::int as total,
+            count(*) filter (where c.submitted)::int as submitted,
+            count(*) filter (where not c.submitted)::int as outstanding,
+            (select admission_term from latest_term) as latest_admission_term,
+            count(*) filter (where not c.submitted and a.admission_term = (select admission_term from latest_term))::int
+                as latest_term_outstanding
+          from sis.application_checklist_items c
+          left join sis.applications a on a.application_id = c.application_id
+        """
     )
     processing = reporting_db.fetch_one_dict(
         "select round(avg(extract(epoch from (changed_at - a.submission_date)) / 86400)::numeric, 1) as value from sis.application_status_history h join sis.applications a on a.application_id = h.application_id where a.submission_date is not null and h.new_status in ('ACCEPTED', 'REJECTED')"
@@ -427,11 +486,7 @@ def fetch_overview(days: int = 7) -> dict:
         "average_processing_days": processing.get("value") or 0,
     }
     cases = reporting_db.fetch_one_dict(
-        # total: cases raised in the window; open: every case still open,
-        # however old — an old unresolved case still needs attention.
-        "select count(*) filter (where created_at >= now() - (%s * interval '1 day'))::int as total,"
-        " count(*) filter (where status <> 'resolved')::int as open from chat.cases",
-        (days,),
+        "select count(*)::int as total, count(*) filter (where status not in ('resolved', 'closed'))::int as open from chat.cases",
     )
     catalogue = reporting_db.fetch_one_dict(
         "select (select count(*)::int from program.universities) as universities, (select count(*)::int from program.programs) as programs, (select count(*)::int from knowledge.courses) as courses"
@@ -449,7 +504,7 @@ def fetch_overview(days: int = 7) -> dict:
         "users": users or {"total": 0, "active": 0},
         "conversations": conversations or {"total": 0, "active": 0},
         "applications": {row["status"]: row["total"] for row in applications},
-        "checklist": checklist or {"total": 0, "submitted": 0, "outstanding": 0},
+        "checklist": checklist or {"total": 0, "submitted": 0, "outstanding": 0, "latest_admission_term": None, "latest_term_outstanding": 0},
         "application_insights": application_insights,
         "cases": cases or {"total": 0, "open": 0},
         "catalogue": catalogue or {"universities": 0, "programs": 0, "courses": 0},
