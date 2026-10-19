@@ -20,12 +20,17 @@ from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.errors import NotFoundError, ServiceUnavailableError
+from app.core.logging import get_logger
 from app.domains.auth.interface import get_assistant_preferences, get_audience
 from app.domains.conversation import interface as conversation
 from app.domains.profile.interface import get_profile_summary_text
+from app.domains.specialist.escalation import interface as escalation
 from app.orchestrator import classification, dispatch
 from app.orchestrator.turn_metrics import read_agent_used
 from app.tools.turn_context import OnEvent, PreviousTurn, TurnState
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -39,6 +44,10 @@ class ChatTurnResult:
     card: dict | None = None
     supplement_card: dict | None = None
     save_suggestions: list[dict] = field(default_factory=list)
+    # Shown under the reply: {"kind": "opened", "case": {...}, "resources": [...]}
+    # when the turn was passed to staff, {"kind": "offer", "category"} when
+    # the user may choose to.
+    escalation: dict | None = None
 
 
 def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
@@ -68,6 +77,42 @@ def _record_metrics(session_id: str, user_id: str, intents: list[str], agent_use
         }
 
     conversation.record_turn_metrics(build)
+
+
+def open_escalation(session_id: str, user_id: str, state, offer: dict, agents: list[str]) -> dict | None:
+    """Opens (or finds) the case and returns the card for it; None when the
+    case couldn't be stored. Never raises: a case is extra to the reply."""
+    try:
+        case = conversation.open_case(
+            {"user_id": user_id, "conversation_id": session_id, "trigger_source": offer["trigger_source"],
+             "origin_specialist": escalation.origin_label(agents), "category": offer["category"],
+             "priority": offer["priority"]},
+            lambda: escalation.summarize(conversation.recent_transcript(state), offer["category"]),
+        )
+    except Exception:
+        logger.exception("could not open a %s case for %s", offer.get("category"), session_id)
+        return None
+    if case is None:
+        return None
+    card = {"kind": "opened", "case": case}
+    if offer["category"] == "sensitive":
+        card["resources"] = escalation.SUPPORT_RESOURCES
+    return card
+
+
+def accept_escalation_offer(session_id: str, user_id: str) -> dict:
+    """The user took up the offer the latest turn made: opens the case.
+    NotFoundError when that turn made no offer (the button can't open a
+    case for a turn that didn't propose one)."""
+    state = conversation.get_state(session_id, user_id)
+    offer = conversation.escalation_offer(state)
+    if not offer:
+        raise NotFoundError("There is no request to pass to staff in this conversation.")
+    last = conversation.last_turn(state) or {}
+    card = open_escalation(session_id, user_id, state, offer, read_agent_used(last.get("agent_used", "")).agents)
+    if card is None:
+        raise ServiceUnavailableError("Your request couldn't be passed to staff right now. Please try again.")
+    return card
 
 
 def run_turn(
@@ -125,6 +170,16 @@ def run_turn(
     started = time.perf_counter()
     classified = classification.classify_intent(llm_messages, on_event, previous_turn=previous_turn)
     intents = classified.intents
+    # Someone in distress may well be classified off-topic; they get a
+    # caring conversational reply (and the case below), never the fixed
+    # "I only answer programme questions" decline.
+    if (classified.escalation or {}).get("category") == "sensitive" and intents == ["off_topic"]:
+        intents = ["general"]
+    # A case this message opens is opened whatever the answer says, so the
+    # answer is told: it acknowledges the hand-off instead of, say, asking
+    # for details the staff member will gather themselves.
+    if (classified.escalation or {}).get("category") in escalation.OPEN_AT_ONCE:
+        llm_messages = llm_messages[:-1] + [SystemMessage(content=escalation.HANDOFF_NOTE), new_message]
     preferences = get_assistant_preferences(user_id)
     turn_state = TurnState(
         messages=llm_messages, user_id=user_id,
@@ -139,8 +194,24 @@ def run_turn(
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
-    conversation.record_turn(session_id, state, new_message, ai_message, intents, agent_used)
+    # Whether this turn needs a human: open a case now, or offer one (the
+    # offer is recorded with the turn, for accept_escalation_offer()).
+    outcome = read_agent_used(agent_used)
+    decision = escalation.decide(classified.escalation, outcome.outcome, intents)
+    offer = None
+    if decision is not None:
+        offer = {"category": decision.category, "trigger_source": decision.trigger_source, "priority": decision.priority}
+
+    conversation.record_turn(session_id, state, new_message, ai_message, intents, agent_used,
+                             escalation_offer=offer if decision and decision.action == "offer" else None)
     _record_metrics(session_id, user_id, intents, agent_used, latency_ms)
+
+    escalation_card = None
+    if decision is not None and decision.action == "open":
+        # After record_turn: the case's conversation row must exist first.
+        escalation_card = open_escalation(session_id, user_id, state, offer, outcome.agents)
+    elif decision is not None:
+        escalation_card = {"kind": "offer", "category": decision.category}
 
     extra = ai_message.additional_kwargs or {}
     return ChatTurnResult(
@@ -148,4 +219,5 @@ def run_turn(
         user_message=message, intents=intents,
         card=extra.get("card"), supplement_card=extra.get("supplement_card"),
         save_suggestions=list(extra.get("save_suggestions") or []),
+        escalation=escalation_card,
     )

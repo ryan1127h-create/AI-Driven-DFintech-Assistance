@@ -223,8 +223,28 @@ question/request, not a greeting or filler phrase, as the tie-breaker.
 to judge, e.g. "ok", a course code or a number), use null — the user's saved \
 language preference decides then.
 
+Also detect "escalation" — whether the LATEST MESSAGE needs a human staff \
+member from the programme office, independently of the intents (the \
+assistant still answers what it can). Use null for almost every message. \
+Otherwise {"category": ..., "urgent": true|false}, with category one of:
+- "explicit_request": the user asks to speak to / be contacted by a person, \
+staff member, advisor or the admissions office (e.g. "can I talk to a real \
+person?", "请帮我转人工").
+- "complaint": the user is dissatisfied with the programme, the application \
+process, staff or this service and wants it addressed.
+- "policy_exception": the user asks for an exception FOR THEMSELVES — a fee \
+waiver, a deadline extension, an exemption from a requirement, a special \
+arrangement. Merely asking what the policy is is NOT an escalation.
+- "sensitive": personal distress or crisis, harassment or discrimination, \
+safety concerns, or a visa / legal / medical situation affecting their \
+studies.
+Set "urgent" to true for "sensitive", and for any case where the user \
+describes harm, a deadline within the next few days, or a situation that \
+cannot wait; otherwise false.
+
 Respond with ONLY a valid JSON object — no markdown, no explanation. `intents` is \
-always an array, even for a single intent; `target_role_hint` and `program_hints` \
+always an array, even for a single intent; `escalation` is always present (null \
+unless one of the categories above clearly applies); `target_role_hint` and `program_hints` \
 are always present (null / [] when nothing was mentioned); `reply_language` is \
 always present (null when you can't tell); `course_mode_hint` is always present \
 (null unless the intents include course_recommendation), and so are \
@@ -247,6 +267,10 @@ or
 {"intents": ["general"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["off_topic"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
+or
+{"intents": ["financial"], "target_role_hint": null, "program_hints": [], "reply_language": "en", "escalation": {"category": "policy_exception", "urgent": false}}
+or
+{"intents": ["general"], "target_role_hint": null, "program_hints": [], "reply_language": "zh", "escalation": {"category": "explicit_request", "urgent": false}}
 (etc. — any 1-3 of: admissions, academic, financial, career, comparison, faq, \
 assessment, course_recommendation, general, off_topic)"""
 
@@ -278,6 +302,22 @@ class Classification:
     course_mode_hint: str | None = None
     career_mode_hint: str | None = None
     comparison_mode_hint: str | None = None
+    # {"category", "urgent"} when the message needs a human staff member
+    # (see ESCALATION_CATEGORIES); None for nearly every message.
+    escalation: dict | None = None
+
+
+# The user-raised ("direct") escalation categories the classifier reports;
+# chat.cases also has "low_confidence", raised from the answer instead.
+ESCALATION_CATEGORIES = {"explicit_request", "complaint", "policy_exception", "sensitive"}
+
+
+def _escalation(result: dict) -> dict | None:
+    raw = result.get("escalation")
+    if not isinstance(raw, dict) or raw.get("category") not in ESCALATION_CATEGORIES:
+        return None
+    category = raw["category"]
+    return {"category": category, "urgent": category == "sensitive" or raw.get("urgent") is True}
 
 
 def _classifier_input(message: str, previous_turn: PreviousTurn | None) -> str:
@@ -337,6 +377,7 @@ def _parse(response: str) -> Classification:
         course_mode_hint=_mode(result, "course_mode_hint", "course_recommendation", intents, COURSE_MODES),
         career_mode_hint=_mode(result, "career_mode_hint", "career", intents, CAREER_MODES),
         comparison_mode_hint=_mode(result, "comparison_mode_hint", "comparison", intents, COMPARISON_MODES),
+        escalation=_escalation(result),
     )
 
 

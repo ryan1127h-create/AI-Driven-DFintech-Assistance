@@ -46,6 +46,8 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 
+import psycopg
+
 from langchain_core.messages import HumanMessage, messages_from_dict, messages_to_dict
 
 from app.adapters.chat_db_adapter import chat_db
@@ -538,6 +540,39 @@ class CachedConversationStore(ConversationStore):
         # read the pre-freeze snapshot until the normal TTL would've
         # expired it.
         self._cache_set(session_id, state)
+
+
+_CASE_COLUMNS = "id::text, conversation_id::text, category, status, priority, created_at, resolved_at"
+
+
+def find_open_case(conversation_id: str, category: str) -> dict | None:
+    return chat_db.fetch_one_dict(
+        f"select {_CASE_COLUMNS} from chat.cases where conversation_id = %s and category = %s and status = 'open'",
+        (conversation_id, category),
+    )
+
+
+def insert_case(case: dict) -> dict | None:
+    """The new chat.cases row, or None when an open case of the same
+    category already exists for the conversation (the unique index from
+    0034 decides when two turns race)."""
+    try:
+        return chat_db.fetch_one_dict(
+            f"""insert into chat.cases
+                    (user_id, conversation_id, trigger_source, origin_specialist, category, priority, summary)
+                values (%s, %s, %s, %s, %s, %s, %s)
+                returning {_CASE_COLUMNS}""",
+            (case["user_id"], case["conversation_id"], case["trigger_source"], case["origin_specialist"],
+             case["category"], case["priority"], case["summary"]),
+        )
+    except psycopg.errors.UniqueViolation:
+        return None
+
+
+def list_cases_for_user(user_id: str) -> list[dict]:
+    return chat_db.fetch_all_dict(
+        f"select {_CASE_COLUMNS} from chat.cases where user_id = %s order by created_at desc", (user_id,)
+    )
 
 
 def insert_turn_metric(metric: dict) -> None:

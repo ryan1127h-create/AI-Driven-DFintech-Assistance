@@ -17,6 +17,7 @@ import AdminApplicationPage from "./pages/AdminApplicationPage";
 import AdminConversationsPage from "./pages/AdminConversationsPage";
 import AdminConversationPage from "./pages/AdminConversationPage";
 import AlumniMatchPage from "./pages/AlumniMatchPage";
+import SupportRequestsPage from "./pages/SupportRequestsPage";
 import AdminEscalationPage from "./pages/AdminEscalationPage";
 import AdminAlumniPage from "./pages/AdminAlumniPage";
 import AdminKnowledgePage from "./pages/AdminKnowledgePage";
@@ -62,6 +63,7 @@ export default function App() {
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="checklist" element={<StageRoute page="checklist"><ChecklistPage /></StageRoute>} />
                   <Route path="lifecycle" element={<StageRoute page="lifecycle"><LifecyclePage /></StageRoute>} />
+                  <Route path="support" element={<SupportRequestsPage />} />
                 </Route>
               </Route>
 

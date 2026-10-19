@@ -34,6 +34,7 @@ import OnboardingFlow from "./onboarding/OnboardingFlow";
 import ConsentCard from "./chat/ConsentCard";
 import QuickFillCard from "./chat/QuickFillCard";
 import SaveSuggestions from "./chat/SaveSuggestions";
+import EscalationCard from "./chat/EscalationCard";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -258,6 +259,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
               card: data.card || null,
               supplementCard: data.supplement_card || null,
               saveSuggestions: data.save_suggestions || [],
+              escalation: data.escalation || null,
               intent: classified?.intents?.join(", ") || "AI chat",
               source: data.agent_used || "AI Assistant",
               agent,
@@ -327,6 +329,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
                   rollbackPrefill={messages[i - 1]?.content}
                   onRollback={handleRollback}
                   cardActive={i === messages.length - 1 && !isStreaming}
+                  sessionId={sessionId}
                   onCardAnswered={() => sendMessage(messages[i - 1]?.content)}
                   onCardSkipped={(fields) => sendMessage(messages[i - 1]?.content, null, fields)}
                   onCardDismissed={(fields) => {
@@ -436,7 +439,7 @@ function UserMessage({ msg }) {
 }
 
 function AssistantMessage({
-  msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, onCardAnswered, onCardSkipped, onCardDismissed,
+  msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, sessionId, onCardAnswered, onCardSkipped, onCardDismissed,
 }) {
   const [copied, setCopied] = useState(false);
   // A live reply carries its sources inside its text; one loaded from
@@ -540,6 +543,9 @@ function AssistantMessage({
           )}
 
           {msg.saveSuggestions?.length > 0 && <SaveSuggestions suggestions={msg.saveSuggestions} />}
+
+          {/* Passed to the programme office, or offered to be */}
+          {msg.escalation && <EscalationCard escalation={msg.escalation} sessionId={sessionId} active={cardActive} />}
 
           {/* Metadata — only meaningful once the reply has fully resolved */}
           {!msg.streaming && (

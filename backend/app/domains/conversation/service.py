@@ -34,7 +34,9 @@ from app.core.config import settings
 from app.core.errors import ForbiddenError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.domains.conversation.models import ConversationState, HistoryBlock
-from app.domains.conversation.repository import get_session_store, insert_turn_metric
+from app.domains.conversation.repository import (
+    find_open_case, get_session_store, insert_case, insert_turn_metric, list_cases_for_user,
+)
 
 logger = get_logger(__name__)
 
@@ -78,11 +80,14 @@ def get_state(session_id: str, user_id: str) -> ConversationState:
 def record_turn(
     session_id: str, state: ConversationState,
     human_message: HumanMessage, ai_message: AIMessage,
-    intents: list[str], agent_used: str,
+    intents: list[str], agent_used: str, escalation_offer: dict | None = None,
 ) -> None:
     """Appends this turn's messages to the raw tail, bumps turn_count, logs
     the intent-classification result, and persists — the state mutation
-    every /chat turn ends with, once dispatch has produced an answer."""
+    every /chat turn ends with, once dispatch has produced an answer.
+    `escalation_offer` ({"category", "trigger_source", "priority"}) records
+    that this turn offered to pass the conversation to staff, which is what
+    accept_escalation_offer() later checks."""
     state.turn_count += 1
     state.raw_tail = state.raw_tail + [human_message, ai_message]
     # Intent-classification log for this turn — persisted to the hot
@@ -96,8 +101,61 @@ def record_turn(
     # (see last_turn() below).
     if extra.get("turn_contexts"):
         entry["contexts"] = list(extra["turn_contexts"])
+    if escalation_offer:
+        entry["escalation_offer"] = dict(escalation_offer)
     state.pending_turn_intents = state.pending_turn_intents + [entry]
     get_session_store().save_state(session_id, state)
+
+
+# --- escalation cases -------------------------------------------------------------
+
+def _case_view(row: dict) -> dict:
+    """Plain JSON values only: the case rides in the chat stream's "done"
+    event, which is serialised with json.dumps, not by FastAPI."""
+    return {
+        "id": row["id"], "short_id": row["id"].replace("-", "")[-8:].upper(), "conversation_id": row["conversation_id"],
+        "category": row["category"], "status": row["status"], "priority": row["priority"],
+        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+        "resolved_at": row["resolved_at"].isoformat() if row["resolved_at"] else None,
+    }
+
+
+def open_case(case: dict, summarize: Callable[[], str]) -> dict | None:
+    """Opens a chat.cases row for the conversation — or, when it already
+    has an open case of that category, returns that one instead of a
+    duplicate. `case`: {user_id, conversation_id, trigger_source,
+    origin_specialist, category, priority}; `summarize` is only called when
+    a new case is written. {..case view.., "created": bool}; None with the
+    in-memory store, which has no table."""
+    if settings.session_store_backend != "supabase_cached":
+        return None
+    existing = find_open_case(case["conversation_id"], case["category"])
+    if existing is None:
+        row = insert_case({**case, "summary": summarize()})
+        if row is not None:
+            return {**_case_view(row), "created": True}
+        existing = find_open_case(case["conversation_id"], case["category"])
+    return {**_case_view(existing), "created": False} if existing else None
+
+
+def escalation_offer(state: ConversationState) -> dict | None:
+    """The offer the latest turn made ({"category", "trigger_source",
+    "priority"}), or None — only the latest turn's offer can be taken up."""
+    entry = next((e for e in reversed(state.pending_turn_intents) if e.get("turn") == state.turn_count), {})
+    return entry.get("escalation_offer")
+
+
+def recent_transcript(state: ConversationState, messages: int = 6) -> list[tuple[str, str]]:
+    """[(role, text)] for the last few messages, oldest first — what a case
+    summary is written from."""
+    return [
+        ("user" if isinstance(m, HumanMessage) else "assistant", str(m.content))
+        for m in state.raw_tail[-messages:] if isinstance(m, (HumanMessage, AIMessage))
+    ]
+
+
+def list_cases(user_id: str) -> list[dict]:
+    return [_case_view(row) for row in list_cases_for_user(user_id)]
 
 
 def record_turn_metrics(build: Callable[[], dict]) -> None:

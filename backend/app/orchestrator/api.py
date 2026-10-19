@@ -102,6 +102,7 @@ def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str =
     return ChatResponse(
         session_id=result.session_id, reply=result.reply, agent_used=result.agent_used,
         card=result.card, supplement_card=result.supplement_card, save_suggestions=result.save_suggestions,
+        escalation=result.escalation,
     )
 
 
@@ -200,6 +201,7 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
                 "card": result.card,
                 "supplement_card": result.supplement_card,
                 "save_suggestions": result.save_suggestions,
+                "escalation": result.escalation,
             })
         finally:
             if is_existing_session and not lock_released:
@@ -229,6 +231,22 @@ def list_sessions(user_id: str = Depends(get_current_user_id)):
     for a frontend sidebar. Backends with no per-user index (the "redis"
     session_store_backend) return an empty list rather than erroring."""
     return ConversationListResponse(conversations=conversation.list_conversations(user_id))
+
+
+@router.get("/chat/escalations")
+def list_my_escalations(user_id: str = Depends(get_current_user_id)):
+    """The user's own requests to staff, newest first — status only, never
+    the staff's internal notes."""
+    return {"items": conversation.list_cases(user_id)}
+
+
+@router.post("/chat/{session_id}/escalations", status_code=201)
+def accept_escalation(session_id: UUID, user_id: str = Depends(get_current_user_id)):
+    """The user took up the latest turn's offer to pass the conversation to
+    staff. 404 when that turn made no offer; 403 for someone else's
+    conversation. Returns the case card (an existing open case of the same
+    kind instead of a duplicate)."""
+    return turn_service.accept_escalation_offer(str(session_id), user_id)
 
 
 @router.get("/chat/{session_id}/history", response_model=ConversationHistoryResponse)

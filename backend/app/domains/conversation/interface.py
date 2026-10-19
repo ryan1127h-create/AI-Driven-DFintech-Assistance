@@ -35,6 +35,10 @@ __all__ = [
     "get_state",
     "record_turn",
     "record_turn_metrics",
+    "open_case",
+    "escalation_offer",
+    "recent_transcript",
+    "list_cases",
     "last_turn",
     "delete_conversation",
     "try_lock",
@@ -63,11 +67,33 @@ def get_state(session_id: str, user_id: str) -> ConversationState:
 def record_turn(
     session_id: str, state: ConversationState,
     human_message: HumanMessage, ai_message: AIMessage,
-    intents: list[str], agent_used: str,
+    intents: list[str], agent_used: str, escalation_offer: dict | None = None,
 ) -> None:
     """Persists one completed turn: appends to the raw tail, bumps
-    turn_count, logs the intent-classification result."""
-    service.record_turn(session_id, state, human_message, ai_message, intents, agent_used)
+    turn_count, logs the intent-classification result (and the offer to
+    escalate it, when the turn made one)."""
+    service.record_turn(session_id, state, human_message, ai_message, intents, agent_used, escalation_offer)
+
+
+def open_case(case: dict, summarize: Callable[[], str]) -> dict | None:
+    """Opens an escalation case for a conversation, or returns its open
+    case of the same category; see service.open_case."""
+    return service.open_case(case, summarize)
+
+
+def escalation_offer(state: ConversationState) -> dict | None:
+    """The offer to escalate that the latest turn made, or None."""
+    return service.escalation_offer(state)
+
+
+def recent_transcript(state: ConversationState, messages: int = 6) -> list[tuple[str, str]]:
+    """[(role, text)] for the conversation's last few messages."""
+    return service.recent_transcript(state, messages)
+
+
+def list_cases(user_id: str) -> list[dict]:
+    """The user's own escalation cases, newest first (no staff notes)."""
+    return service.list_cases(user_id)
 
 
 def record_turn_metrics(build: Callable[[], dict]) -> None:

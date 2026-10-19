@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle,
   ChevronLeft,
+  LifeBuoy,
   MessageSquare,
   Pencil,
   Pin,
@@ -63,6 +64,7 @@ export default function StudentSidebar() {
     ...(user?.role === "enrolled_student"
       ? [{ key: "alumni-match", to: "/alumni-match", label: "Alumni Match", icon: MessageSquare }]
       : []),
+    { key: "support", to: "/workspace/support", label: "Requests to Staff", icon: LifeBuoy },
   ];
 
   // Loaded once per user, then reloaded quietly (no loading state) whenever

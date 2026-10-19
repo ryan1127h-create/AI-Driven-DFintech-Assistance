@@ -29,3 +29,35 @@ def stored_turn_metrics(monkeypatch):
     monkeypatch.setattr(conversation_service, "insert_turn_metric", rows.append)
     monkeypatch.setattr(turn_service, "get_audience", lambda user_id: "applicant")
     return rows
+
+
+@pytest.fixture(autouse=True)
+def stored_cases(monkeypatch):
+    """Likewise for escalation cases: an in-memory chat.cases, so a test
+    turn that escalates never writes to the shared table."""
+    import itertools
+    from datetime import datetime, timezone
+
+    from app.domains.conversation import service as conversation_service
+
+    rows: list[dict] = []
+    ids = itertools.count(1)
+
+    def insert_case(case):
+        if any(r["conversation_id"] == case["conversation_id"] and r["category"] == case["category"]
+               and r["status"] == "open" for r in rows):
+            return None
+        row = {**case, "id": f"00000000-0000-0000-0000-{next(ids):012d}", "status": "open",
+               "created_at": datetime.now(timezone.utc), "resolved_at": None}
+        rows.append(row)
+        return row
+
+    def find_open_case(conversation_id, category):
+        return next((r for r in rows if r["conversation_id"] == conversation_id and r["category"] == category
+                     and r["status"] == "open"), None)
+
+    monkeypatch.setattr(conversation_service, "insert_case", insert_case)
+    monkeypatch.setattr(conversation_service, "find_open_case", find_open_case)
+    monkeypatch.setattr(conversation_service, "list_cases_for_user",
+                        lambda user_id: [r for r in rows if r["user_id"] == user_id])
+    return rows

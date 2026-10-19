@@ -32,6 +32,9 @@ class ChatResponse(BaseModel):
     card: Optional[dict] = None
     supplement_card: Optional[dict] = None
     save_suggestions: list[dict] = Field(default_factory=list)
+    # Passed to staff ({"kind": "opened", "case", "resources"?}) or offered
+    # ({"kind": "offer", "category"}); see turn_service.ChatTurnResult.
+    escalation: Optional[dict] = None
 
 
 class ConversationSummary(BaseModel):

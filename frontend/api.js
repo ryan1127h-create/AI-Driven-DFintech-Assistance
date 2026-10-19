@@ -201,6 +201,11 @@ export async function getChatSessions() {
   return handleResponse(response);
 }
 
+// Requests to staff raised from the chat: the user's own list, and taking
+// up the offer the latest reply made (POST /chat/{id}/escalations).
+export function getMyEscalations() { return fetch(buildUrl("/chat/escalations"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function acceptEscalationOffer(sessionId) { return jsonRequest("POST", `/chat/${encodeURIComponent(sessionId)}/escalations`, {}); }
+
 export async function getChatHistory(sessionId) {
   const response = await fetch(buildUrl(`/chat/${sessionId}/history`), {
     headers: getAuthHeaders(),
