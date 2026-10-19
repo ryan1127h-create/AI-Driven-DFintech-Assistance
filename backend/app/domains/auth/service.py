@@ -67,6 +67,11 @@ logger = get_logger(__name__)
 
 _bearer_scheme = HTTPBearer(auto_error=True)
 _BLACKLIST_PREFIX = "auth:blacklist:"
+# Set when an account is disabled or deleted, so the access tokens it
+# already holds stop working at once instead of at their expiry. Kept for
+# Supabase's longest possible access-token lifetime (one week).
+_REVOKED_USER_PREFIX = "auth:revoked_user:"
+_REVOKED_USER_TTL_SECONDS = 7 * 24 * 3600
 _PENDING_PREFIX = "auth:pending:"
 _ENROLLED_STUDENT_EMAIL_SUFFIX = "@u.nus.edu"
 
@@ -83,6 +88,32 @@ def derive_role(account_role: str, lifecycle_stage: str | None) -> str:
     if account_role == "admin":
         return "admin"
     return "enrolled_student" if lifecycle_stage in _ENROLLED_STAGES else "applicant"
+
+
+def login_portal(role: str, lifecycle_stage: str | None) -> str:
+    """The login tab an account signs in through: alumni share the
+    "admin" tab ("Alumni / Admin") with staff, though their app role stays
+    enrolled_student (they use the student app and Alumni Match)."""
+    if role != "admin" and lifecycle_stage == "alumni":
+        return "admin"
+    return role
+
+
+def get_audience(user_id: str) -> str:
+    """Who the user is, for usage statistics: "admin", "alumni",
+    "enrolled_student", "applicant", or "unknown" when the account can't
+    be read. Unlike derive_role, alumni are told apart from students."""
+    try:
+        account = repository.get_account(user_id)
+    except Exception as exc:
+        logger.warning("could not read the account of %s: %s", user_id, exc)
+        return "unknown"
+    if account is None:
+        return "unknown"
+    stage = _lifecycle_stage(user_id)
+    if account["role"] != "admin" and stage == "alumni":
+        return "alumni"
+    return derive_role(account["role"], stage)
 
 
 def _lifecycle_stage(user_id: str) -> str | None:
@@ -140,10 +171,45 @@ def delete_account(user_id: str) -> None:
     """Deletes the Supabase user, which cascades to the account row and
     every row that references it. Deleting only the account row would leave
     a Supabase user that can still sign in and whose email can never be
-    registered again."""
+    registered again. Tokens the user already holds are revoked first."""
     if repository.get_account(user_id) is None:
         raise NotFoundError("User not found.")
+    _revoke_user_tokens(user_id)
     auth_provider.delete_user(user_id)
+
+
+def set_account_status(user_id: str, status: str) -> None:
+    """Disabling also revokes the tokens the user already holds (login
+    refuses a disabled account, but an earlier token would otherwise keep
+    working until it expires); re-enabling lifts that."""
+    if status not in repository.ACCOUNT_STATUSES:
+        raise ValidationError("Invalid account status.")
+    if not repository.set_status(user_id, status):
+        raise NotFoundError("User not found.")
+    if status == "active":
+        try:
+            cache.delete(f"{_REVOKED_USER_PREFIX}{user_id}")
+        except Exception as exc:
+            logger.warning("could not lift the token revocation of %s: %s", user_id, exc)
+    else:
+        _revoke_user_tokens(user_id)
+
+
+def _revoke_user_tokens(user_id: str) -> None:
+    try:
+        cache.set(f"{_REVOKED_USER_PREFIX}{user_id}", "1", ttl_seconds=_REVOKED_USER_TTL_SECONDS)
+    except Exception as exc:
+        logger.warning("could not revoke the tokens of %s: %s", user_id, exc)
+
+
+def _is_revoked_user(user_id: str) -> bool:
+    """Fail-open like _is_blacklisted: login's own account_status check and
+    the token's expiry still apply when the cache is unreachable."""
+    try:
+        return cache.exists(f"{_REVOKED_USER_PREFIX}{user_id}")
+    except Exception as exc:
+        logger.warning("revoked-user check failed, allowing request: %s", exc)
+        return False
 
 
 def get_settings(user_id: str) -> dict:
@@ -378,10 +444,14 @@ def login(email: str, password: str, role: str) -> AuthResponse:
 
     # Catches the "picked the wrong portal/tab" mistake with a clearer
     # message than a generic auth failure (e.g. an applicant trying the
-    # Enrolled Student tab, or anyone trying the Staff/Admin tab on a
-    # non-admin account).
+    # Enrolled Student tab, or a student trying the Alumni / Admin tab).
     user = user_out(account, _lifecycle_stage(session.user_id))
-    if user.role != role:
+    portal = login_portal(user.role, user.lifecycle_stage)
+    if portal != role:
+        if portal == "admin" and user.role != "admin":
+            raise UnauthorizedError("Alumni sign in through the Alumni / Admin tab.")
+        if role == "admin":
+            raise UnauthorizedError("This account is not registered as alumni or admin.")
         raise UnauthorizedError(f"This account is not registered as {role.replace('_', ' ')}.")
 
     repository.touch_last_login(user.user_id)
@@ -447,5 +517,8 @@ def get_current_user_id(
 
     if _is_blacklisted(token):
         raise UnauthorizedError("This access token has been logged out.")
+
+    if _is_revoked_user(payload["sub"]):
+        raise UnauthorizedError("This account has been disabled.")
 
     return payload["sub"]

@@ -9,8 +9,31 @@ class AdminStat(BaseModel):
     active: int | None = None
 
 
+class AdminTopic(BaseModel):
+    label: str
+    total: int
+
+
+class AdminAgentUsage(BaseModel):
+    name: str
+    label: str
+    requests: int
+    success: int
+    failed: int
+    avg_latency_ms: int | None = None
+    status: Literal["Healthy", "Degraded"]
+
+
+class AdminUsage(BaseModel):
+    available: bool
+    top_topics: dict[Literal["all", "applicant", "enrolled_student"], list[AdminTopic]]
+    agents: list[AdminAgentUsage]
+
+
 class AdminOverview(BaseModel):
     generated_at: datetime
+    days: int
+    usage: AdminUsage
     users: AdminStat
     conversations: AdminStat
     applications: dict[str, int]
@@ -105,6 +128,7 @@ class AdminEscalationCase(BaseModel):
     id: str
     shortId: str
     user_id: str | None = None
+    conversationId: str | None = None
     name: str
     email: str | None = None
     initials: str
@@ -123,10 +147,9 @@ class AdminEscalationCase(BaseModel):
 
 
 class AdminEscalationUpdate(BaseModel):
-    # Resolving is the only change the console makes to a case; the notes
-    # are accepted but not stored yet (chat.cases has no column for them).
+    # Resolving is the only change the console makes to a case.
     status: Literal["Resolved"]
-    resolution_notes: str | None = None
+    resolution_notes: str | None = Field(default=None, max_length=4000)
 
 
 class AdminEscalationCaseList(BaseModel):

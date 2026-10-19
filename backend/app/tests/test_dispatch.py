@@ -17,6 +17,7 @@ registering a fake Tool."""
 
 from __future__ import annotations
 
+import pytest
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
@@ -26,6 +27,16 @@ from app.orchestrator.dispatch.evaluation import BranchVerdict
 from app.tools import contracts
 from app.tools.contracts import Tool, ToolAnswer, ToolRegistry
 from app.tools.turn_context import TurnState
+
+
+@pytest.fixture(autouse=True)
+def _empty_registry(monkeypatch):
+    """Every test starts from an empty registry; tests that need tools
+    install their own. Without this, the result depended on whether an
+    earlier test module had imported app.main (which registers the real
+    tools — the real admissions tool skips evaluation, so evaluate_and_fix
+    returned the draft unchanged)."""
+    monkeypatch.setattr(contracts, "registry", ToolRegistry())
 
 
 class _Input(BaseModel):

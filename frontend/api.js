@@ -1,12 +1,5 @@
 const RAW_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 const API_BASE = RAW_API_BASE.endsWith("/api/v1") ? RAW_API_BASE : `${RAW_API_BASE}/api/v1`;
-// MOCK DATA SWITCH: the alumni endpoints don't exist on the backend yet, so
-// Alumni Match runs on mock data unless VITE_USE_MOCK_DATA=false. Once they
-// do, remove this switch, the import below and each `if (USE_MOCK_DATA)` branch.
-const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== "false";
-
-// MOCK DATA ONLY: a temporary adapter for local development.
-import { alumniMatchData } from "./src/data/alumniMatch";
 
 function buildUrl(path) {
   return `${API_BASE}${path}`;
@@ -401,8 +394,7 @@ export function getAdminKnowledgeCourse(courseCode) { return fetch(buildUrl(`/ad
 export function updateAdminKnowledgeCourse(courseCode, changes) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}`, changes); }
 export function updateAdminKnowledgeCourseRelated(courseCode, relation, row) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}/${encodeURIComponent(relation)}`, { row }); }
 
-// PATCH /admin/escalations/{id} only resolves a case. resolution_notes is
-// accepted but not stored yet (chat.cases has no column for it).
+// PATCH /admin/escalations/{id} only resolves a case, with optional notes.
 export function resolveAdminEscalationCase(caseId, resolutionNotes) {
   return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, {
     status: "Resolved",
@@ -413,71 +405,28 @@ export function resolveAdminEscalationCase(caseId, resolutionNotes) {
 // ---------------------------------------------------------------------------
 // Alumni matching
 // ---------------------------------------------------------------------------
-// Expected backend routes:
-//   GET  /alumni/matches
-//   GET  /alumni/requests
-//   POST /alumni/requests
-//   PATCH /alumni/requests/{requestId}
+// Enrolled students browse listed alumni and send requests; alumni answer
+// them. Contact details only appear once a request is accepted.
 
-export async function getAlumniMatches({ search = "", expertise = [], page = 1, pageSize = 20 } = {}) {
-  // MOCK FALLBACK: delete this branch after GET /alumni/matches is live.
-  if (USE_MOCK_DATA) {
-    const query = search.toLowerCase();
-    const items = alumniMatchData.alumni.filter((person) =>
-      (!query || `${person.name} ${person.position} ${person.company}`.toLowerCase().includes(query)) &&
-      (!expertise.length || expertise.some((tag) => person.expertise.includes(tag))),
-    );
-    const start = (page - 1) * pageSize;
-    return { items: items.slice(start, start + pageSize), total: items.length, page, page_size: pageSize };
-  }
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize),
-    ...(search && { search }),
-    ...(expertise.length > 0 && { expertise: expertise.join(",") }),
-  });
-  const response = await fetch(buildUrl(`/alumni/matches?${params}`), {
-    headers: getAuthHeaders(),
-  });
-  return handleResponse(response);
+export function getAlumniMe() { return fetch(buildUrl("/alumni/me"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function setAlumniListed(listed) { return jsonRequest("PATCH", "/alumni/me", { listed }); }
+
+export function getAlumniMatches({ search = "", expertise = [] } = {}) {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (expertise.length) params.set("expertise", expertise.join(","));
+  const query = params.toString() ? `?${params}` : "";
+  return fetch(buildUrl(`/alumni/matches${query}`), { headers: getAuthHeaders() }).then(handleResponse);
 }
 
-export async function getAlumniRequests({ direction = "all", status = "pending" } = {}) {
-  // MOCK FALLBACK: delete this branch after GET /alumni/requests is live.
-  if (USE_MOCK_DATA) return { incoming: [alumniMatchData.incomingRequest], sent: alumniMatchData.sentRequests, status };
-  const params = new URLSearchParams({ direction, status });
-  const response = await fetch(buildUrl(`/alumni/requests?${params}`), {
-    headers: getAuthHeaders(),
-  });
-  return handleResponse(response);
-}
+export function getAlumniRequests() { return fetch(buildUrl("/alumni/requests"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function createAlumniRequest({ alumniId, note = "" }) { return jsonRequest("POST", "/alumni/requests", { alumni_id: alumniId, note: note || null }); }
+export function acceptAlumniRequest(requestId, { share = [], replyNote = "" } = {}) { return jsonRequest("PATCH", `/alumni/requests/${encodeURIComponent(requestId)}`, { action: "accept", share, reply_note: replyNote || null }); }
+export function declineAlumniRequest(requestId) { return jsonRequest("PATCH", `/alumni/requests/${encodeURIComponent(requestId)}`, { action: "decline" }); }
+export function cancelAlumniRequest(requestId) { return jsonRequest("PATCH", `/alumni/requests/${encodeURIComponent(requestId)}`, { action: "cancel" }); }
 
-export async function getAlumniMatchData() {
-  // MOCK FALLBACK: delete this branch after the real alumni endpoints return
-  // the complete match/request payload expected by the page.
-  if (USE_MOCK_DATA) return alumniMatchData;
-  const [matches, requests] = await Promise.all([getAlumniMatches(), getAlumniRequests()]);
-  return { ...alumniMatchData, alumni: matches.items, incomingRequest: requests.incoming?.[0] || null, sentRequests: requests.sent || [] };
-}
-
-export function createAlumniRequest({ recipientId, note = "" }) {
-  return jsonRequest("POST", "/alumni/requests", {
-    recipient_id: recipientId,
-    note,
-  });
-}
-
-export function updateAlumniRequest(requestId, { status, sharing = undefined } = {}) {
-  return jsonRequest("PATCH", `/alumni/requests/${encodeURIComponent(requestId)}`, {
-    ...(status && { status }),
-    ...(sharing && { sharing }),
-  });
-}
-
-export function acceptAlumniRequest(requestId, sharing) {
-  return updateAlumniRequest(requestId, { status: "accepted", sharing });
-}
-
-export function declineAlumniRequest(requestId) {
-  return updateAlumniRequest(requestId, { status: "declined" });
-}
+// Staff: the alumni directory.
+export function getAdminAlumni() { return fetch(buildUrl("/admin/alumni"), { headers: getAuthHeaders() }).then(handleResponse); }
+export function createAdminAlumnus(fields) { return jsonRequest("POST", "/admin/alumni", fields); }
+export function updateAdminAlumnus(userId, fields) { return jsonRequest("PATCH", `/admin/alumni/${encodeURIComponent(userId)}`, fields); }
+export function deleteAdminAlumnus(userId) { return fetch(buildUrl(`/admin/alumni/${encodeURIComponent(userId)}`), { method: "DELETE", headers: getAuthHeaders() }).then(handleResponse); }

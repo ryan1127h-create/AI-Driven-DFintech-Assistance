@@ -540,6 +540,17 @@ class CachedConversationStore(ConversationStore):
         self._cache_set(session_id, state)
 
 
+def insert_turn_metric(metric: dict) -> None:
+    """One row in chat.turn_metrics (see service.record_turn_metrics)."""
+    chat_db.execute(
+        """insert into chat.turn_metrics
+               (conversation_id, user_id, audience, intents, agent_used, agents, failed_agents, outcome, latency_ms)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (metric["conversation_id"], metric["user_id"], metric["audience"], metric["intents"],
+         metric["agent_used"], metric["agents"], metric["failed_agents"], metric["outcome"], metric["latency_ms"]),
+    )
+
+
 _store: ConversationStore | None = None
 
 

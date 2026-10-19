@@ -38,6 +38,12 @@ def get_account_by_email(email: str) -> dict | None:
     return account_db.fetch_one_dict(_ACCOUNT_SELECT + " where email = %s", (email,))
 
 
+def get_accounts(user_ids: list[str]) -> list[dict]:
+    if not user_ids:
+        return []
+    return account_db.fetch_all_dict(_ACCOUNT_SELECT + " where user_id = any(%s::uuid[])", (list(user_ids),))
+
+
 def touch_last_login(user_id: str) -> None:
     account_db.execute(
         "update account.accounts set last_login_at = now(), updated_at = now() where user_id = %s",

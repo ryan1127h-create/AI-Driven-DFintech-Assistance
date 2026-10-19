@@ -25,7 +25,9 @@ layers =
 ; from profile, sis and knowledge (reusing lifecycle's degree progress
 ; rules) and stores them in profile; auth
 ; records the registration stage and consent in profile; profile validates
-; role tags against knowledge_retrieval.
+; role tags against knowledge_retrieval; alumni reads accounts (auth), the
+; lifecycle stage, consents and role interests (profile) and the role tags
+; (knowledge_retrieval).
 ; Every domain's api.py resolves the caller through auth's
 ; get_current_user_id dependency - HTTP plumbing, not a domain dependency -
 ; so those imports are exempt.
@@ -33,7 +35,7 @@ layers =
 name = data-owning domains form their own dependency order
 type = layers
 layers =
-    app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels
+    app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels | app.domains.alumni
     app.domains.auth
     app.domains.profile
     app.domains.sis | app.domains.knowledge_retrieval | app.domains.conversation | app.domains.program_catalog
@@ -56,6 +58,7 @@ forbidden_modules =
     app.domains.profile
     app.domains.program_catalog
     app.domains.sis
+    app.domains.alumni
     app.adapters.postgres_pool
     app.adapters.account_db_adapter
     app.adapters.profile_db_adapter
@@ -63,6 +66,7 @@ forbidden_modules =
     app.adapters.chat_db_adapter
     app.adapters.knowledge_db_adapter
     app.adapters.program_db_adapter
+    app.adapters.alumni_db_adapter
     app.adapters.redis_cache_adapter
     app.adapters.openai_embedding_adapter
     app.adapters.supabase_auth_adapter

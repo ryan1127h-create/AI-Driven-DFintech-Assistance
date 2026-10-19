@@ -23,6 +23,7 @@ redoing the work and racing on whose state update survived. So:
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -33,7 +34,7 @@ from app.core.config import settings
 from app.core.errors import ForbiddenError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.domains.conversation.models import ConversationState, HistoryBlock
-from app.domains.conversation.repository import get_session_store
+from app.domains.conversation.repository import get_session_store, insert_turn_metric
 
 logger = get_logger(__name__)
 
@@ -97,6 +98,19 @@ def record_turn(
         entry["contexts"] = list(extra["turn_contexts"])
     state.pending_turn_intents = state.pending_turn_intents + [entry]
     get_session_store().save_state(session_id, state)
+
+
+def record_turn_metrics(build: Callable[[], dict]) -> None:
+    """Stores the turn's dashboard metrics (no message text). `build`
+    returns the row and is only called when it will be stored — skipped
+    with the in-memory store, which has no table to write to. Best effort:
+    a failure building or storing it is logged and never fails the turn."""
+    if settings.session_store_backend != "supabase_cached":
+        return
+    try:
+        insert_turn_metric(build())
+    except Exception:
+        logger.exception("could not record the metrics of a turn")
 
 
 def last_turn(state: ConversationState) -> dict | None:

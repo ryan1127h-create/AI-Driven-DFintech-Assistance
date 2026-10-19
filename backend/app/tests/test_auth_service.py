@@ -90,6 +90,12 @@ class _FakeAccounts:
         self.rows[user_id]["full_name"] = full_name
         return True
 
+    def set_status(self, user_id: str, status: str) -> bool:
+        if user_id not in self.rows:
+            return False
+        self.rows[user_id]["account_status"] = status
+        return True
+
     def set_onboarding(self, user_id: str, status: str) -> bool:
         if user_id not in self.rows:
             return False
@@ -174,6 +180,7 @@ def accounts(monkeypatch):
                         lambda uid: fake.onboarding.get(uid, "not_started") if uid in fake.rows else None)
     monkeypatch.setattr(service.repository, "set_onboarding_status", fake.set_onboarding)
     monkeypatch.setattr(service.repository, "set_full_name", fake.set_full_name)
+    monkeypatch.setattr(service.repository, "set_status", fake.set_status)
     return fake
 
 
@@ -404,6 +411,22 @@ def test_login_as_admin(fake_auth_provider, accounts):
     assert service.login("someone@gmail.com", "password123", "admin").user.role == "admin"
 
 
+def test_alumni_sign_in_through_the_alumni_admin_tab(fake_auth_provider, accounts):
+    user_id = _registered(fake_auth_provider, accounts, stage="alumni")
+    response = service.login("someone@gmail.com", "password123", "admin")
+    # The tab is shared with staff, but the app role stays the student one.
+    assert (response.user.role, response.user.lifecycle_stage) == ("enrolled_student", "alumni")
+    assert accounts.last_login == [user_id]
+    with pytest.raises(UnauthorizedError, match="Alumni / Admin tab"):
+        service.login("someone@gmail.com", "password123", "enrolled_student")
+
+
+def test_students_cannot_use_the_alumni_admin_tab(fake_auth_provider, accounts):
+    _registered(fake_auth_provider, accounts, stage="current")
+    with pytest.raises(UnauthorizedError, match="alumni or admin"):
+        service.login("someone@gmail.com", "password123", "admin")
+
+
 def test_login_rejects_a_mismatched_role_even_with_the_correct_password(fake_auth_provider, accounts):
     _registered(fake_auth_provider, accounts, stage="applicant")
     with pytest.raises(UnauthorizedError):
@@ -454,6 +477,48 @@ def test_deleting_an_account_deletes_the_provider_user(fake_cache, fake_email, f
     service.delete_account(user_id)
     assert fake_auth_provider.deleted == [user_id]
     assert user_id not in accounts.rows
+
+
+def _token_check(monkeypatch, user_id: str):
+    """get_current_user_id for a validly signed token of user_id."""
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    monkeypatch.setattr(service, "decode_access_token", lambda token: {"sub": user_id})
+    return service.get_current_user_id(HTTPAuthorizationCredentials(scheme="Bearer", credentials="tok"))
+
+
+def test_disabling_an_account_revokes_its_current_tokens(monkeypatch, fake_cache, fake_email, fake_auth_provider, accounts):
+    user_id = service.start_registration("someone@gmail.com", "password123", "Some One", "applicant", False).user.user_id
+    assert _token_check(monkeypatch, user_id) == user_id
+    service.set_account_status(user_id, "disabled")
+    assert accounts.rows[user_id]["account_status"] == "disabled"
+    with pytest.raises(UnauthorizedError, match="disabled"):
+        _token_check(monkeypatch, user_id)
+    service.set_account_status(user_id, "active")
+    assert _token_check(monkeypatch, user_id) == user_id
+
+
+def test_deleting_an_account_revokes_its_current_tokens(monkeypatch, fake_cache, fake_email, fake_auth_provider, accounts):
+    user_id = service.start_registration("someone@gmail.com", "password123", "Some One", "applicant", False).user.user_id
+    service.delete_account(user_id)
+    with pytest.raises(UnauthorizedError):
+        _token_check(monkeypatch, user_id)
+
+
+def test_an_unknown_status_or_account_is_refused(fake_cache, accounts):
+    with pytest.raises(ValidationError):
+        service.set_account_status("nobody", "banned")
+    with pytest.raises(NotFoundError):
+        service.set_account_status("nobody", "disabled")
+
+
+def test_a_cache_outage_does_not_lock_everyone_out(monkeypatch, accounts):
+    class _DownCache:
+        def exists(self, key):
+            raise ConnectionError("redis down")
+
+    monkeypatch.setattr(service, "cache", _DownCache())
+    assert _token_check(monkeypatch, "u1") == "u1"
 
 
 def test_deleting_a_missing_account_is_not_found(fake_auth_provider):

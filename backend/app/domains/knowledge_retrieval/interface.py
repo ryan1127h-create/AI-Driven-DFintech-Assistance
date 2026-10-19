@@ -15,8 +15,8 @@ Current consumers:
       with list_admissions_items() / explain_application_status().
     - profile reads the role tags (list_role_tags()) for validation and
       display names.
-    - admin calls reload_catalogue() after the staff console edits a
-      knowledge table.
+    - admin rebuilds an edited row's retrieval chunk with chunk_builder and
+      embed_for_retrieval(), then calls reload_catalogue().
 
 Usage:
     from app.domains.knowledge_retrieval.interface import retrieve, cited_sources
@@ -24,10 +24,12 @@ Usage:
 
 from __future__ import annotations
 
+from app.domains.knowledge_retrieval import chunk_builder
 from app.domains.knowledge_retrieval.models import Hit
 from app.domains.knowledge_retrieval.service import (
     build_context,
     cited_sources,
+    embed_for_retrieval,
     explain_application_status,
     get_role_profile,
     list_admissions_items,
@@ -45,6 +47,8 @@ from app.domains.knowledge_retrieval.service import (
 
 __all__ = [
     "Hit",
+    "chunk_builder",
+    "embed_for_retrieval",
     "retrieve",
     "build_context",
     "cited_sources",

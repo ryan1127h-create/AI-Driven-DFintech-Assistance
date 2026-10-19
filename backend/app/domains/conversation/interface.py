@@ -21,6 +21,8 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.domains.conversation import service
@@ -32,6 +34,7 @@ __all__ = [
     "new_session_id",
     "get_state",
     "record_turn",
+    "record_turn_metrics",
     "last_turn",
     "delete_conversation",
     "try_lock",
@@ -65,6 +68,12 @@ def record_turn(
     """Persists one completed turn: appends to the raw tail, bumps
     turn_count, logs the intent-classification result."""
     service.record_turn(session_id, state, human_message, ai_message, intents, agent_used)
+
+
+def record_turn_metrics(build: Callable[[], dict]) -> None:
+    """Stores a turn's dashboard metrics, built by `build` only when they
+    will be stored; best effort, never raises."""
+    service.record_turn_metrics(build)
 
 
 def last_turn(state: ConversationState) -> dict | None:

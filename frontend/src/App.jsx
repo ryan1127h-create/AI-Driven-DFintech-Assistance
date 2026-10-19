@@ -18,6 +18,7 @@ import AdminConversationsPage from "./pages/AdminConversationsPage";
 import AdminConversationPage from "./pages/AdminConversationPage";
 import AlumniMatchPage from "./pages/AlumniMatchPage";
 import AdminEscalationPage from "./pages/AdminEscalationPage";
+import AdminAlumniPage from "./pages/AdminAlumniPage";
 import AdminKnowledgePage from "./pages/AdminKnowledgePage";
 import AdminKnowledgeCoursePage from "./pages/AdminKnowledgeCoursePage";
 import AdminKnowledgeRecordPage from "./pages/AdminKnowledgeRecordPage";
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/admin/conversations" element={<AdminConversationsPage />} />
                 <Route path="/admin/conversations/:conversationId" element={<AdminConversationPage />} />
                 <Route path="/admin/escalations" element={<AdminEscalationPage />} />
+                <Route path="/admin/alumni" element={<AdminAlumniPage />} />
                 <Route path="/admin/knowledge" element={<AdminKnowledgePage />} />
                 <Route path="/admin/knowledge/courses/:courseCode" element={<AdminKnowledgeCoursePage />} />
                 <Route path="/admin/knowledge/:category/:itemId" element={<AdminKnowledgeRecordPage />} />

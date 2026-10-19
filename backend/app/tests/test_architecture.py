@@ -25,6 +25,7 @@ _OWNERS = {
     "app.adapters.chat_db_adapter": ("chat", "app.domains.conversation.repository"),
     "app.adapters.knowledge_db_adapter": ("knowledge", "app.domains.knowledge_retrieval.service"),
     "app.adapters.program_db_adapter": ("program", "app.domains.program_catalog.repository"),
+    "app.adapters.alumni_db_adapter": ("alumni", "app.domains.alumni.repository"),
 }
 # The staff console spans every schema, so its adapter is exempt from the
 # one-schema SQL check but is still usable only by its owner.
@@ -33,7 +34,7 @@ _CROSS_SCHEMA_OWNERS = {
 }
 _SCHEMA_ADAPTERS = set(_OWNERS) | set(_CROSS_SCHEMA_OWNERS)
 _OWNER_OF = {adapter: owner for adapter, (_, owner) in _OWNERS.items()} | _CROSS_SCHEMA_OWNERS
-_SCHEMAS = ("account", "profile", "sis", "chat", "knowledge", "program")
+_SCHEMAS = ("account", "profile", "sis", "chat", "knowledge", "program", "alumni")
 _SQL = re.compile(r"\b(select|insert\s+into|update|delete\s+from)\b", re.IGNORECASE)
 _TABLE_REF = re.compile(r"\b(?:from|join|into|update)\s+(" + "|".join(_SCHEMAS) + r")\.", re.IGNORECASE)
 

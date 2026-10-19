@@ -15,14 +15,16 @@ data, read-only here through profile.interface.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.domains.auth.interface import get_assistant_preferences
+from app.domains.auth.interface import get_assistant_preferences, get_audience
 from app.domains.conversation import interface as conversation
 from app.domains.profile.interface import get_profile_summary_text
 from app.orchestrator import classification, dispatch
+from app.orchestrator.turn_metrics import read_agent_used
 from app.tools.turn_context import OnEvent, PreviousTurn, TurnState
 
 
@@ -54,6 +56,18 @@ def _previous_turn(state) -> PreviousTurn | None:
         user_message=last["user_message"], reply=last["reply"], intents=tuple(last["intents"]),
         agent_used=last["agent_used"], contexts=tuple(last["contexts"]),
     )
+
+
+def _record_metrics(session_id: str, user_id: str, intents: list[str], agent_used: str, latency_ms: int) -> None:
+    def build() -> dict:
+        outcome = read_agent_used(agent_used)
+        return {
+            "conversation_id": session_id, "user_id": user_id, "audience": get_audience(user_id),
+            "intents": list(intents), "agent_used": agent_used, "agents": outcome.agents,
+            "failed_agents": outcome.failed_agents, "outcome": outcome.outcome, "latency_ms": latency_ms,
+        }
+
+    conversation.record_turn_metrics(build)
 
 
 def run_turn(
@@ -106,6 +120,9 @@ def run_turn(
     llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + [new_message]
     previous_turn = _previous_turn(state)
 
+    # The dashboard's response time: classifying plus answering, the part
+    # of the turn the user waits on the model for.
+    started = time.perf_counter()
     classified = classification.classify_intent(llm_messages, on_event, previous_turn=previous_turn)
     intents = classified.intents
     preferences = get_assistant_preferences(user_id)
@@ -120,8 +137,10 @@ def run_turn(
         previous_turn=previous_turn,
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
+    latency_ms = int((time.perf_counter() - started) * 1000)
 
     conversation.record_turn(session_id, state, new_message, ai_message, intents, agent_used)
+    _record_metrics(session_id, user_id, intents, agent_used, latency_ms)
 
     extra = ai_message.additional_kwargs or {}
     return ChatTurnResult(

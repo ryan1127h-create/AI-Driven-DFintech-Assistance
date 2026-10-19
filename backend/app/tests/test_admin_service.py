@@ -22,6 +22,7 @@ class _FakeAuth:
         self.admins = {ADMIN}
         self.deleted: list[str] = []
         self.renamed: list[tuple[str, str]] = []
+        self.statuses: list[tuple[str, str]] = []
 
     def is_admin(self, user_id: str) -> bool:
         return user_id in self.admins
@@ -33,6 +34,9 @@ class _FakeAuth:
 
     def update_full_name(self, user_id: str, full_name: str) -> None:
         self.renamed.append((user_id, full_name))
+
+    def set_account_status(self, user_id: str, status: str) -> None:
+        self.statuses.append((user_id, status))
 
 
 @pytest.fixture()
@@ -85,13 +89,15 @@ def test_an_admin_cannot_remove_their_own_access(auth, repo_updates, changes):
 
 def test_an_admin_can_still_save_their_own_unchanged_access(auth, repo_updates):
     service.update_user(ADMIN, ADMIN, {"role": "admin", "account_status": "active"})
-    assert repo_updates == [(ADMIN, {"role": "admin", "account_status": "active"})]
+    assert auth.statuses == [(ADMIN, "active")]
+    assert repo_updates == [(ADMIN, {"role": "admin"})]
 
 
-def test_renaming_goes_through_auth_and_the_rest_through_the_repository(auth, repo_updates):
-    service.update_user(ADMIN, STUDENT, {"full_name": "New Name", "account_status": "disabled"})
+def test_name_and_status_go_through_auth_and_the_role_through_the_repository(auth, repo_updates):
+    service.update_user(ADMIN, STUDENT, {"full_name": "New Name", "account_status": "disabled", "role": "user"})
     assert auth.renamed == [(STUDENT, "New Name")]
-    assert repo_updates == [(STUDENT, {"account_status": "disabled"})]
+    assert auth.statuses == [(STUDENT, "disabled")]
+    assert repo_updates == [(STUDENT, {"role": "user"})]
 
 
 @pytest.mark.parametrize("changes", [{"role": "owner"}, {"account_status": "banned"}])
@@ -193,14 +199,40 @@ def test_updating_a_missing_application_returns_none(fake_tx):
 
 @pytest.fixture()
 def reloads(monkeypatch):
+    """Fake knowledge interface (real chunk builders, fake embedding) and a
+    fake chunk store; returns the list of reload_catalogue() calls."""
+    from app.domains.knowledge_retrieval import chunk_builder
+
     calls: list[bool] = []
 
     class _FakeKnowledge:
+        def __init__(self):
+            self.chunk_builder = chunk_builder
+
         def reload_catalogue(self):
             calls.append(True)
 
+        def embed_for_retrieval(self, text):
+            return [0.1, 0.2]
+
     monkeypatch.setattr(service, "knowledge_interface", _FakeKnowledge())
+    monkeypatch.setattr(service.repository, "fetch_chunk_source", lambda table, source_id: _SOURCES.get((table, source_id)))
+    monkeypatch.setattr(service.repository, "store_chunk", lambda chunk, vector: True)
     return calls
+
+
+_SOURCES = {
+    ("courses", "FT5001"): {
+        "row": {"course_code": "FT5001", "title": "New", "module_credit": 4, "department": "ISA", "status": "active",
+                "annex_section": "Core Courses", "annex_intake": "2026", "description": "D.", "prerequisite": None,
+                "preclusion": None},
+        "tags": [], "previous_metadata": {"faculty": "Computing"},
+    },
+    ("admissions_items", "transcript"): {
+        "row": {"key": "transcript", "label": "Transcript", "why": "W.", "required": True, "deadline_key": None},
+        "tags": [], "previous_metadata": None,
+    },
+}
 
 
 def test_key_only_course_relations_are_rejected_before_any_write(auth, reloads, monkeypatch):
@@ -215,10 +247,41 @@ def test_knowledge_edits_reload_the_cached_catalogue(auth, reloads, monkeypatch)
     monkeypatch.setattr(service.repository, "update_knowledge_course", lambda code, changes: {"course_code": code})
     monkeypatch.setattr(service.repository, "update_knowledge_course_related", lambda code, rel, row: {"course_code": code})
     monkeypatch.setattr(service.repository, "update_knowledge", lambda item, cat, changes: {"id": item})
-    service.update_knowledge_course(ADMIN, "FT5001", {"title": "New"})
-    service.update_knowledge_course_related(ADMIN, "FT5001", "workload", {"workload_lab": "2"})
+    assert service.update_knowledge_course(ADMIN, "FT5001", {"title": "New"})["search_index"] == "updated"
+    # Workload isn't part of the course's search text.
+    assert service.update_knowledge_course_related(ADMIN, "FT5001", "workload", {"workload_lab": "2"})["search_index"] == "unchanged"
+    assert service.update_knowledge_course_related(ADMIN, "FT5001", "description", {"description": "D."})["search_index"] == "updated"
+    assert service.update_knowledge(ADMIN, "transcript", "admission_requirement", {"label": "Transcript"})["search_index"] == "updated"
+    assert reloads == [True, True, True, True]
+
+
+def test_an_edited_row_gets_its_chunk_rebuilt_and_re_embedded(auth, reloads, monkeypatch):
+    stored = []
+    monkeypatch.setattr(service.repository, "store_chunk", lambda chunk, vector: stored.append((chunk, vector)) or True)
+    monkeypatch.setattr(service.repository, "update_knowledge", lambda item, cat, changes: {"id": item})
     service.update_knowledge(ADMIN, "transcript", "admission_requirement", {"label": "Transcript"})
-    assert reloads == [True, True, True]
+    chunk, vector = stored[0]
+    assert (chunk.chunk_key, chunk.source_table, vector) == ("admission:transcript", "admissions_items", [0.1, 0.2])
+    assert chunk.content == "Transcript — Required. W."
+
+
+def test_a_failed_re_embedding_keeps_the_edit_and_says_so(auth, reloads, monkeypatch):
+    monkeypatch.setattr(service.repository, "update_knowledge", lambda item, cat, changes: {"id": item})
+
+    def down(text):
+        raise ConnectionError("openai down")
+
+    monkeypatch.setattr(service.knowledge_interface, "embed_for_retrieval", down)
+    result = service.update_knowledge(ADMIN, "transcript", "admission_requirement", {"label": "Transcript"})
+    assert result == {"id": "transcript", "search_index": "failed"}
+    assert reloads == [True]  # the catalogue is still reloaded: the row itself did change
+
+
+def test_a_row_without_a_chunk_reports_missing(auth, reloads, monkeypatch):
+    monkeypatch.setattr(service.repository, "update_knowledge", lambda item, cat, changes: {"id": item})
+    monkeypatch.setattr(service.repository, "store_chunk", lambda chunk, vector: False)
+    assert service.update_knowledge(ADMIN, "transcript", "admission_requirement", {})["search_index"] == "missing"
+    assert service.update_knowledge(ADMIN, "SUBMITTED", "application_status", {})["search_index"] == "missing"
 
 
 def test_a_failed_knowledge_edit_does_not_reload(auth, reloads, monkeypatch):
@@ -271,9 +334,39 @@ def test_resolving_keeps_an_earlier_resolution(monkeypatch):
     executed = []
     monkeypatch.setattr(repository.reporting_db, "execute", lambda q, p: executed.append((" ".join(q.split()), p)))
     monkeypatch.setattr(repository, "get_escalation", lambda case_id: {"id": case_id})
-    repository.resolve_escalation("case-1", ADMIN)
+    repository.resolve_escalation("case-1", ADMIN, "Called the student back.")
     assert executed[0][0].endswith("where id = %s and status <> 'resolved'")
-    assert executed[0][1] == (ADMIN, "case-1")
+    assert "resolution_notes = %s" in executed[0][0]
+    assert executed[0][1] == (ADMIN, "Called the student back.", "case-1")
+
+
+def test_resolution_notes_are_trimmed_and_blank_ones_stored_as_null(auth, monkeypatch):
+    calls = []
+    monkeypatch.setattr(service.repository, "resolve_escalation", lambda case_id, by, notes: calls.append(notes) or {"id": case_id})
+    service.resolve_escalation(ADMIN, "case-1", "  Refunded the fee.  ")
+    service.resolve_escalation(ADMIN, "case-2", "   ")
+    service.resolve_escalation(ADMIN, "case-3")
+    assert calls == ["Refunded the fee.", None, None]
+
+
+def test_resolution_notes_are_passed_through_over_http(client, auth, monkeypatch):
+    from app.domains.auth.interface import get_current_user_id
+
+    app, http = client
+    app.dependency_overrides[get_current_user_id] = lambda: ADMIN
+    seen = []
+    monkeypatch.setattr(service, "resolve_escalation", lambda user_id, case_id, notes=None: seen.append(notes) or _CASE)
+    http.patch("/api/v1/admin/escalations/case-1", json={"status": "Resolved", "resolution_notes": "Done"})
+    assert seen == ["Done"]
+    too_long = http.patch("/api/v1/admin/escalations/case-1", json={"status": "Resolved", "resolution_notes": "x" * 4001})
+    assert too_long.status_code == 422
+
+
+_CASE = {
+    "id": "case-1", "shortId": "CASE", "name": "N", "initials": "N", "trigger": "Direct", "origin": "Admissions",
+    "category": "Complaint", "priority": "Normal", "summary": "", "status": "Resolved",
+    "createdDate": "—", "createdTime": "—",
+}
 
 
 def test_only_resolving_is_accepted_for_a_case():
@@ -294,9 +387,19 @@ def test_escalation_rows_carry_an_iso_creation_time():
         "trigger_source": "direct", "origin_specialist": "Admissions", "category": "policy_exception",
         "priority": "urgent", "summary": "", "status": "open",
         "created_at": datetime(2026, 10, 2, 8, 32, tzinfo=timezone.utc), "resolved_at": None, "resolved_by": None,
+        "conversation_id": "aecf09b1-c10a", "resolution_notes": "Handled by phone.",
     })
     assert row["createdAt"] == "2026-10-02T08:32:00+00:00"
+    assert (row["conversationId"], row["resolutionNotes"]) == ("aecf09b1-c10a", "Handled by phone.")
     assert (row["category"], row["priority"], row["initials"]) == ("Policy Exception", "Urgent", "ST")
+    assert row["shortId"] == "A31F7C9B44D2"[-8:]
+
+
+def test_short_case_ids_tell_apart_ids_sharing_a_prefix():
+    from app.domains.admin import repository
+
+    ids = ["6b2a2b9c-4b79-4db1-8d66-111111111111", "6b2a2b9c-4b79-4db1-8d66-222222222222"]
+    assert [repository._short_case_id(i) for i in ids] == ["11111111", "22222222"]
 
 
 # --- HTTP layer: every admin route is mounted, needs a token and an admin.
@@ -328,7 +431,7 @@ def client():
 def test_admin_routes_require_a_token(client):
     _, http = client
     routes = list(_admin_routes())
-    assert len(routes) == 20
+    assert len(routes) == 24
     for method, path in routes:
         assert http.request(method, path, json={}).status_code in (401, 403), (method, path)
 
@@ -338,9 +441,13 @@ def test_admin_routes_refuse_non_admins(client, auth, monkeypatch):
 
     app, http = client
     app.dependency_overrides[get_current_user_id] = lambda: STUDENT
-    bodies = {"/api/v1/admin/escalations/case_id": {"status": "Resolved"}, "/api/v1/admin/checklist/item_id": {"submitted": True}}
+    bodies = {
+        ("PATCH", "/api/v1/admin/escalations/case_id"): {"status": "Resolved"},
+        ("PATCH", "/api/v1/admin/checklist/item_id"): {"submitted": True},
+        ("POST", "/api/v1/admin/alumni"): {"email": "a@x.com"},
+    }
     for method, path in _admin_routes():
-        response = http.request(method, path, json=bodies.get(path, {}))
+        response = http.request(method, path, json=bodies.get((method, path), {}))
         assert response.status_code == 403, (method, path, response.status_code)
 
 

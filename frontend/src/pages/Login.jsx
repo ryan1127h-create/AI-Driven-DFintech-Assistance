@@ -9,15 +9,16 @@ import nusLogo from "../assets/nus_logo.png";
 
 const NUS_EMAIL_DOMAIN = "@u.nus.edu";
 
-// ids match the backend's real role values exactly (see
+// ids match the backend's login portals (see
 // backend/app/domains/auth/schemas.py::Role) — the tab the user picks is
-// sent as part of the login request and checked against the account's
-// actual stored role (see service.py::login), so picking the wrong tab is
-// rejected with a clear message rather than silently logging in anyway.
+// sent as part of the login request and checked against the account (see
+// service.py::login_portal), so picking the wrong tab is rejected with a
+// clear message rather than silently logging in anyway. Alumni share the
+// "admin" tab with staff.
 const tabs = [
   { id: "applicant", label: "Applicant", icon: User, hint: "Prospective & applying students" },
   { id: "enrolled_student", label: "Enrolled Student", icon: BookOpen, hint: "Email always ends in @u.nus.edu" },
-  { id: "admin", label: "Staff / Admin", icon: ShieldCheck, hint: "Management portal" },
+  { id: "admin", label: "Alumni / Admin", icon: ShieldCheck, hint: "Alumni and programme staff" },
 ];
 
 export default function Login() {
@@ -51,7 +52,7 @@ export default function Login() {
 
       setAuth({ access_token, user, role: user.role });
 
-      navigate(user.role === "admin" ? "/admin" : "/app");
+      navigate(user.role === "admin" ? "/admin" : user.lifecycle_stage === "alumni" ? "/alumni-match" : "/app");
 
     } catch (err) {
       console.error("LOGIN ERROR:", err);

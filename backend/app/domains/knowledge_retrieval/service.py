@@ -351,11 +351,21 @@ def _split_requirements(text: str | None) -> tuple[str | None, str | None]:
 
 
 def reload_catalogue() -> None:
-    """Drops this process's cached copy of the knowledge tables after the
-    staff console edits them. Only the structured tables are re-read: the
-    retrieval chunks (and their embeddings) were built from those rows
-    offline and are not rebuilt here."""
+    """Drops what this process has cached from the knowledge schema after
+    the staff console edits it: the tables and chunks (re-read on next use,
+    which also rebuilds the BM25 index) and the cached retrievals, which
+    may quote the old text."""
     knowledge_db.invalidate()
+    try:
+        cache.delete_prefix(_CACHE_KEY_PREFIX)
+    except Exception as exc:  # best effort: cached retrievals expire on their own
+        logger.warning("could not clear the cached retrievals: %s", exc)
+
+
+def embed_for_retrieval(text: str) -> list[float]:
+    """Embeds text with the same model the retriever embeds queries with,
+    so a rebuilt chunk stays comparable to every other chunk."""
+    return embedding.embed(text)
 
 
 def warm_cache() -> None:

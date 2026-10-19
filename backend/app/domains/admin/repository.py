@@ -1,13 +1,26 @@
 from __future__ import annotations
 
+import json
+
+import psycopg
+
 from app.adapters.admin_reporting_db_adapter import reporting_db
+
+
+def _short_case_id(case_id) -> str:
+    """The last 8 hex digits: ids written by hand or by scripts often share
+    their first segment, the tail is what tells them apart."""
+    return str(case_id).replace("-", "")[-8:].upper()
 
 
 def _escalation_row(row: dict) -> dict:
     name = row.get("full_name") or row.get("email") or "Unknown user"
     return {
-        "id": str(row["id"]), "shortId": str(row["id"]).split("-")[0].upper(),
+        "id": str(row["id"]), "shortId": _short_case_id(row["id"]),
         "user_id": str(row["user_id"]) if row.get("user_id") else None,
+        # The conversation the case was raised from (null once that
+        # conversation is deleted: the FK is ON DELETE SET NULL).
+        "conversationId": str(row["conversation_id"]) if row.get("conversation_id") else None,
         "name": name, "email": row.get("email"),
         "initials": "".join(part[0] for part in name.split()[:2]).upper() or "?",
         "trigger": (row.get("trigger_source") or "").title(),
@@ -21,7 +34,7 @@ def _escalation_row(row: dict) -> dict:
         "createdTime": row["created_at"].strftime("%H:%M") if row.get("created_at") else "—",
         "resolvedAt": row["resolved_at"].isoformat() if row.get("resolved_at") else None,
         "resolvedBy": row.get("resolved_by_name") or (str(row["resolved_by"]) if row.get("resolved_by") else None),
-        "resolutionNotes": None,
+        "resolutionNotes": row.get("resolution_notes"),
     }
 
 
@@ -69,11 +82,13 @@ def get_escalation(case_id: str) -> dict | None:
     return _escalation_row(row) if row else None
 
 
-def resolve_escalation(case_id: str, resolved_by: str) -> dict | None:
-    """Resolving an already-resolved case keeps its original resolver and time."""
+def resolve_escalation(case_id: str, resolved_by: str, notes: str | None) -> dict | None:
+    """Resolving an already-resolved case keeps its original resolver, time
+    and notes."""
     reporting_db.execute(
-        "update chat.cases set status = 'resolved', resolved_at = now(), resolved_by = %s where id = %s and status <> 'resolved'",
-        (resolved_by, case_id),
+        "update chat.cases set status = 'resolved', resolved_at = now(), resolved_by = %s, resolution_notes = %s"
+        " where id = %s and status <> 'resolved'",
+        (resolved_by, notes, case_id),
     )
     return get_escalation(case_id)
 
@@ -123,7 +138,7 @@ def get_user(user_id: str) -> dict | None:
 def update_user(user_id: str, changes: dict) -> dict | None:
     assignments = []
     values = []
-    for column in ("account_status", "role"):
+    for column in ("role",):
         if column in changes:
             assignments.append(f"{column} = %s")
             values.append(changes[column])
@@ -211,6 +226,14 @@ def list_conversations() -> dict:
 def get_conversation(conversation_id: str) -> dict | None:
     row = reporting_db.fetch_one_dict("select c.conversation_id::text, c.user_id::text, coalesce(nullif(a.full_name, ''), a.email, c.user_id::text) as user_name, a.email as user_email, c.turn_count, c.total_messages, c.status, c.status_updated_at, c.raw_tail, c.history_summaries from chat.conversations c left join account.accounts a on a.user_id = c.user_id where c.conversation_id = %s", (conversation_id,))
     if not row: return None
+    row["cases"] = [
+        {"id": str(case["id"]), "shortId": _short_case_id(case["id"]), "status": case["status"].title(),
+         "category": case["category"].replace("_", " ").title(), "createdAt": case["created_at"].isoformat()}
+        for case in reporting_db.fetch_all_dict(
+            "select id, status, category, created_at from chat.cases where conversation_id = %s order by created_at desc",
+            (conversation_id,),
+        )
+    ]
     archived = reporting_db.fetch_one_dict("select archived_blocks from chat.messages where conversation_id = %s", (conversation_id,))
     row["archived_blocks"] = archived.get("archived_blocks", []) if archived else []
     return row
@@ -326,6 +349,53 @@ def update_knowledge_course_related(course_code: str, relation: str, row: dict) 
     return get_knowledge_course(course_code)
 
 
+def fetch_chunk_source(source_table: str, source_id: str) -> dict | None:
+    """The rows a structured retrieval chunk is built from:
+    {"row": ..., "tags": [...], "previous_metadata": ...}, or None if the
+    row is gone. previous_metadata is the current chunk's (courses keep
+    fields there that no table has)."""
+    queries = {
+        "admissions_items": "select key, label, why, required, deadline_key from knowledge.admissions_items where key = %s",
+        "application_status_translations": "select status_code, human_status, next_step, eta_days"
+                                           " from knowledge.application_status_translations where status_code = %s",
+        "courses": """select c.course_code, c.title, c.module_credit, c.department, c.annex_section, c.annex_intake,
+                             c.status, cd.description, cr.prerequisite, cr.preclusion
+                        from knowledge.courses c
+                        left join knowledge.course_descriptions cd using (course_code)
+                        left join knowledge.course_requirements cr using (course_code)
+                       where c.course_code = %s""",
+    }
+    row = reporting_db.fetch_one_dict(queries[source_table], (source_id,))
+    if row is None:
+        return None
+    tags = []
+    if source_table == "courses":
+        tags = reporting_db.fetch_all_dict(
+            "select ct.tag, td.name_zh from knowledge.course_tags ct join knowledge.tags_definition td using (tag)"
+            " where ct.course_code = %s",
+            (source_id,),
+        )
+    previous = reporting_db.fetch_one_dict(
+        "select metadata from knowledge.document_chunks where source_table = %s and source_id = %s",
+        (source_table, source_id),
+    )
+    return {"row": row, "tags": tags, "previous_metadata": previous["metadata"] if previous else None}
+
+
+def store_chunk(chunk, embedding: list[float]) -> bool:
+    """Overwrites the chunk's text, metadata and embedding in place. Returns
+    False when there is no chunk with that key to update."""
+    row = reporting_db.execute_returning(
+        """update knowledge.document_chunks
+              set content = %s, context = %s, metadata = %s::jsonb, token_count = %s, embedding = %s::vector
+            where chunk_key = %s and source_table = %s
+        returning id""",
+        (chunk.content, chunk.context, json.dumps(chunk.metadata, ensure_ascii=False), chunk.token_count,
+         "[" + ",".join(f"{x:.7f}" for x in embedding) + "]", chunk.chunk_key, chunk.source_table),
+    )
+    return row is not None
+
+
 def fetch_overview(days: int = 7) -> dict:
     users = reporting_db.fetch_one_dict(
         """
@@ -384,4 +454,33 @@ def fetch_overview(days: int = 7) -> dict:
         "cases": cases or {"total": 0, "open": 0},
         "catalogue": catalogue or {"universities": 0, "programs": 0, "courses": 0},
         "recent_activity": activity,
+        "usage": fetch_usage(days),
     }
+
+
+def fetch_usage(days: int) -> dict:
+    """Question topics and per-agent counts from chat.turn_metrics over the
+    last `days`: {"available", "topics": [{audience, intent, total}],
+    "agents": [{agent, requests, failed, avg_latency_ms}]}. "available" is
+    False while the table doesn't exist yet."""
+    try:
+        topics = reporting_db.fetch_all_dict(
+            """select audience, intent, count(*)::int as total
+                 from chat.turn_metrics, unnest(intents) as intent
+                where created_at >= now() - (%s * interval '1 day') and intent <> 'off_topic'
+                group by audience, intent""",
+            (days,),
+        )
+        agents = reporting_db.fetch_all_dict(
+            """select agent, count(*)::int as requests,
+                      count(*) filter (where agent = any(failed_agents))::int as failed,
+                      round(avg(latency_ms))::int as avg_latency_ms
+                 from chat.turn_metrics, unnest(agents) as agent
+                where created_at >= now() - (%s * interval '1 day')
+                group by agent
+                order by requests desc, agent""",
+            (days,),
+        )
+    except psycopg.errors.UndefinedTable:
+        return {"available": False, "topics": [], "agents": []}
+    return {"available": True, "topics": topics, "agents": agents}

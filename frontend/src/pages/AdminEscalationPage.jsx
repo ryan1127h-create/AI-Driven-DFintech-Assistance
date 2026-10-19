@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
@@ -85,6 +85,7 @@ function Icon({ name, size = 18 }) {
       </>
     ),
     filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+    chat: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
   }
   return (
     <svg
@@ -149,6 +150,15 @@ function mailto(caseItem) {
   return `mailto:${caseItem.email}?subject=${encodeURIComponent(`Follow-up regarding your support request – Case #${caseItem.shortId}`)}`
 }
 
+// One explanation per chat.cases category (the API title-cases them).
+const ESCALATION_REASONS = {
+  "Policy Exception": "This case was escalated because the request needs an exception to a programme policy, which only staff can grant.",
+  "Complaint": "This case was escalated because the user raised a complaint.",
+  "Low Confidence": "This case was escalated because the AI specialist had insufficient confidence to provide a reliable answer.",
+  "Sensitive": "This case was escalated because the conversation touched on a sensitive matter.",
+  "Explicit Request": "This case was escalated because the user asked to speak to a staff member.",
+}
+
 const PAGE_SIZE = 20
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -183,6 +193,8 @@ function CaseDrawer({
   caseItem,
   onClose,
   onResolve,
+  notes,
+  onNotesChange,
 }) {
   return (
     <>
@@ -254,6 +266,13 @@ function CaseDrawer({
                   <Icon name="user" size={16} />
                   View User Profile
                 </FeatureButton>}
+                {caseItem.conversationId ? <Link className="feature-button feature-button-secondary" to={`/admin/conversations/${caseItem.conversationId}`}>
+                  <Icon name="chat" size={16} />
+                  View Conversation
+                </Link> : <FeatureButton variant="secondary" disabled title="The conversation this case came from is no longer available.">
+                  <Icon name="chat" size={16} />
+                  View Conversation
+                </FeatureButton>}
               </div>
             </div>
           </section>
@@ -281,8 +300,7 @@ function CaseDrawer({
               <span className="context-note-icon">
                 <Icon name="cases" size={16} />
               </span>
-              This case was escalated because the AI specialist had insufficient
-              confidence to provide a reliable answer.
+              {ESCALATION_REASONS[caseItem.category] || "This case was escalated for review by a staff member."}
             </div>
           </section>
 
@@ -304,7 +322,7 @@ function CaseDrawer({
                 </div>
                 <div className="resolution-label">Resolution Notes</div>
                 <div className="resolution-copy">
-                  {caseItem.resolutionNotes}
+                  {caseItem.resolutionNotes || "No notes were added."}
                 </div>
                 <FeatureButton disabled className="full-width">
                   <Icon name="check" size={16} />
@@ -319,9 +337,12 @@ function CaseDrawer({
                 <textarea
                   id="resolution-notes"
                   placeholder="Add internal notes about how this case was handled..."
+                  maxLength={4000}
+                  value={notes}
+                  onChange={(event) => onNotesChange(event.target.value)}
                 />
                 <div className="resolution-footer">
-                  <span>Notes are not saved yet.</span>
+                  <span>Only admins can view these notes.</span>
                   <FeatureButton onClick={onResolve}>
                     <Icon name="check" size={16} />
                     Mark as Resolved
@@ -442,6 +463,10 @@ export default function App() {
   const [loadError, setLoadError] = useState("")
   const [actionError, setActionError] = useState("")
   const [page, setPage] = useState(1)
+  const [notes, setNotes] = useState("")
+  // ?case=<id> opens that case's drawer (the conversation page links here).
+  const [searchParams] = useSearchParams()
+  const linkedCaseId = searchParams.get("case")
 
   useEffect(() => {
     let active = true
@@ -450,11 +475,12 @@ export default function App() {
         if (!active) return
         setCaseData(items)
         if (nextStats) setStats(nextStats)
+        if (linkedCaseId) setSelected(items.find((item) => item.id === linkedCaseId) || null)
       })
       .catch((error) => { if (active) setLoadError(error.message) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
-  }, [])
+  }, [linkedCaseId])
 
   const specialists = useMemo(
     () => [...new Set(caseData.map((item) => item.origin).filter(Boolean))].sort(),
@@ -507,10 +533,11 @@ export default function App() {
   const confirmResolve = () => {
     if (!selected) return
     setActionError("")
-    resolveAdminEscalationCase(selected.id)
+    resolveAdminEscalationCase(selected.id, notes.trim())
       .then((resolved) => {
         setCaseData((items) => items.map((item) => (item.id === resolved.id ? resolved : item)))
         setSelected(resolved)
+        setNotes("")
       })
       .catch((error) => setActionError(`Could not resolve the case: ${error.message}`))
       .finally(() => setResolveConfirm(false))
@@ -762,8 +789,10 @@ export default function App() {
       {selected && (
         <CaseDrawer
           caseItem={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setNotes("") }}
           onResolve={() => setResolveConfirm(true)}
+          notes={notes}
+          onNotesChange={setNotes}
         />
       )}
       {resolveConfirm && (

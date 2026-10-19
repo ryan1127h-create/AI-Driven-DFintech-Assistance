@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { AlertTriangle, BookOpen, ChevronLeft, ClipboardList, LayoutDashboard, MessageSquare, Users } from "lucide-react";
+import { AlertTriangle, BookOpen, ChevronLeft, ClipboardList, GraduationCap, LayoutDashboard, MessageSquare, Users } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useRole } from "../../context/RoleContext";
 import { logout as apiLogout } from "../../../api";
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/admin/applications", label: "Applications", icon: ClipboardList },
   { to: "/admin/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/admin/escalations", label: "Escalation Cases", icon: AlertTriangle },
+  { to: "/admin/alumni", label: "Alumni", icon: GraduationCap },
   { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
 ];
 

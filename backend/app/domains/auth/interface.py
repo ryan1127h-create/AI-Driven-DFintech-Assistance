@@ -15,12 +15,29 @@ Usage:
 from __future__ import annotations
 
 from app.domains.auth import repository
-from app.domains.auth.service import delete_account, get_current_user_id, update_full_name
+from app.domains.auth.service import (
+    delete_account, get_audience, get_current_user_id, set_account_status, update_full_name,
+)
 
 __all__ = [
-    "delete_account", "get_assistant_preferences", "get_current_user_id",
-    "get_login_email", "is_admin", "update_full_name",
+    "delete_account", "find_user_id_by_email", "get_account_names", "get_assistant_preferences",
+    "get_audience", "get_current_user_id", "get_login_email", "is_admin", "set_account_status",
+    "update_full_name",
 ]
+
+
+def get_account_names(user_ids: list[str]) -> dict[str, dict]:
+    """{user_id: {"full_name", "email"}} for the accounts that exist."""
+    return {
+        str(row["user_id"]): {"full_name": row.get("full_name") or "", "email": row["email"]}
+        for row in repository.get_accounts(user_ids)
+    }
+
+
+def find_user_id_by_email(email: str) -> str | None:
+    """The account with this login email (case-insensitive), or None."""
+    account = repository.get_account_by_email(email.strip().lower())
+    return str(account["user_id"]) if account else None
 
 
 def is_admin(user_id: str) -> bool:

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.domains.admin import service
 from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate
+from app.domains.alumni.schemas import StaffAlumnusCreate, StaffAlumnusFields
 from app.domains.auth.interface import get_current_user_id
 
 router = APIRouter(prefix="/admin")
@@ -19,7 +20,7 @@ def get_admin_escalation(case_id: str, user_id: str = Depends(get_current_user_i
 
 @router.patch("/escalations/{case_id}", response_model=AdminEscalationCase)
 def update_admin_escalation(case_id: str, update: AdminEscalationUpdate, user_id: str = Depends(get_current_user_id)):
-    return service.resolve_escalation(user_id, case_id)
+    return service.resolve_escalation(user_id, case_id, update.resolution_notes)
 
 
 @router.get("/overview", response_model=AdminOverview)
@@ -101,6 +102,26 @@ def update_admin_knowledge_course(course_code: str, update: AdminCourseUpdate, u
 @router.patch("/knowledge/courses/{course_code}/{relation}")
 def update_admin_knowledge_course_related(course_code: str, relation: str, payload: dict, user_id: str = Depends(get_current_user_id)):
     return service.update_knowledge_course_related(user_id, course_code, relation, payload.get("row", {}))
+
+
+@router.get("/alumni")
+def list_admin_alumni(user_id: str = Depends(get_current_user_id)):
+    return service.list_alumni(user_id)
+
+
+@router.post("/alumni", status_code=201)
+def create_admin_alumnus(body: StaffAlumnusCreate, user_id: str = Depends(get_current_user_id)):
+    return service.create_alumnus(user_id, body.email, body.model_dump(exclude={"email"}, exclude_unset=True))
+
+
+@router.patch("/alumni/{alumnus_id}")
+def update_admin_alumnus(alumnus_id: str, body: StaffAlumnusFields, user_id: str = Depends(get_current_user_id)):
+    return service.update_alumnus(user_id, alumnus_id, body.model_dump(exclude_unset=True))
+
+
+@router.delete("/alumni/{alumnus_id}")
+def delete_admin_alumnus(alumnus_id: str, user_id: str = Depends(get_current_user_id)):
+    return service.delete_alumnus(user_id, alumnus_id)
 
 
 # Declared after the /knowledge/courses/... routes: FastAPI matches in order,
