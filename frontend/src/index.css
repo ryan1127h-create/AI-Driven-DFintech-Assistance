@@ -2100,3 +2100,15 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 .alumni-match-page .request-main { flex: 1; min-width: 0; }
 [data-theme="dark"] .alumni-match-page .summary-row { background: rgba(40, 101, 170, .15); }
 [data-theme="dark"] .alumni-match-page .accept-summary { border-color: #334155; }
+.alumni-match-page .request-card .request-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.alumni-match-page .request-card .request-name h3 { margin: 0; }
+.alumni-match-page .request-card.is-declined { opacity: .75; }
+.alumni-match-page .declined-pill { padding: 2px 8px; border-radius: 999px; background: #f1f3f6; color: #6b7686; font-size: 10px; }
+.alumni-match-page .request-actions a.btn { text-decoration: none; }
+.alumni-match-page .connection-card .contact-list { margin-top: 10px; }
+.alumni-match-page .connection-card .contact-list dd { word-break: break-all; }
+.alumni-match-page .link-button { border: 0; background: none; padding: 0; color: #1f63d9; cursor: pointer; font: inherit; text-decoration: underline; }
+.alumni-match-page .empty-connections .btn { margin-top: 12px; }
+/* Connection cards: the contact buttons sit under the text, so two buttons never squeeze it. */
+.alumni-match-page .connection-card { grid-template-columns: auto 1fr; }
+.alumni-match-page .connection-card .request-actions { grid-column: 2; justify-content: flex-start; align-self: start; flex-wrap: wrap; }

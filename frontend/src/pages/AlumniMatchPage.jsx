@@ -115,21 +115,46 @@ function ConnectModal({ person, onClose, onSend, busy, error }) {
   </ModalShell>;
 }
 
-function SentRequests({ sent, onCancel, busyId }) {
-  if (!sent.length) return <div className="request-empty"><Icon name="check" size={20} /><span>You haven&apos;t contacted anyone yet.</span></div>;
-  return <div className="sent-grid">{sent.map((r) => <article className="sent-card" key={r.id}>
-    <div className="mini-profile"><Avatar src={r.alumnus.photo_url} name={r.alumnus.name} size="sm" /><div><strong>{r.alumnus.name}</strong><span>{r.alumnus.position} at {r.alumnus.company}</span></div></div>
-    <span className={r.status === "accepted" ? "connected-label" : "pending-pill"}>{STATUS_LABELS[r.status]}</span>
-    {r.note && <blockquote>“{r.note}”</blockquote>}
-    {r.status === "accepted" && <div className="shared-contact">
-      {r.reply_note && <p><strong>{firstName(r.alumnus.name)}:</strong> “{r.reply_note}”</p>}
-      {r.contact?.email && <a className="btn btn-primary" href={mailto(r.contact.email, `Hello from an MSc DFinTech student`, `Hi ${firstName(r.alumnus.name)},\n\nThank you for accepting my request on Alumni Match.\n\n`)}><Icon name="mail" size={17} /><span>Email {firstName(r.alumnus.name)}</span></a>}
-      {r.contact?.linkedin && <a className="btn btn-secondary" href={r.contact.linkedin} target="_blank" rel="noreferrer"><Icon name="link" size={17} /><span>LinkedIn</span></a>}
-      {r.contact?.phone && <p><Icon name="message" size={15} /> {r.contact.phone}</p>}
-      {!r.contact?.email && !r.contact?.linkedin && !r.contact?.phone && <p>{firstName(r.alumnus.name)} accepted without sharing contact details.</p>}
-    </div>}
-    {r.status === "pending" && <Button variant="ghost" disabled={busyId === r.id} onClick={() => onCancel(r.id)}>Withdraw</Button>}
+// Requests still waiting for an answer, and declined ones (so the student
+// knows they may ask again). Accepted ones live under My Connections.
+function SentRequests({ requests, onCancel, busyId, onFind }) {
+  if (!requests.length) return <div className="request-empty"><Icon name="check" size={20} /><span>No open requests. </span><button type="button" className="link-button" onClick={onFind}>Find alumni to contact</button></div>;
+  return <div className="request-list">{requests.map((r) => <article className={`request-card ${r.status === "declined" ? "is-declined" : ""}`} key={r.id}>
+    <Avatar src={r.alumnus.photo_url} name={r.alumnus.name} />
+    <div className="request-main">
+      <div className="request-name"><h3>{r.alumnus.name}</h3><span className={r.status === "declined" ? "declined-pill" : "pending-pill"}>{STATUS_LABELS[r.status]}</span></div>
+      <p>{r.alumnus.position} at {r.alumnus.company} · Sent {formatDate(r.created_at)}{r.status === "declined" && r.responded_at ? ` · Declined ${formatDate(r.responded_at)}` : ""}</p>
+      {r.note ? <blockquote>“{r.note}”</blockquote> : <p className="no-note">No note added.</p>}
+      {r.status === "declined" && <p className="ranking-note">You can send {firstName(r.alumnus.name)} a new request from Find Alumni.</p>}
+    </div>
+    {r.status === "pending" && <div className="request-actions"><Button variant="ghost" disabled={busyId === r.id} onClick={() => onCancel(r.id)}>Withdraw</Button></div>}
   </article>)}</div>;
+}
+
+// Accepted requests: the alumnus's reply and the contact details they chose to share.
+function StudentConnections({ connections, onFind }) {
+  if (!connections.length) return <div className="empty-connections"><div className="empty-icon"><Icon name="link" size={30} /></div><h2>Your alumni connections</h2><p>Alumni who accept your requests appear here, with the contact details they choose to share.</p><Button variant="secondary" onClick={onFind}>Find alumni</Button></div>;
+  return <div className="request-list">{connections.map((r) => {
+    const contact = r.contact || {};
+    const shared = contact.email || contact.linkedin || contact.phone;
+    return <article className="request-card connection-card" key={r.id}>
+      <Avatar src={r.alumnus.photo_url} name={r.alumnus.name} />
+      <div className="request-main">
+        <div className="request-name"><h3>{r.alumnus.name}</h3><span className="connected-label"><Icon name="check" size={13} />Connected</span></div>
+        <p>{r.alumnus.position} at {r.alumnus.company}{r.responded_at ? ` · Connected ${formatDate(r.responded_at)}` : ""}</p>
+        {r.reply_note && <blockquote><strong>{firstName(r.alumnus.name)}:</strong> “{r.reply_note}”</blockquote>}
+        {shared ? <dl className="summary-background contact-list">
+          {contact.email && <div><dt>Email</dt><dd>{contact.email}</dd></div>}
+          {contact.phone && <div><dt>Phone</dt><dd>{contact.phone}</dd></div>}
+          {contact.linkedin && <div><dt>LinkedIn</dt><dd>{contact.linkedin.replace(/^https?:\/\/(www\.)?/, "")}</dd></div>}
+        </dl> : <p className="no-note">{firstName(r.alumnus.name)} accepted without sharing contact details.</p>}
+      </div>
+      {(contact.email || contact.linkedin) && <div className="request-actions">
+        {contact.email && <a className="btn btn-primary" href={mailto(contact.email, "Hello from an MSc DFinTech student", `Hi ${firstName(r.alumnus.name)},\n\nThank you for accepting my request on Alumni Match.\n\n`)}><Icon name="mail" size={17} /><span>Email</span></a>}
+        {contact.linkedin && <a className="btn btn-secondary" href={contact.linkedin} target="_blank" rel="noreferrer"><Icon name="link" size={17} /><span>LinkedIn</span></a>}
+      </div>}
+    </article>;
+  })}</div>;
 }
 
 function StudentView({ notify }) {
@@ -163,16 +188,20 @@ function StudentView({ notify }) {
     setBusy(id); try { await cancelAlumniRequest(id); notify("Request withdrawn."); await loadRequests(); } catch (e) { notify(e.message); } finally { setBusy(false); }
   };
   const toggleTag = (tag) => setExpertise((tags) => (tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]));
-  const pending = sent.filter((r) => r.status === "pending").length;
+  const openRequests = sent.filter((r) => r.status !== "accepted");
+  const connections = sent.filter((r) => r.status === "accepted");
+  const pending = openRequests.filter((r) => r.status === "pending").length;
+  const tabButton = (id, label, count) => <button type="button" role="tab" aria-selected={tab === id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}{count !== undefined && <span>{count}</span>}</button>;
 
   return <>
     <div className="tabs" role="tablist">
-      <button type="button" role="tab" aria-selected={tab === "find"} className={tab === "find" ? "active" : ""} onClick={() => setTab("find")}>Find Alumni</button>
-      <button type="button" role="tab" aria-selected={tab === "sent"} className={tab === "sent" ? "active" : ""} onClick={() => setTab("sent")}>My Requests <span>{pending}</span></button>
+      {tabButton("find", "Find Alumni")}
+      {tabButton("sent", "My Requests", pending)}
+      {tabButton("connections", "My Connections", connections.length)}
     </div>
     {error && <p role="alert" className="form-error">{error}</p>}
     {tab === "find" && <>
-      {data && !data.can_send_requests && <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Turn on alumni matching to send requests</strong><p>Alumni see your name, study stage and note when you contact them. Turn on “Alumni matching” under Settings → Privacy first.</p></div></div>}
+      {data && !data.can_send_requests && <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Turn on alumni matching to send requests</strong><p>When you contact an alumnus, they see {SHARED_WITH_ALUMNI}. Turn on “Alumni matching” under Settings → Privacy first.</p></div></div>}
       <div className="filter-panel">
         <label className="search-wrap"><Icon name="search" size={17} /><input aria-label="Search alumni" placeholder="Search by name, position or company" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
         <div className="chip-row"><Icon name="filter" size={15} />{(data?.expertise_options || []).map((o) => <button type="button" key={o.tag} className={`chip ${expertise.includes(o.tag) ? "active" : ""}`} aria-pressed={expertise.includes(o.tag)} onClick={() => toggleTag(o.tag)}>{o.label}</button>)}</div>
@@ -181,7 +210,8 @@ function StudentView({ notify }) {
       {!data ? <p className="ranking-note">Loading alumni…</p> : data.items.length ? <div className="alumni-grid">{data.items.map((person) => <AlumniCard key={person.id} person={person} canSend={data.can_send_requests} onView={() => setViewing(person)} onConnect={() => { setActionError(""); setConnecting(person); }} />)}</div>
         : <div className="request-empty"><Icon name="search" size={20} /><span>No alumni match your search yet.</span></div>}
     </>}
-    {tab === "sent" && <SentRequests sent={sent} onCancel={cancel} busyId={busy} />}
+    {tab === "sent" && <SentRequests requests={openRequests} onCancel={cancel} busyId={busy} onFind={() => setTab("find")} />}
+    {tab === "connections" && <StudentConnections connections={connections} onFind={() => setTab("find")} />}
     {viewing && <ProfileDrawer person={viewing} canSend={data?.can_send_requests} onClose={() => setViewing(null)} onConnect={() => { setActionError(""); setConnecting(viewing); }} />}
     {connecting && <ConnectModal person={connecting} busy={busy} error={actionError} onClose={() => setConnecting(null)} onSend={send} />}
   </>;
