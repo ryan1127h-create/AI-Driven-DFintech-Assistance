@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field, field_validator
 class AdminStat(BaseModel):
     total: int
     active: int | None = None
+    admins: int | None = None
+    by_lifecycle_stage: dict[str, int] | None = None
 
 
 class AdminTopic(BaseModel):
@@ -71,6 +73,7 @@ class AdminUser(BaseModel):
     is_anonymous: bool
     last_login_at: datetime | None = None
     created_at: datetime
+    profile: list[dict] = []
     conversations: list[AdminUserConversation] = []
     applications: list[AdminUserApplication] = []
 

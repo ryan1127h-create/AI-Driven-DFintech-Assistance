@@ -123,6 +123,10 @@ def get_user(user_id: str) -> dict | None:
         (user_id,),
     )
     if user:
+        user["profile"] = reporting_db.fetch_all_dict(
+            "select field_key, value from profile.v_profile where user_id = %s order by field_key",
+            (user_id,),
+        )
         user["conversations"] = reporting_db.fetch_all_dict(
             "select conversation_id::text, turn_count, total_messages, status, status_updated_at from chat.conversations where user_id::text = %s::text order by status_updated_at desc nulls last",
             (user_id,),
@@ -443,10 +447,22 @@ def fetch_overview(days: int = 7) -> dict:
     users = reporting_db.fetch_one_dict(
         """
         select count(*)::int as total,
-               count(*) filter (where account_status = 'active')::int as active
+               count(*) filter (where account_status = 'active')::int as active,
+               count(*) filter (where account_status = 'active' and role = 'admin')::int as admins
           from account.accounts
         """
     )
+    lifecycle_counts = reporting_db.fetch_all_dict(
+        """
+        select coalesce(v.value #>> '{}', 'unknown') as stage, count(*)::int as total
+          from account.accounts a
+          left join profile.v_profile v on v.user_id = a.user_id and v.field_key = 'lifecycle_stage'
+         where a.account_status = 'active' and a.role = 'user'
+         group by coalesce(v.value #>> '{}', 'unknown')
+         order by stage
+        """
+    )
+    users["by_lifecycle_stage"] = {row["stage"]: row["total"] for row in lifecycle_counts}
     conversations = reporting_db.fetch_one_dict(
         "select count(*)::int as total, count(*) filter (where status = 'normal')::int as active from chat.conversations",
     )
@@ -480,13 +496,22 @@ def fetch_overview(days: int = 7) -> dict:
         "by_term": reporting_db.fetch_all_dict(
             "select coalesce(admission_term, '<unknown>') as label, count(*)::int as total from sis.applications group by admission_term order by total desc"
         ),
+        "by_term_status": reporting_db.fetch_all_dict(
+            "select coalesce(admission_term, '<unknown>') as term, coalesce(status, '<unknown>') as status, count(*)::int as total from sis.applications group by admission_term, status order by term, total desc"
+        ),
         "monthly": reporting_db.fetch_all_dict(
             "select to_char(date_trunc('month', submission_date), 'Mon YYYY') as label, count(*)::int as total from sis.applications where submission_date is not null and submission_date >= now() - interval '12 months' group by date_trunc('month', submission_date) order by date_trunc('month', submission_date)"
         ),
         "average_processing_days": processing.get("value") or 0,
     }
     cases = reporting_db.fetch_one_dict(
-        "select count(*)::int as total, count(*) filter (where status not in ('resolved', 'closed'))::int as open from chat.cases",
+        """
+        select count(*)::int as total,
+               count(*) filter (where status not in ('resolved', 'closed'))::int as open,
+               count(*) filter (where status not in ('resolved', 'closed') and priority = 'urgent')::int as urgent,
+               count(*) filter (where status not in ('resolved', 'closed') and coalesce(priority, 'normal') = 'normal')::int as normal
+          from chat.cases
+        """,
     )
     catalogue = reporting_db.fetch_one_dict(
         "select (select count(*)::int from program.universities) as universities, (select count(*)::int from program.programs) as programs, (select count(*)::int from knowledge.courses) as courses"
@@ -506,7 +531,7 @@ def fetch_overview(days: int = 7) -> dict:
         "applications": {row["status"]: row["total"] for row in applications},
         "checklist": checklist or {"total": 0, "submitted": 0, "outstanding": 0, "latest_admission_term": None, "latest_term_outstanding": 0},
         "application_insights": application_insights,
-        "cases": cases or {"total": 0, "open": 0},
+        "cases": cases or {"total": 0, "open": 0, "urgent": 0, "normal": 0},
         "catalogue": catalogue or {"universities": 0, "programs": 0, "courses": 0},
         "recent_activity": activity,
         "usage": fetch_usage(days),
