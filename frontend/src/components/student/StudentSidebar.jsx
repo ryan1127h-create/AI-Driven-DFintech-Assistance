@@ -22,6 +22,7 @@ import { formatDateTime } from "../../utils/format";
 import nusLogo from "../../assets/nus_logo.png";
 import AccountMenu from "../settings/AccountMenu";
 import SettingsDialog from "../settings/SettingsDialog";
+import ReminderBell from "./reminders/ReminderBell";
 import { getChatSessions, clearChat, logout as apiLogout } from "../../../api";
 
 function toConversation(conversation) {
@@ -192,6 +193,7 @@ export default function StudentSidebar() {
         >
           <ChevronLeft size={18} className="rotate-180" />
         </button>
+        <div className="mt-2"><ReminderBell compact /></div>
         <button
           onClick={startNewChat}
           className="btn-primary mt-4 flex h-10 w-10 !p-0 rounded-xl text-white"
@@ -245,14 +247,17 @@ export default function StudentSidebar() {
             <p className="text-[10px] text-app-muted">Lifecycle Assistant</p>
           </div>
         </button>
-        <button
-          onClick={() => setCollapsed(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-app-faint hover:bg-app-hover hover:text-app-primary transition"
-          title="Collapse sidebar"
-          aria-label="Collapse sidebar"
-        >
-          <ChevronLeft size={18} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <ReminderBell />
+          <button
+            onClick={() => setCollapsed(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-app-faint hover:bg-app-hover hover:text-app-primary transition"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        </div>
       </div>
 
       <div className="px-3 pb-2">

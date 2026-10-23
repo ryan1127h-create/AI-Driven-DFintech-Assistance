@@ -27,6 +27,7 @@ from app.domains.auth.interface import get_assistant_preferences, get_audience
 from app.domains.conversation import interface as conversation
 from app.domains.lifecycle import interface as lifecycle
 from app.domains.profile.interface import get_profile_field, get_profile_summary_text
+from app.domains.reminders import interface as reminders
 from app.domains.specialist.escalation import interface as escalation
 from app.orchestrator import classification, dispatch
 from app.orchestrator.turn_metrics import read_agent_used
@@ -79,6 +80,15 @@ def _progress_text(user_id: str) -> str | None:
         return lifecycle.progress_text(user_id)
     except Exception:
         logger.exception("could not read the degree progress of %s", user_id)
+        return None
+
+
+def _deadlines_text(user_id: str) -> str | None:
+    """Never raises, like _progress_text()."""
+    try:
+        return reminders.deadlines_text(user_id)
+    except Exception:
+        logger.exception("could not read the application dates of %s", user_id)
         return None
 
 
@@ -192,6 +202,12 @@ def run_turn(
         progress = _progress_text(user_id)
         if progress:
             system_blocks.append(SystemMessage(content=progress))
+    # Likewise an applicant's own dates (offer expiry, application period),
+    # so "when must I accept my offer?" is answered from the record.
+    else:
+        deadlines = _deadlines_text(user_id)
+        if deadlines:
+            system_blocks.append(SystemMessage(content=deadlines))
     if summaries_text:
         system_blocks.append(SystemMessage(content=summaries_text))
 

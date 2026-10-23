@@ -71,3 +71,13 @@ def no_alumni_stories(monkeypatch):
 
     monkeypatch.setattr(alumni_stories.alumni, "stories", lambda audience, interests, limit=2: [])
     monkeypatch.setattr(alumni_stories, "get_profile_for_purpose", lambda user_id, purpose: {})
+
+
+@pytest.fixture(autouse=True)
+def no_record_context(monkeypatch):
+    """A test turn would otherwise read the shared sis tables for the user's
+    application dates and degree progress; tests of those set their own."""
+    from app.orchestrator import turn_service
+
+    monkeypatch.setattr(turn_service.reminders, "deadlines_text", lambda user_id: None)
+    monkeypatch.setattr(turn_service.lifecycle, "progress_text", lambda user_id: None)

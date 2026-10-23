@@ -450,3 +450,19 @@ export function getAdminAlumni() { return fetch(buildUrl("/admin/alumni"), { hea
 export function createAdminAlumnus(fields) { return jsonRequest("POST", "/admin/alumni", fields); }
 export function updateAdminAlumnus(userId, fields) { return jsonRequest("PATCH", `/admin/alumni/${encodeURIComponent(userId)}`, fields); }
 export function deleteAdminAlumnus(userId) { return fetch(buildUrl(`/admin/alumni/${encodeURIComponent(userId)}`), { method: "DELETE", headers: getAuthHeaders() }).then(handleResponse); }
+
+// In-app reminders (backend app/domains/reminders): open reminders, urgent first.
+export function getReminders() {
+  return fetch(buildUrl("/reminders"), { headers: getAuthHeaders() }).then(handleResponse);
+}
+
+// Hides one reminder until the situation it is about changes (returns 204).
+export async function dismissReminder(key) {
+  const response = await fetch(buildUrl("/reminders/dismiss"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ key }),
+  });
+  if (!response.ok) return handleResponse(response);
+  return null;
+}

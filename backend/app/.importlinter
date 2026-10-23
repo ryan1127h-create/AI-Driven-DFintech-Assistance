@@ -27,7 +27,8 @@ layers =
 ; records the registration stage and consent in profile; profile validates
 ; role tags against knowledge_retrieval; alumni reads accounts (auth), the
 ; lifecycle stage, consents and role interests (profile) and the role tags
-; (knowledge_retrieval).
+; (knowledge_retrieval); reminders reads applications (sis), closed reminders (auth), admissions
+; items (knowledge_retrieval) and the application period (program_catalog).
 ; Every domain's api.py resolves the caller through auth's
 ; get_current_user_id dependency - HTTP plumbing, not a domain dependency -
 ; so those imports are exempt.
@@ -35,7 +36,7 @@ layers =
 name = data-owning domains form their own dependency order
 type = layers
 layers =
-    app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels | app.domains.alumni
+    app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels | app.domains.alumni | app.domains.reminders
     app.domains.auth
     app.domains.profile
     app.domains.sis | app.domains.knowledge_retrieval | app.domains.conversation | app.domains.program_catalog

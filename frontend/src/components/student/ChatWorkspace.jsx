@@ -36,6 +36,8 @@ import QuickFillCard from "./chat/QuickFillCard";
 import SaveSuggestions from "./chat/SaveSuggestions";
 import EscalationCard from "./chat/EscalationCard";
 import AlumniMatchesCard from "./chat/AlumniMatchesCard";
+import { ReminderItem } from "./reminders/ReminderBell";
+import useReminders from "./reminders/useReminders";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -127,6 +129,20 @@ function ChatView({ user, profileDone, onOpenProfile }) {
   const pendingDeclines = useRef([]);
   const stageLabel = STAGE_LABELS[user?.lifecycleStage] || STAGE_LABELS.prospect;
   const prompts = suggestedPrompts[user?.policyStage] || suggestedPrompts.prospect;
+  const { items: reminders, dismiss: dismissReminder } = useReminders();
+  const navigate = useNavigate();
+
+  // ?prompt=<question> (a reminder's action) fills the input for the user to
+  // send; it is never sent on their behalf.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const prompt = params.get("prompt");
+    if (!prompt) return;
+    setInput(prompt);
+    params.delete("prompt");
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    inputRef.current?.focus();
+  }, [location.search, location.pathname, navigate]);
 
   useEffect(() => {
     const selectedSessionId = new URLSearchParams(location.search).get("session");
@@ -316,7 +332,8 @@ function ChatView({ user, profileDone, onOpenProfile }) {
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 lg:px-8 py-6">
         {messages.length === 0 ? (
-          <WelcomeView user={user} prompts={prompts} onPrompt={(prompt) => sendMessage(prompt.text, prompt)} onOpenProfile={onOpenProfile} profileDone={profileDone} />
+          <WelcomeView user={user} prompts={prompts} onPrompt={(prompt) => sendMessage(prompt.text, prompt)} onOpenProfile={onOpenProfile} profileDone={profileDone}
+            reminder={reminders[0]} onDismissReminder={dismissReminder} />
         ) : (
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((msg, i) =>
@@ -378,9 +395,12 @@ function ChatView({ user, profileDone, onOpenProfile }) {
   );
 }
 
-function WelcomeView({ user, prompts, onPrompt, onOpenProfile, profileDone }) {
+function WelcomeView({ user, prompts, onPrompt, onOpenProfile, profileDone, reminder, onDismissReminder }) {
   return (
     <div className="max-w-3xl mx-auto animate-fadeIn">
+      {/* The most pressing reminder, if any */}
+      {reminder && <ul className="mb-6"><ReminderItem reminder={reminder} onDismiss={onDismissReminder} /></ul>}
+
       {/* Hero */}
       <div className="text-center mb-8">
         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-royal-600/20 border border-brand-400/20 mb-4">

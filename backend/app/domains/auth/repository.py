@@ -127,3 +127,19 @@ def update_settings(user_id: str, fields: dict) -> dict | None:
         """,
         [*updates.values(), user_id],
     )
+
+
+# reminders a user has closed (account.reminder_dismissals; the reminders
+# domain decides what a reminder is)
+
+def dismissed_reminder_keys(user_id: str) -> set[str]:
+    rows = account_db.fetch_all("select reminder_key from account.reminder_dismissals where user_id = %s", (user_id,))
+    return {row[0] for row in rows}
+
+
+def dismiss_reminder(user_id: str, key: str) -> None:
+    account_db.execute(
+        """insert into account.reminder_dismissals (user_id, reminder_key) values (%s, %s)
+           on conflict (user_id, reminder_key) do nothing""",
+        (user_id, key),
+    )

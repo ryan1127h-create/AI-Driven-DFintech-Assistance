@@ -20,7 +20,7 @@ from app.domains.auth.service import (
 )
 
 __all__ = [
-    "delete_account", "find_user_id_by_email", "get_account_names", "get_assistant_preferences",
+    "delete_account", "dismiss_reminder", "dismissed_reminder_keys", "find_user_id_by_email", "get_account_names", "get_assistant_preferences",
     "get_audience", "get_current_user_id", "get_login_email", "is_admin", "set_account_status",
     "update_full_name",
 ]
@@ -64,3 +64,12 @@ def get_assistant_preferences(user_id: str) -> dict:
         "language_pref": list(settings_row.get("language_pref") or []),
         "answer_depth": settings_row.get("answer_depth") or "standard",
     }
+
+
+def dismissed_reminder_keys(user_id: str) -> set[str]:
+    """The keys of the reminders the user has closed (see the reminders domain)."""
+    return repository.dismissed_reminder_keys(user_id)
+
+
+def dismiss_reminder(user_id: str, key: str) -> None:
+    repository.dismiss_reminder(user_id, key)

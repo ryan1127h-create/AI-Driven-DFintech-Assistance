@@ -114,7 +114,7 @@ def list_applications(user_id: str) -> list[dict]:
     apps = sis_db.fetch_all_dict(
         """
         select application_id, program_id, application_no, application_type,
-               admission_term, submission_date, status, final_decision, updated_at
+               admission_term, submission_date, status, final_decision, offer_expires_at, updated_at
           from sis.applications
          where user_id = %s
          order by submission_date desc nulls last
