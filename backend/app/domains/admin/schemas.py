@@ -73,6 +73,8 @@ class AdminUser(BaseModel):
     is_anonymous: bool
     last_login_at: datetime | None = None
     created_at: datetime
+    lifecycle_stage: str | None = None
+    course_enrollments: list[dict] = []
     profile: list[dict] = []
     conversations: list[AdminUserConversation] = []
     applications: list[AdminUserApplication] = []
