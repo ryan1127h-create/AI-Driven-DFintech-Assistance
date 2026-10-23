@@ -431,7 +431,7 @@ def client():
 def test_admin_routes_require_a_token(client):
     _, http = client
     routes = list(_admin_routes())
-    assert len(routes) == 24
+    assert len(routes) == 26
     for method, path in routes:
         assert http.request(method, path, json={}).status_code in (401, 403), (method, path)
 

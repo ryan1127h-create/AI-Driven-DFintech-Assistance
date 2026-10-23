@@ -4,7 +4,7 @@ import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
 function FeatureButton({ children, variant = "primary", className = "", ...props }) {
-  return <button className={`feature-button feature-button-${variant} ${className}`.trim()} {...props}>{children}</button>
+  return <button className={`feature-button feature-button-${variant} ${className} ${className.includes("view-button") ? "table-action" : ""}`.trim()} {...props}>{children}</button>
 }
 
 function Icon({ name, size = 18 }) {
@@ -266,13 +266,6 @@ function CaseDrawer({
                   <Icon name="user" size={16} />
                   View User Profile
                 </FeatureButton>}
-                {caseItem.conversationId ? <Link className="feature-button feature-button-secondary" to={`/admin/conversations/${caseItem.conversationId}`}>
-                  <Icon name="chat" size={16} />
-                  View Conversation
-                </Link> : <FeatureButton variant="secondary" disabled title="The conversation this case came from is no longer available.">
-                  <Icon name="chat" size={16} />
-                  View Conversation
-                </FeatureButton>}
               </div>
             </div>
           </section>
@@ -280,6 +273,18 @@ function CaseDrawer({
           <section className="detail-section summary-section">
             <div className="section-title">Escalation Summary</div>
             <div className="summary-card">{caseItem.summary}</div>
+          </section>
+
+          <section className="detail-section">
+            <div className="section-title">Conversation</div>
+            {caseItem.conversation_id || caseItem.conversationId ? (
+              <Link className="feature-button feature-button-secondary full-width" to={`/admin/conversations/${caseItem.conversation_id || caseItem.conversationId}`}>
+                View conversation transcript
+                <Icon name="arrow" size={15} />
+              </Link>
+            ) : (
+              <p className="context-note">No conversation is linked to this escalation case yet.</p>
+            )}
           </section>
 
           <section className="detail-section">
@@ -455,6 +460,7 @@ export default function App() {
   const [specialist, setSpecialist] = useState("All Specialists")
   const [date, setDate] = useState("All Time")
   const [sort, setSort] = useState("Newest")
+  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(null)
   const [resolveConfirm, setResolveConfirm] = useState(false)
   const [caseData, setCaseData] = useState([])
@@ -462,7 +468,6 @@ export default function App() {
 
   const [loadError, setLoadError] = useState("")
   const [actionError, setActionError] = useState("")
-  const [page, setPage] = useState(1)
   const [notes, setNotes] = useState("")
   // ?case=<id> opens that case's drawer (the conversation page links here).
   const [searchParams] = useSearchParams()
@@ -512,12 +517,10 @@ export default function App() {
       )
     if (sort === "Oldest") result = [...result].reverse()
     return result
-  }, [search, status, priority, category, source, specialist, date, sort, caseData])
-
-  useEffect(() => { setPage(1) }, [search, status, priority, category, source, specialist, date, sort])
-  const pageCount = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE))
-  const currentPage = Math.min(page, pageCount)
-  const pagedCases = filteredCases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  }, [search, status, priority, category, source, specialist, sort, caseData])
+  const pageSize = 20
+  const pageCount = Math.max(1, Math.ceil(filteredCases.length / pageSize))
+  const paginatedCases = filteredCases.slice((page - 1) * pageSize, page * pageSize)
 
   const resetFilters = () => {
     setSearch("")
@@ -587,8 +590,8 @@ export default function App() {
             />
           </div>
 
-          <section className="table-card">
-            <div className="toolbar">
+          <section className="data-table">
+            <div className="data-table-toolbar">
               <div className="search-wrap">
                 <Icon name="search" size={18} />
                 <input
@@ -602,7 +605,7 @@ export default function App() {
                 <strong>{filteredCases.length || 0}</strong> visible cases
               </div>
             </div>
-            <div className="filters">
+            <div className="data-table-filters">
               <div className="filter-icon">
                 <Icon name="filter" size={17} />
               </div>
@@ -660,7 +663,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="table-scroll">
+            <div className="data-table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -681,7 +684,7 @@ export default function App() {
                   {isLoading ? (
                     <LoadingRows />
                   ) : (
-                    pagedCases.map((item) => (
+                    paginatedCases.map((item) => (
                       <tr
                         key={item.id}
                         className={
@@ -768,16 +771,16 @@ export default function App() {
               )}
             </div>
 
-            <div className="pagination">
+            <div className="data-table-pagination">
               <span>
-                Showing <strong>{filteredCases.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredCases.length)}` : "0"}</strong> of <strong>{filteredCases.length}</strong> cases
+                Showing <strong>{filteredCases.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filteredCases.length)}</strong> of <strong>{filteredCases.length}</strong> cases
               </span>
               <div className="page-buttons">
-                <FeatureButton variant="secondary" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>
+                <FeatureButton variant="secondary" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
                   <Icon name="arrow" size={14} /> Previous
                 </FeatureButton>
-                <FeatureButton variant="primary">{currentPage} / {pageCount}</FeatureButton>
-                <FeatureButton variant="secondary" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>
+                <label className="admin-escalation-page-input">Page <input type="number" min="1" max={pageCount} value={page} onChange={(event) => setPage(Math.min(Math.max(Number(event.target.value) || 1, 1), pageCount))} /></label>
+                <FeatureButton variant="secondary" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>
                   Next <Icon name="arrow" size={14} />
                 </FeatureButton>
               </div>
@@ -793,6 +796,7 @@ export default function App() {
           onResolve={() => setResolveConfirm(true)}
           notes={notes}
           onNotesChange={setNotes}
+          onViewUser={() => selected.user_id && navigate(`/admin/users/${selected.user_id}`)}
         />
       )}
       {resolveConfirm && (

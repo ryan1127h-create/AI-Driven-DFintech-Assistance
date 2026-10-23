@@ -362,8 +362,18 @@ export async function getAdminEscalationCase(caseId) {
   return handleResponse(response);
 }
 
-export async function getAdminOverview(days = 7) {
-  const response = await fetch(buildUrl(`/admin/overview?days=${days}`), {
+export function updateAdminEscalationCase(caseId, updates) {
+  // MOCK FALLBACK: delete this branch after PATCH /admin/escalations/{id} is live.
+  if (USE_ESCALATION_MOCK_DATA) {
+    const index = adminEscalationCases.findIndex((item) => item.id === caseId);
+    if (index >= 0) adminEscalationCases[index] = { ...adminEscalationCases[index], ...updates };
+    return Promise.resolve(adminEscalationCases[index] || null);
+  }
+  return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, updates);
+}
+
+export async function getAdminOverview() {
+  const response = await fetch(buildUrl("/admin/overview"), {
     headers: getAuthHeaders(),
   });
   return handleResponse(response);
@@ -396,6 +406,8 @@ export function getAdminConversation(id) { return fetch(buildUrl(`/admin/convers
 export function getAdminKnowledge(search = "", mainTable = "all") { const params = new URLSearchParams(); if (search) params.set("search", search); if (mainTable !== "all") params.set("main_table", mainTable); const query = params.toString() ? `?${params}` : ""; return fetch(buildUrl(`/admin/knowledge${query}`), { headers: getAuthHeaders() }).then(handleResponse); }
 export function updateAdminKnowledge(category, id, changes) { return jsonRequest("PATCH", `/admin/knowledge/${encodeURIComponent(category)}/${encodeURIComponent(id)}`, changes); }
 export function getAdminKnowledgeCourse(courseCode) { return fetch(buildUrl(`/admin/knowledge/courses/${encodeURIComponent(courseCode)}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function getAdminKnowledgeProgram(programId) { return fetch(buildUrl(`/admin/knowledge/programs/${encodeURIComponent(programId)}`), { headers: getAuthHeaders() }).then(handleResponse); }
+export function updateAdminKnowledgeProgram(programId, changes) { return jsonRequest("PATCH", `/admin/knowledge/programs/${encodeURIComponent(programId)}`, changes); }
 export function updateAdminKnowledgeCourse(courseCode, changes) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}`, changes); }
 export function updateAdminKnowledgeCourseRelated(courseCode, relation, row) { return jsonRequest("PATCH", `/admin/knowledge/courses/${encodeURIComponent(courseCode)}/${encodeURIComponent(relation)}`, { row }); }
 

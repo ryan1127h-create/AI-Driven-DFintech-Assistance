@@ -14,8 +14,9 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminUserProfilePage from "./pages/AdminUserProfilePage";
 import AdminApplicationsPage from "./pages/AdminApplicationsPage";
 import AdminApplicationPage from "./pages/AdminApplicationPage";
-import AdminConversationsPage from "./pages/AdminConversationsPage";
+import AdminProgramPage from "./pages/AdminProgramPage";
 import AdminConversationPage from "./pages/AdminConversationPage";
+import AdminConversationsPage from "./pages/AdminConversationsPage";
 import AlumniMatchPage from "./pages/AlumniMatchPage";
 import SupportRequestsPage from "./pages/SupportRequestsPage";
 import AdminEscalationPage from "./pages/AdminEscalationPage";
@@ -76,6 +77,7 @@ export default function App() {
                 <Route path="/admin/users/:userId" element={<AdminUserProfilePage />} />
                 <Route path="/admin/applications" element={<AdminApplicationsPage />} />
                 <Route path="/admin/applications/:applicationId" element={<AdminApplicationPage />} />
+                <Route path="/admin/knowledge/programs/:programId" element={<AdminProgramPage />} />
                 <Route path="/admin/conversations" element={<AdminConversationsPage />} />
                 <Route path="/admin/conversations/:conversationId" element={<AdminConversationPage />} />
                 <Route path="/admin/escalations" element={<AdminEscalationPage />} />

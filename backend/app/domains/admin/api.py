@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.domains.admin import service
-from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate
+from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate, AdminProgramUpdate
 from app.domains.alumni.schemas import StaffAlumnusCreate, StaffAlumnusFields
 from app.domains.auth.interface import get_current_user_id
 
@@ -24,8 +24,8 @@ def update_admin_escalation(case_id: str, update: AdminEscalationUpdate, user_id
 
 
 @router.get("/overview", response_model=AdminOverview)
-def get_admin_overview(days: int = 7, user_id: str = Depends(get_current_user_id)):
-    return service.get_overview(user_id, max(1, min(days, 365)))
+def get_admin_overview(user_id: str = Depends(get_current_user_id)):
+    return service.get_overview(user_id)
 
 
 @router.get("/users", response_model=AdminUserList)
@@ -92,6 +92,16 @@ def list_admin_knowledge(search: str = "", main_table: str = "all", user_id: str
 @router.get("/knowledge/courses/{course_code}")
 def get_admin_knowledge_course(course_code: str, user_id: str = Depends(get_current_user_id)):
     return service.get_knowledge_course(user_id, course_code)
+
+
+@router.get("/knowledge/programs/{program_id}")
+def get_admin_knowledge_program(program_id: str, user_id: str = Depends(get_current_user_id)):
+    return service.get_knowledge_program(user_id, program_id)
+
+
+@router.patch("/knowledge/programs/{program_id}")
+def update_admin_knowledge_program(program_id: str, update: AdminProgramUpdate, user_id: str = Depends(get_current_user_id)):
+    return service.update_knowledge_program(user_id, program_id, update.model_dump(exclude_none=True))
 
 
 @router.patch("/knowledge/courses/{course_code}")

@@ -459,7 +459,7 @@ function AssistantMessage({
         <Bot size={16} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="card p-4 relative">
+        <div className="card assistant-reply-card p-4 relative">
           {rollbackTurns !== undefined && (
             <button
               onClick={() => onRollback(rollbackTurns, rollbackPrefill)}
@@ -487,7 +487,8 @@ function AssistantMessage({
           {msg.streaming && !msg.steps?.length && !msg.content && <ThinkingDots />}
 
           {body && (
-            <div className="prose prose-sm prose-invert text-sm text-app-primary leading-relaxed break-words">
+            <div className="assistant-reply-reading">
+            <div className="prose assistant-reply-content prose-sm prose-invert text-sm text-app-primary leading-relaxed break-words">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -521,6 +522,7 @@ function AssistantMessage({
                 {body}
               </ReactMarkdown>
               {msg.streaming && <span className="inline-block w-1.5 h-4 bg-brand-300 ml-0.5 align-middle animate-pulseDot" />}
+            </div>
             </div>
           )}
 

@@ -12,7 +12,6 @@ const navItems = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/applications", label: "Applications", icon: ClipboardList },
-  { to: "/admin/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/admin/escalations", label: "Escalation Cases", icon: AlertTriangle },
   { to: "/admin/alumni", label: "Alumni", icon: GraduationCap },
   { to: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
@@ -70,7 +69,7 @@ export default function AdminSidebar() {
           </NavLink>
         ))}
       </nav>
-      <div className={cn("mt-auto py-3 border-t border-app-subtle", collapsed ? "w-full" : "w-full px-0")}>
+      <div className={cn("mt-auto pt-3 border-t border-app-subtle", collapsed ? "w-full" : "w-full px-0")}>
         <AccountMenu
           user={user}
           subtitle="Administrator"
