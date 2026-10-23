@@ -195,23 +195,18 @@ def run_turn(
     system_blocks = []
     if profile_text:
         system_blocks.append(SystemMessage(content=profile_text))
-    # A student's degree progress, worked out by the curriculum rules: any
-    # answer about where they stand quotes these numbers instead of adding
-    # up units itself.
-    if stage in ENROLLED_STAGES:
-        progress = _progress_text(user_id)
-        if progress:
-            system_blocks.append(SystemMessage(content=progress))
-    # Likewise an applicant's own dates (offer expiry, application period),
-    # so "when must I accept my offer?" is answered from the record.
-    else:
-        deadlines = _deadlines_text(user_id)
-        if deadlines:
-            system_blocks.append(SystemMessage(content=deadlines))
     if summaries_text:
         system_blocks.append(SystemMessage(content=summaries_text))
 
-    llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + [new_message]
+    # The user's current record, placed right before their message rather
+    # than ahead of the conversation: it is as of now, so it outweighs an
+    # earlier reply that didn't have it. A student's degree progress (worked
+    # out by the curriculum rules, so no answer adds up units itself), or
+    # an applicant's own dates (offer expiry, application period).
+    record = _progress_text(user_id) if stage in ENROLLED_STAGES else _deadlines_text(user_id)
+    record_blocks = [SystemMessage(content=record)] if record else []
+
+    llm_messages = system_blocks + conversation.for_prompt(state.raw_tail) + record_blocks + [new_message]
     previous_turn = _previous_turn(state)
 
     # The dashboard's response time: classifying plus answering, the part

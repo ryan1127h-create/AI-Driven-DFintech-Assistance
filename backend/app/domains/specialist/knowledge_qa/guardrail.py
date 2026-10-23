@@ -26,9 +26,18 @@ _ACADEMIC_YEAR = re.compile(r"\bAY\s?\d{4}/\d{2,4}\b", re.IGNORECASE)
 # A number not glued to letters on either side (FT5005, AY2027, 2nd stay out).
 _NUMBER = re.compile(r"(?<![A-Za-z0-9.])\d{1,3}(?:,\d{3})+(?:\.\d+)?(?![A-Za-z0-9])"
                      r"|(?<![A-Za-z0-9.,])\d+(?:\.\d+)?(?![A-Za-z0-9])")
-_DAY_MONTH = re.compile(r"\b(\d{1,2})\s+(" + "|".join(_MONTHS) + r")\b", re.IGNORECASE)
-_MONTH_DAY = re.compile(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2})\b", re.IGNORECASE)
+# A month written in full or abbreviated ("November", "Nov", "Nov.", "Sept"):
+# "2 Nov 2026" in the sources supports "2 November" in the reply, and back.
+_MONTH_NAMES = sorted({*_MONTHS, *(m[:3] for m in _MONTHS), "sept"}, key=len, reverse=True)
+_MONTH = r"(" + "|".join(_MONTH_NAMES) + r")\.?"
+_DAY_MONTH = re.compile(r"\b(\d{1,2})\s+" + _MONTH + r"(?![A-Za-z])", re.IGNORECASE)
+_MONTH_DAY = re.compile(r"\b" + _MONTH + r"\s+(\d{1,2})\b", re.IGNORECASE)
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+_FULL_MONTH = {m[:3]: m for m in _MONTHS}
+
+
+def _month(name: str) -> str:
+    return _FULL_MONTH[name.lower()[:3]]
 
 
 def _numbers(text: str) -> set[float]:
@@ -46,8 +55,8 @@ def _numbers(text: str) -> set[float]:
 
 
 def _days(text: str) -> set[tuple[str, int]]:
-    days = {(m.lower(), int(d)) for d, m in _DAY_MONTH.findall(text)}
-    days |= {(m.lower(), int(d)) for m, d in _MONTH_DAY.findall(text)}
+    days = {(_month(m), int(d)) for d, m in _DAY_MONTH.findall(text)}
+    days |= {(_month(m), int(d)) for m, d in _MONTH_DAY.findall(text)}
     for _year, month, day in _ISO_DATE.findall(text):
         days.add((_MONTHS[int(month) - 1], int(day)))
     return days

@@ -203,6 +203,32 @@ def test_a_turn_hands_the_previous_turn_to_the_classifier_and_the_tools(monkeypa
 # --- what goes into prompts ---
 
 
+def test_the_users_current_record_sits_right_before_their_message(monkeypatch):
+    state = SimpleNamespace(history_summaries=[], declined_fields=[], turn_count=1,
+                            raw_tail=[HumanMessage("deadline?"), AIMessage("Not in my sources.")],
+                            pending_turn_intents=[])
+    conv = turn_service.conversation
+    monkeypatch.setattr(conv, "get_state", lambda sid, uid: state)
+    monkeypatch.setattr(conv, "record_turn", lambda *a, **k: None)
+    monkeypatch.setattr(turn_service, "get_profile_summary_text", lambda uid: "PROFILE")
+    monkeypatch.setattr(turn_service, "get_assistant_preferences",
+                        lambda uid: {"language_pref": [], "answer_depth": "standard"})
+    monkeypatch.setattr(turn_service, "_policy_stage", lambda uid: "admitted")
+    monkeypatch.setattr(turn_service.reminders, "deadlines_text", lambda uid: "DATES")
+    monkeypatch.setattr(turn_service.classification, "classify_intent",
+                        lambda messages, on_event=None, previous_turn=None: classification.Classification(["admissions"]))
+    seen = {}
+
+    def answer_turn(turn_state, intents, on_event=None):
+        seen["messages"] = [m.content for m in turn_state.messages]
+        return AIMessage("ok"), "ok", "admissions_agent"
+    monkeypatch.setattr(turn_service.dispatch, "answer_turn", answer_turn)
+
+    turn_service.run_turn("s1", "When must I accept?", "u1")
+    assert seen["messages"] == ["PROFILE", "deadline?", "Not in my sources.", "DATES", "When must I accept?"]
+
+
+
 
 
 def test_long_earlier_replies_are_shortened_keeping_start_and_end(monkeypatch):

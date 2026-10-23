@@ -75,6 +75,17 @@ def test_a_calculated_figure_without_its_working_is_caught():
     assert guardrail.check("You would pay S$45,845.", sources) == ["figures not in the reference material: 45845"]
 
 
+def test_abbreviated_and_full_month_names_support_each_other():
+    assert guardrail.check("Accept by 2 November 2026.", "must be accepted by 2 Nov 2026") == []
+    assert guardrail.check("Apply by Jan 31, 2027.", "closes on 31 January 2027") == []
+    assert guardrail.check("Accept by 3 Nov. 2026.", "must be accepted by 2 November 2026") == [
+        "dates not in the reference material: 3 November"]
+
+
+def test_a_word_starting_like_a_month_is_not_a_date():
+    assert guardrail.check("Pick 3 Decide-level electives.", "") == []
+
+
 def test_codes_urls_and_small_counts_are_ignored():
     reply = "Take FT5005 in AY2027/28 with 2 referees: https://nusmods.com/courses/FT5005/2026"
     assert guardrail.check(reply, "FT5005") == []

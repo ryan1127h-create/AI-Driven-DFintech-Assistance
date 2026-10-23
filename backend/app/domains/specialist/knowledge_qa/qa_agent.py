@@ -36,6 +36,11 @@ _BASE_SYSTEM_PROMPT = """\
 - Base your answer exclusively on the CURRENT PROGRAMME FACTS and the REFERENCE \
 MATERIAL below. Do not use your own prior knowledge about NUS, this programme, or any \
 other university.
+- For the user's own situation, the user's record given as context in the \
+conversation (their profile, application, application dates, degree progress) is \
+supplied material too, and it is current: answer from it. If an earlier reply in \
+this conversation said something wasn't available but the record now has it, answer \
+from the record.
 - If neither contains the answer, say plainly that the information is not in the \
 available sources and point the user to the programme's enquiry form ({enquiry_url}). \
 Never guess, never infer, never fill gaps with general knowledge.
