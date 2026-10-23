@@ -338,3 +338,28 @@ def test_alumni_routes_refuse_applicants_over_http(world):
     app.dependency_overrides[get_current_user_id] = lambda: "sam"
     assert http.get("/api/v1/alumni/matches?expertise=blockchain").json()["total"] == 1
     assert http.patch("/api/v1/alumni/requests/r9", json={"action": "approve"}).status_code == 422
+
+
+# --- story sharing -----------------------------------------------------------------
+
+def test_alumni_choose_who_sees_their_story_and_staff_can_only_withdraw(world):
+    mine = service.set_visibility("alice", {"story_for_applicants": True})
+    assert mine["story_for_applicants"] is True and mine["story_for_students"] is False and mine["listed"] is True
+    with pytest.raises(ValidationError, match="Nothing to change"):
+        service.set_visibility("alice", {"photo_url": "x"})
+    with pytest.raises(ValidationError, match="share their story"):
+        service.staff_update("alice", {"story_for_students": True})
+    service.staff_update("alice", {"story_for_applicants": False})
+    assert world.repo.profiles["alice"]["story_for_applicants"] is False
+
+
+def test_stories_come_only_from_consenting_alumni_matching_the_readers_goals(world):
+    world.repo.profiles["alice"].update(story_for_applicants=True, bio="From ML research into fintech.", class_year=2023)
+    world.repo.profiles["carol"].update(story_for_applicants=True, class_year=2024)  # unlisted still shares a story
+    world.repo.profiles["bob"].update(story_for_students=True)
+    found = service.stories("applicants", ["data_analytics", "machine_learning_ai"])
+    assert [s["name"].split()[0] for s in found] == ["Alice", "Carol"]  # alice covers both, carol the main role
+    assert found[0]["bio"] == "From ML research into fintech." and "contact_email" not in found[0]
+    assert service.stories("applicants", ["blockchain"]) == []  # bob shares with students only
+    assert [s["name"].split()[0] for s in service.stories("students", ["blockchain"])] == ["Bob"]
+    assert service.stories("applicants", []) == []

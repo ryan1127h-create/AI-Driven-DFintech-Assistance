@@ -12,11 +12,12 @@ from app.adapters.alumni_db_adapter import alumni_db
 
 _PROFILE_COLUMNS = (
     "position", "company", "class_year", "expertise", "bio", "photo_url",
-    "contact_email", "contact_phone", "linkedin_url", "listed",
+    "contact_email", "contact_phone", "linkedin_url", "listed", "story_for_applicants", "story_for_students",
 )
 _PROFILE_SELECT = """
     select user_id::text, position, company, class_year, expertise, bio, photo_url,
-           contact_email, contact_phone, linkedin_url, listed, created_at, updated_at
+           contact_email, contact_phone, linkedin_url, listed, story_for_applicants, story_for_students,
+           created_at, updated_at
       from alumni.profiles
 """
 _REQUEST_SELECT = """

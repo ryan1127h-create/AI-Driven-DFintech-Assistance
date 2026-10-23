@@ -17,6 +17,7 @@ TOOL_TOPICS = {
     "career": "career planning",
     "comparison": "comparisons with other programmes",
     "assessment": "the applicant's profile assessment",
+    "alumni": "finding alumni to talk to",
 }
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.domains.alumni import service
-from app.domains.alumni.schemas import ListedUpdate, RequestCreate, RequestUpdate
+from app.domains.alumni.schemas import RequestCreate, RequestUpdate, VisibilityUpdate
 from app.domains.auth.interface import get_current_user_id
 
 router = APIRouter(prefix="/alumni")
@@ -37,5 +37,5 @@ def get_me(user_id: str = Depends(get_current_user_id)):
 
 
 @router.patch("/me")
-def set_listed(body: ListedUpdate, user_id: str = Depends(get_current_user_id)):
-    return service.set_listed(user_id, body.listed)
+def set_visibility(body: VisibilityUpdate, user_id: str = Depends(get_current_user_id)):
+    return service.set_visibility(user_id, body.model_dump(exclude_none=True))

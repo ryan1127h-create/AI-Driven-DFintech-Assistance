@@ -79,6 +79,7 @@ const AGENTS = {
   comparison: { name: "Programme Comparison", role: "MSc DFT against other programmes" },
   assessment: { name: "Application Assessment", role: "Your fit and readiness to apply" },
   course_recommendation: { name: "Course Planner", role: "Personalised course recommendations" },
+  alumni: { name: "Alumni Match", role: "Alumni who share your goals" },
 };
 
 const MODIFIERS = new Set(["clarify", "revised"]);

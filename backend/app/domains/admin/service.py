@@ -26,12 +26,13 @@ def _require_admin(user_id: str) -> None:
 _TOPIC_LABELS = {
     "admissions": "Admissions", "academic": "Academic", "financial": "Fees & Finance", "career": "Career Planning",
     "comparison": "Programme Comparison", "faq": "FAQ", "assessment": "Readiness Assessment",
-    "course_recommendation": "Course Recommendation", "general": "General",
+    "course_recommendation": "Course Recommendation", "alumni": "Alumni Match", "general": "General",
 }
 _AGENT_LABELS = {
     "admissions": "Admissions", "academic": "Academic", "financial": "Fees & Finance", "career": "Career Planning",
     "comparison": "Programme Comparison", "faq": "FAQ", "assessment": "Readiness Assessment",
-    "course_recommendation": "Course Recommendation", "supervisor": "General Chat", "orchestrator": "Orchestrator",
+    "course_recommendation": "Course Recommendation", "alumni": "Alumni Match", "supervisor": "General Chat",
+    "orchestrator": "Orchestrator",
 }
 _TOP_TOPICS = 5
 # An agent is "Degraded" at or above either threshold.

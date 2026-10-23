@@ -75,6 +75,9 @@ class TurnState:
     # Likewise for a programme comparison: "compare", "detail" or "explore"
     # (see classification.COMPARISON_MODES); None otherwise.
     comparison_mode_hint: str | None = None
+    # Likewise for alumni matching: the role family the user wants alumni
+    # from (a role tag); None otherwise.
+    alumni_role_hint: str | None = None
     # Input fields the user skipped or dismissed earlier in this
     # conversation (see orchestrator/dispatch/requirements.py): an optional
     # or supplementary field here isn't asked for again this session.

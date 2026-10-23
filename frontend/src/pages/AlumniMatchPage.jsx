@@ -1,9 +1,10 @@
 /* eslint-disable react/prop-types */
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Users } from "lucide-react";
 import {
   acceptAlumniRequest, cancelAlumniRequest, createAlumniRequest, declineAlumniRequest,
-  getAlumniMatches, getAlumniMe, getAlumniRequests, setAlumniListed,
+  getAlumniMatches, getAlumniMe, getAlumniRequests, setAlumniListed, setAlumniStorySharing,
 } from "../../api";
 import { LoadingState, PageHeader } from "../components/student/PageParts";
 
@@ -169,6 +170,17 @@ function StudentView({ notify }) {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  // ?alumnus=<id> (a link from the chat) opens that alumnus's profile once the
+  // listing has loaded.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedAlumnus = searchParams.get("alumnus");
+  useEffect(() => {
+    if (!linkedAlumnus || !data) return;
+    const person = data.items.find((p) => p.id === linkedAlumnus);
+    if (person) setViewing(person);
+    setSearchParams((params) => { const next = new URLSearchParams(params); next.delete("alumnus"); return next; }, { replace: true });
+  }, [linkedAlumnus, data, setSearchParams]);
+
   const loadRequests = useCallback(() => getAlumniRequests().then((r) => setSent(r.sent || [])).catch((e) => setError(e.message)), []);
   useEffect(() => {
     let active = true;
@@ -269,6 +281,32 @@ function emailToStudent(request, profile) {
   return mailto(request.student.email, `Alumni Match: connecting with ${profile?.company ? `an alumnus at ${profile.company}` : "an MSc DFinTech alumnus"}`, body);
 }
 
+// Whether the assistant may show this alumnus's story (position, company,
+// class year and bio — never contact details) to each audience. Separate
+// from being listed, which is about being found and contacted.
+const STORY_AUDIENCES = [
+  { flag: "story_for_applicants", label: "Prospective students and applicants", audience: "prospective students" },
+  { flag: "story_for_students", label: "Current students", audience: "current students" },
+];
+
+function StorySharing({ profile, onToggle }) {
+  return <div className="privacy-card story-card">
+    <div className="privacy-icon"><Icon name="sparkles" /></div>
+    <div>
+      <strong>Share your story</strong>
+      <p>The assistant can mention your path — position, company, class year and bio — to readers with similar goals. Your contact details are never shown.</p>
+      <div className="story-toggles">
+        {STORY_AUDIENCES.map(({ flag, label, audience }) => (
+          <label key={flag} className="story-toggle">
+            <input type="checkbox" checked={Boolean(profile[flag])} onChange={() => onToggle(flag, audience)} />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
 function AlumniView({ notify }) {
   const [tab, setTab] = useState("requests");
   const [data, setData] = useState(null);
@@ -291,6 +329,10 @@ function AlumniView({ notify }) {
   const toggleListed = async () => {
     try { await setAlumniListed(!data.profile.listed); notify(data.profile.listed ? "You are now hidden from students." : "Students can now find you."); await load(); } catch (e) { notify(e.message); }
   };
+  const toggleStory = async (flag, audience) => {
+    const on = !data.profile[flag];
+    try { await setAlumniStorySharing({ [flag]: on }); notify(on ? `Your story can now be shown to ${audience}.` : `Your story is no longer shown to ${audience}.`); await load(); } catch (e) { notify(e.message); }
+  };
 
   if (error) return <p role="alert" className="form-error">{error}</p>;
   if (!data) return <LoadingState className="alumni-loading" icon={Users} title="Loading requests" subtitle="Checking your connection requests…" />;
@@ -299,6 +341,7 @@ function AlumniView({ notify }) {
   return <>
     {data.profile ? <div className="privacy-card listing-card"><div className="privacy-icon"><Icon name={data.profile.listed ? "check" : "lock"} /></div><div><strong>{data.profile.listed ? "You are listed in the alumni directory" : "You are hidden from students"}</strong><p>{data.profile.listed ? "Enrolled students can find you and send requests." : "Students can't see you until you choose to be listed."}</p></div><Button variant={data.profile.listed ? "secondary" : "primary"} onClick={toggleListed}>{data.profile.listed ? "Hide me" : "List me"}</Button></div>
       : <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Your directory entry hasn&apos;t been set up yet</strong><p>The programme office creates alumni entries. Once yours exists you can choose to be listed.</p></div></div>}
+    {data.profile && <StorySharing profile={data.profile} onToggle={toggleStory} />}
     <div className="tabs" role="tablist">
       <button type="button" role="tab" aria-selected={tab === "requests"} className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>Requests <span>{pending.length}</span></button>
       <button type="button" role="tab" aria-selected={tab === "connections"} className={tab === "connections" ? "active" : ""} onClick={() => setTab("connections")}>My Connections</button>

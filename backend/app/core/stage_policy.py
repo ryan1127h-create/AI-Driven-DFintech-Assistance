@@ -93,6 +93,16 @@ _ALUMNUS_ASSESSMENT = (
 # "Which courses should I take?" alone doesn't retrieve the curriculum rules
 # the overview rests on.
 _CURRICULUM_SEARCH = "MSc DFT curriculum structure: core courses, electives, verticals, capstone, units"
+_PRE_ENROLMENT_ALUMNI = (
+    "Alumni Match opens once you've enrolled: current students can browse MSc DFT alumni by field and "
+    "ask to connect. Until then, I can tell you about the career paths the programme leads to — just ask."
+)
+_ALUMNUS_ALUMNI = (
+    "As one of our alumni, students reach out to you through Alumni Match: open it from the sidebar to see "
+    "the requests waiting for you and to choose whether you're listed in the directory."
+)
+
+_PRE_ENROLMENT_ALUMNI_RULE = Rule("redirect", reply=_PRE_ENROLMENT_ALUMNI)
 _PRE_ENROLMENT_COURSE_RULE = Rule("reroute", to="academic", note=_PRE_ENROLMENT_COURSES,
                                   search_hint=_CURRICULUM_SEARCH)
 _PROSPECT_ADMISSIONS_RULE = Rule(note=_PROSPECT_ADMISSIONS)
@@ -104,15 +114,19 @@ _POLICY: dict[str, dict[str, Rule]] = {
     "prospect": {
         "course_recommendation": _PRE_ENROLMENT_COURSE_RULE,
         "admissions": _PROSPECT_ADMISSIONS_RULE,
+        "alumni": _PRE_ENROLMENT_ALUMNI_RULE,
     },
     "rejected": {
         "course_recommendation": _PRE_ENROLMENT_COURSE_RULE,
+        "alumni": _PRE_ENROLMENT_ALUMNI_RULE,
     },
     "applicant": {
         "course_recommendation": _PRE_ENROLMENT_COURSE_RULE,
+        "alumni": _PRE_ENROLMENT_ALUMNI_RULE,
     },
     "admitted": {
         "assessment": Rule("redirect", reply=_ADMITTED_ASSESSMENT),
+        "alumni": _PRE_ENROLMENT_ALUMNI_RULE,
         "course_recommendation": Rule(modes=frozenset({"semester_plan", "ad_hoc"}), default_mode="semester_plan"),
     },
     "current": {
@@ -125,6 +139,7 @@ _POLICY: dict[str, dict[str, Rule]] = {
         "assessment": Rule("redirect", reply=_ALUMNUS_ASSESSMENT),
         "course_recommendation": Rule("reroute", to="academic", note=_ALUMNUS_COURSES),
         "career": Rule("reroute", to="faq", note=_ALUMNUS_CAREER),
+        "alumni": Rule("redirect", reply=_ALUMNUS_ALUMNI),
     },
 }
 

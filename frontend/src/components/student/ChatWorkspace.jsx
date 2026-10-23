@@ -35,6 +35,7 @@ import ConsentCard from "./chat/ConsentCard";
 import QuickFillCard from "./chat/QuickFillCard";
 import SaveSuggestions from "./chat/SaveSuggestions";
 import EscalationCard from "./chat/EscalationCard";
+import AlumniMatchesCard from "./chat/AlumniMatchesCard";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -533,6 +534,7 @@ function AssistantMessage({
           {msg.card?.kind === "consent" && (
             <ConsentCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} />
           )}
+          {msg.card?.kind === "alumni_matches" && <AlumniMatchesCard card={msg.card} />}
 
           {/* Details that would sharpen the answer, never in the way */}
           {msg.supplementCard && (

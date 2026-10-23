@@ -1,11 +1,11 @@
 """
-Classification — classifies the latest user message into 1-3 of ten intent
+Classification — classifies the latest user message into 1-3 of eleven intent
 categories, plus a small set of optional personalisation/localisation
 signals, then either answers directly (no tool matched — plain
 conversation), declines (out of scope), or hands off to the dispatch
 package (orchestrator/dispatch/) for the one- or many-tool path.
 
-Eight of the ten categories line up with a registered Tool's
+Nine of the eleven categories line up with a registered Tool's
 trigger_intents (see tools/registration.py), and any of them may come
 together — up to three tools then answer in parallel and their replies are
 joined (dispatch/execution.py). The two without a tool must appear alone:
@@ -73,7 +73,7 @@ This chatbot exists ONLY to help prospective students, applicants, and \
 current students of the NUS MSc Digital Financial Technology (DFT) \
 programme — nothing else is in scope.
 
-Classify the user's latest message into one or more of ten categories. Most \
+Classify the user's latest message into one or more of eleven categories. Most \
 messages have exactly one intent — only return more than one when the message \
 clearly asks about genuinely separate topics (e.g. "what's the application fee \
 AND what's the tuition?" is admissions + financial). Return at most 3 intents.
@@ -97,7 +97,7 @@ program_hints with the programmes picked, comparison_mode_hint "compare"). A mes
 changes the subject is classified on its own, ignoring the previous turn. \
 reply_language always comes from the LATEST MESSAGE alone.
 
-The ten categories:
+The eleven categories:
 
 "admissions" — The user is asking a factual question about: admission \
 requirements, eligibility criteria, academic qualifications, GRE / GMAT scores, \
@@ -154,6 +154,12 @@ to apply to the programme. Look for phrases such as "my background is", \
 "I have a degree in", "I graduated from", "am I eligible", "should I apply", \
 "assess my profile", "what are my chances", or similar self-referential requests.
 
+"alumni" — The user wants to find, meet or talk to programme alumni — e.g. \
+"can you connect me with alumni in digital payments?", "which alumni could I \
+talk to?", "is there an alumnus working as a quant?", "I'd like a mentor who \
+works in risk". Not for general questions about career outcomes (career) or \
+alumni benefits and services (faq).
+
 "general" — The user is doing something that does NOT require looking up \
 programme facts at all, but is still within this assistant's purpose: \
 greetings, thank-you messages, follow-up conversational questions, questions \
@@ -202,6 +208,14 @@ fees?", "南洋理工的金融科技什么时候截止申请？";
 - "explore": which programmes exist or meet some conditions, without naming \
 them, e.g. "any part-time FinTech programmes in Hong Kong?", "what other \
 programmes are like this one?".
+
+"alumni_role_hint" — ONLY when the intents include "alumni", the ONE role \
+family below closest to the field they want alumni from, or null when they \
+name none: blockchain, cybersecurity, data_analytics, data_engineering, \
+entrepreneurship, finance_investment, machine_learning_ai, product_business, \
+quantitative_finance, regulation_governance, risk_management, \
+software_engineering — e.g. "digital payments" → "product_business", "a \
+quant" → "quantitative_finance", "AML / compliance" → "regulation_governance".
 
 "career_mode_hint" — ONLY when the intents include "career", which kind of \
 career advice the user wants; otherwise null:
@@ -252,8 +266,9 @@ unless one of the categories above clearly applies); `target_role_hint` and `pro
 are always present (null / [] when nothing was mentioned); `reply_language` is \
 always present (null when you can't tell); `course_mode_hint` is always present \
 (null unless the intents include course_recommendation), and so are \
-`career_mode_hint` (null unless the intents include career) and \
-`comparison_mode_hint` (null unless the intents include comparison):
+`career_mode_hint` (null unless the intents include career), \
+`comparison_mode_hint` (null unless the intents include comparison) and \
+`alumni_role_hint` (null unless the intents include alumni):
 {"intents": ["admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["financial", "admissions"], "target_role_hint": null, "program_hints": [], "reply_language": "zh"}
@@ -268,6 +283,8 @@ or
 or
 {"intents": ["course_recommendation"], "target_role_hint": null, "program_hints": [], "reply_language": "zh", "course_mode_hint": "ad_hoc"}
 or
+{"intents": ["alumni"], "target_role_hint": null, "program_hints": [], "reply_language": "en", "alumni_role_hint": "product_business"}
+or
 {"intents": ["general"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
 or
 {"intents": ["off_topic"], "target_role_hint": null, "program_hints": [], "reply_language": "en"}
@@ -276,11 +293,17 @@ or
 or
 {"intents": ["general"], "target_role_hint": null, "program_hints": [], "reply_language": "zh", "escalation": {"category": "explicit_request", "urgent": false}}
 (etc. — any 1-3 of: admissions, academic, financial, career, comparison, faq, \
-assessment, course_recommendation, general, off_topic)"""
+assessment, course_recommendation, alumni, general, off_topic)"""
 
 VALID_INTENTS = {
     "admissions", "academic", "financial", "career", "comparison",
-    "faq", "assessment", "course_recommendation", "general", "off_topic",
+    "faq", "assessment", "course_recommendation", "alumni", "general", "off_topic",
+}
+# The role families alumni_role_hint picks from (knowledge.tags_definition).
+ROLE_TAGS = {
+    "blockchain", "cybersecurity", "data_analytics", "data_engineering", "entrepreneurship",
+    "finance_investment", "machine_learning_ai", "product_business", "quantitative_finance",
+    "regulation_governance", "risk_management", "software_engineering",
 }
 
 _MAX_INTENTS = 3
@@ -306,6 +329,8 @@ class Classification:
     course_mode_hint: str | None = None
     career_mode_hint: str | None = None
     comparison_mode_hint: str | None = None
+    # One of ROLE_TAGS when the user asks for alumni in a field.
+    alumni_role_hint: str | None = None
     # {"category", "urgent"} when the message needs a human staff member
     # (see ESCALATION_CATEGORIES); None for nearly every message.
     escalation: dict | None = None
@@ -381,6 +406,7 @@ def _parse(response: str) -> Classification:
         course_mode_hint=_mode(result, "course_mode_hint", "course_recommendation", intents, COURSE_MODES),
         career_mode_hint=_mode(result, "career_mode_hint", "career", intents, CAREER_MODES),
         comparison_mode_hint=_mode(result, "comparison_mode_hint", "comparison", intents, COMPARISON_MODES),
+        alumni_role_hint=_mode(result, "alumni_role_hint", "alumni", intents, ROLE_TAGS),
         escalation=_escalation(result),
     )
 

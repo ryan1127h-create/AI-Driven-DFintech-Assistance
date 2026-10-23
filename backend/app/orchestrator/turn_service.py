@@ -218,7 +218,7 @@ def run_turn(
         messages=llm_messages, user_id=user_id,
         target_role_hint=classified.target_role_hint, program_hints=classified.program_hints,
         course_mode_hint=classified.course_mode_hint, career_mode_hint=classified.career_mode_hint,
-        comparison_mode_hint=classified.comparison_mode_hint,
+        comparison_mode_hint=classified.comparison_mode_hint, alumni_role_hint=classified.alumni_role_hint,
         declined_fields=frozenset(state.declined_fields),
         reply_language=resolve_reply_language(classified.reply_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],

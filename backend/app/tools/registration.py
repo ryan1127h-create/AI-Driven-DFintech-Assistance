@@ -14,6 +14,7 @@ real trigger_intents and is reachable via intent classification.
 from __future__ import annotations
 
 from app.tools.contracts import registry
+from app.tools.specialist.alumni_match_tool import ALUMNI_MATCH_TOOL
 from app.tools.specialist.assessment.tool import ASSESSMENT_TOOL
 from app.tools.specialist.career_planning import CAREER_TOOL
 from app.tools.specialist.course_recommendation import COURSE_RECOMMENDATION_TOOL
@@ -24,6 +25,6 @@ from app.tools.specialist.program_comparison import COMPARISON_TOOL
 def register_all() -> None:
     for tool in (
         ADMISSIONS_TOOL, ACADEMIC_TOOL, FINANCIAL_TOOL, FAQ_TOOL,
-        CAREER_TOOL, COMPARISON_TOOL, ASSESSMENT_TOOL, COURSE_RECOMMENDATION_TOOL,
+        CAREER_TOOL, COMPARISON_TOOL, ASSESSMENT_TOOL, COURSE_RECOMMENDATION_TOOL, ALUMNI_MATCH_TOOL,
     ):
         registry.register(tool)

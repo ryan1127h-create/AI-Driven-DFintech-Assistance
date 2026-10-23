@@ -61,3 +61,13 @@ def stored_cases(monkeypatch):
     monkeypatch.setattr(conversation_service, "list_cases_for_user",
                         lambda user_id: [r for r in rows if r["user_id"] == user_id])
     return rows
+
+
+@pytest.fixture(autouse=True)
+def no_alumni_stories(monkeypatch):
+    """A test turn about careers would otherwise read the shared alumni
+    directory for stories to add; tests of the stories set their own."""
+    from app.tools import alumni_stories
+
+    monkeypatch.setattr(alumni_stories.alumni, "stories", lambda audience, interests, limit=2: [])
+    monkeypatch.setattr(alumni_stories, "get_profile_for_purpose", lambda user_id, purpose: {})

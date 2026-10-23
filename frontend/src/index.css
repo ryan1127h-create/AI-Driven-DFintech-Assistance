@@ -3259,3 +3259,9 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 .admin-escalation-content .feature-button.feature-button-secondary.view-button:hover { color: #fff !important; border-color: var(--data-table-action) !important; background: var(--data-table-action) !important; }
 .data-table .table-action:disabled,
 .admin-escalation-content .table-card .button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
+
+/* Alumni story sharing (AlumniMatchPage StorySharing) */
+.alumni-match-page .story-card { margin-top: 12px; }
+.story-toggles { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; }
+.story-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+.story-toggle input { width: 15px; height: 15px; accent-color: #2563eb; cursor: pointer; }

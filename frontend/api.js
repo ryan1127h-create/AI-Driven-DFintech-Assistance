@@ -428,6 +428,9 @@ export function resolveAdminEscalationCase(caseId, resolutionNotes) {
 export function getAlumniMe() { return fetch(buildUrl("/alumni/me"), { headers: getAuthHeaders() }).then(handleResponse); }
 export function setAlumniListed(listed) { return jsonRequest("PATCH", "/alumni/me", { listed }); }
 
+// The alumnus's story-sharing choices: { story_for_applicants?, story_for_students? }.
+export function setAlumniStorySharing(changes) { return jsonRequest("PATCH", "/alumni/me", changes); }
+
 export function getAlumniMatches({ search = "", expertise = [] } = {}) {
   const params = new URLSearchParams();
   if (search) params.set("search", search);

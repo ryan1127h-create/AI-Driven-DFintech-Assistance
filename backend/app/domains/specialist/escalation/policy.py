@@ -26,7 +26,8 @@ _WEAK_OUTCOMES = {"fallback", "error"}
 _ORIGIN_LABELS = {
     "admissions": "Admissions", "academic": "Academic", "financial": "Fees & Finance", "career": "Career Planning",
     "comparison": "Programme Comparison", "faq": "FAQ", "assessment": "Readiness Assessment",
-    "course_recommendation": "Course Recommendation", "supervisor": "General Chat", "orchestrator": "Orchestrator",
+    "course_recommendation": "Course Recommendation", "alumni": "Alumni Match", "supervisor": "General Chat",
+    "orchestrator": "Orchestrator",
 }
 
 

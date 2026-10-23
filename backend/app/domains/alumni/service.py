@@ -271,15 +271,66 @@ def get_my_profile(alumni_id: str) -> dict | None:
     return {
         **{k: profile[k] for k in ("position", "company", "class_year", "bio", "photo_url",
                                    "contact_email", "contact_phone", "linkedin_url", "listed")},
+        **{k: bool(profile.get(k)) for k in STORY_FLAGS},
         "expertise": [{"tag": t, "label": labels.get(t, t)} for t in profile["expertise"]],
     }
 
 
-def set_listed(alumni_id: str, listed: bool) -> dict:
+# The alumnus's own consent choices: being listed (findable and contactable
+# by enrolled students) and sharing their story with each audience.
+VISIBILITY_FLAGS = ("listed", "story_for_applicants", "story_for_students")
+STORY_FLAGS = ("story_for_applicants", "story_for_students")
+
+
+def set_visibility(alumni_id: str, changes: dict) -> dict:
     _require(alumni_id, "alumni")
-    if not repository.update_profile(alumni_id, {"listed": bool(listed)}):
+    fields = {k: bool(v) for k, v in changes.items() if k in VISIBILITY_FLAGS and v is not None}
+    if not fields:
+        raise ValidationError("Nothing to change.")
+    if not repository.update_profile(alumni_id, fields):
         raise NotFoundError("Your directory entry hasn't been set up yet. Please contact the programme office.")
     return get_my_profile(alumni_id)
+
+
+def set_listed(alumni_id: str, listed: bool) -> dict:
+    return set_visibility(alumni_id, {"listed": listed})
+
+
+# --- alumni stories ----------------------------------------------------------------
+
+# Who a story is shown to -> the alumnus's consent for that audience.
+STORY_AUDIENCES = {"applicants": "story_for_applicants", "students": "story_for_students"}
+
+
+def stories(audience: str, interests: list[str], limit: int = 2) -> list[dict]:
+    """Up to `limit` alumni stories for `audience` ("applicants" or
+    "students"), from alumni who chose to share with it, whose expertise
+    covers the most of `interests` (role tags, most important first). None
+    without interests: a story is shown because it matches the reader's
+    goals. Never contact details — only what the alumnus wrote about their
+    path."""
+    if not interests:
+        return []
+    column = STORY_AUDIENCES[audience]
+    labels = _labels()
+    ranked = []
+    for profile in repository.list_profiles():
+        if not profile.get(column):
+            continue
+        matched = [t for t in interests if t in profile["expertise"]]
+        if matched:
+            # The first interest (the main target role) counts double.
+            ranked.append((len(matched) + (interests[0] in matched), profile, matched))
+    ranked.sort(key=lambda item: (-item[0], -(item[1]["class_year"] or 0)))
+    names = auth_interface.get_account_names([p["user_id"] for _, p, _ in ranked[:limit]])
+    return [
+        {
+            "name": names.get(p["user_id"], {}).get("full_name") or "An alumnus",
+            "position": p["position"], "company": p["company"], "class_year": p["class_year"],
+            "bio": p["bio"], "matched": [labels.get(t, t) for t in matched],
+        }
+        for _, p, matched in ranked[:limit]
+    ]
 
 
 # --- staff -----------------------------------------------------------------------
@@ -334,10 +385,14 @@ def staff_create(admin_id: str, email: str, fields: dict) -> dict:
 
 def staff_update(user_id: str, fields: dict) -> dict:
     cleaned = _clean_staff_fields(fields)
+    # Consent is the alumnus's to give: staff may only withdraw it (e.g. on request).
     if fields.get("listed") is True:
         raise ValidationError("Only the alumnus can list themself in the directory.")
-    if fields.get("listed") is False:
-        cleaned["listed"] = False
+    if any(fields.get(flag) is True for flag in STORY_FLAGS):
+        raise ValidationError("Only the alumnus can choose to share their story.")
+    for flag in VISIBILITY_FLAGS:
+        if fields.get(flag) is False:
+            cleaned[flag] = False
     if not repository.update_profile(user_id, cleaned):
         raise NotFoundError("Alumnus not found.")
     return next(p for p in staff_list() if p["user_id"] == user_id)

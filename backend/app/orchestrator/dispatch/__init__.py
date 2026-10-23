@@ -49,6 +49,7 @@ from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
 from app.orchestrator import classification
 from app.orchestrator.dispatch import execution, localization, requirements, routing
+from app.tools import alumni_stories
 from app.tools.contracts import OnEvent, ToolAnswer
 from app.tools.turn_context import TurnState, last_human_message
 
@@ -155,6 +156,10 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
         # A redirected intent asked alongside answered ones: its note follows.
         if plan.replies and not answer.needs_clarification:
             answer = replace(answer, text="\n\n".join([answer.text, *plan.replies]))
+
+    # Alumni who chose to share their story with this reader, after a career,
+    # comparison or alumni answer (see tools/alumni_stories.py).
+    answer = alumni_stories.with_stories(answer, state, intents)
 
     # Applies uniformly regardless of which branch above produced `answer`
     # — a safety net for replies not already in the reply language (see

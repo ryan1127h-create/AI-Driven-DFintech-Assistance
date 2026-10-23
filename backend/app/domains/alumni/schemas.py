@@ -23,10 +23,14 @@ class RequestUpdate(BaseModel):
     reply_note: str | None = Field(default=None, max_length=300)
 
 
-class ListedUpdate(BaseModel):
+class VisibilityUpdate(BaseModel):
+    """The alumnus's own choices, any of them: being listed on Alumni Match,
+    and sharing their story with applicants and with current students."""
     model_config = ConfigDict(extra="forbid")
 
-    listed: bool
+    listed: bool | None = None
+    story_for_applicants: bool | None = None
+    story_for_students: bool | None = None
 
 
 class StaffAlumnusFields(BaseModel):
@@ -42,6 +46,8 @@ class StaffAlumnusFields(BaseModel):
     contact_phone: str | None = Field(default=None, max_length=50)
     linkedin_url: str | None = Field(default=None, max_length=500)
     listed: bool | None = None
+    story_for_applicants: bool | None = None
+    story_for_students: bool | None = None
 
 
 class StaffAlumnusCreate(StaffAlumnusFields):
