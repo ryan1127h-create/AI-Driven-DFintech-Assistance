@@ -53,6 +53,11 @@ def test_known_supplementary_facts_arent_asked_for(profile):
     assert _levels(gate.input_needs(_state())) == {"main_target_role": "optional"}
 
 
+def test_a_chosen_track_means_no_question_about_track_interest(profile):
+    profile.update({"track_chosen": "financial_data_analytics_intelligence"})
+    assert "track_interest" not in _levels(gate.input_needs(_state()))
+
+
 def test_nothing_is_asked_without_the_consent(monkeypatch):
     monkeypatch.setattr(gate, "get_profile_for_purpose", lambda uid, purpose: {})
     monkeypatch.setattr(shared, "missing_purpose_consent", lambda uid, purpose: "consent_personalized_rec")

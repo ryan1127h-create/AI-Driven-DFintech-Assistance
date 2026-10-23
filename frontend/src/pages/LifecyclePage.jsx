@@ -33,6 +33,21 @@ const CAPSTONE_PATHS = {
   elective_alternative_complete: "Elective route completed",
 };
 
+// When the courses in progress would complete a route, the route is under
+// way this semester rather than done (or undecided, as the completed courses
+// alone would say).
+const CAPSTONE_PATHS_UNDER_WAY = {
+  direct_completed: "Capstone route: the capstone project (FT5007) is in progress this semester",
+  elective_alternative_complete: "Elective route: the last electives replacing the capstone are in progress this semester",
+};
+
+function capstoneText(progress, projected) {
+  if (progress.capstone_path !== projected.capstone_path && CAPSTONE_PATHS_UNDER_WAY[projected.capstone_path]) {
+    return CAPSTONE_PATHS_UNDER_WAY[projected.capstone_path];
+  }
+  return CAPSTONE_PATHS[progress.capstone_path] || CAPSTONE_PATHS[projected.capstone_path];
+}
+
 function capitalize(text) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
@@ -143,7 +158,7 @@ function ProgressCard({ progress, projected }) {
           Mandatory core still to take: {projected.core_mandatory_remaining.join(", ")}
         </p>
       )}
-      <p className="mt-2 rounded-xl bg-white/60 px-3 py-3 text-xs text-slate-600 dark:bg-slate-900/30 dark:text-slate-300">{CAPSTONE_PATHS[projected.capstone_path]}</p>
+      <p className="mt-2 rounded-xl bg-white/60 px-3 py-3 text-xs text-slate-600 dark:bg-slate-900/30 dark:text-slate-300">{capstoneText(progress, projected)}</p>
       {projected.elective_level4000_cap_reached && (
         <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-3 text-xs text-amber-700 dark:text-amber-300">
           You have reached the limit of two 4000-level electives; further ones will not count.

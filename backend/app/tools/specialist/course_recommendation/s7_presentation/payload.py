@@ -64,6 +64,9 @@ def to_render_view(result: dict) -> dict:
         ),
         # A semester plan's summary; None in the other modes.
         "plan": {key: result["plan"][key] for key in _PLAN_FIELDS} if result.get("plan") else None,
+        # Which of the courses degree_progress counts are completed, in
+        # progress or only planned.
+        "progress_basis": result.get("progress_basis"),
         "skill_gaps": result.get("skill_gaps", []),
         "notes": result.get("notes", []),
         "sources": result.get("sources", []),

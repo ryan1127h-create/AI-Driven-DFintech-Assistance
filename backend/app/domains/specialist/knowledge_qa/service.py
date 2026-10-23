@@ -11,9 +11,11 @@ the catalogue and the knowledge base updated.
 
 An answer is streamed, then checked (guardrail.py). One that cites a
 figure or date neither source holds is generated once more, silently,
-with the problem spelled out; if that still fails, a reply that points to
-the official pages replaces it. The client swaps the streamed draft for
-the final text.
+with the problem spelled out; if that still fails, the sentences carrying
+the unconfirmed figures are dropped with a note pointing to the official
+pages — or, when that would leave less than half of the answer, a reply
+pointing to the official pages replaces it. The client swaps the streamed
+draft for the final text.
 """
 
 from __future__ import annotations
@@ -94,6 +96,14 @@ _UNVERIFIED_REPLY = (
 
 _OFFICIAL_URL = "https://www.comp.nus.edu.sg/programmes/pg/mdft/"
 
+# An answer that still cites an unconfirmed figure after the retry keeps
+# its other sentences when at least this share of it is left.
+_MIN_KEPT_SHARE = 0.5
+_PARTLY_UNVERIFIED_NOTE = (
+    "\n\n(I've left out a detail I couldn't confirm against the official programme information — "
+    "please check the programme website for it: {official_url})"
+)
+
 
 def retrieval_scope(topic: str) -> set[str]:
     """The topics to boost when retrieving context for this fixed topic."""
@@ -138,6 +148,14 @@ def answer_topic(
     if not problems:
         return reply
 
+    # Still failing: keep the answer without the sentences that carry an
+    # unconfirmed figure, as long as most of it survives; otherwise point to
+    # the official pages instead.
+    trimmed, dropped = guardrail.drop_unsupported(reply, sources, user_message)
+    if len(trimmed) >= _MIN_KEPT_SHARE * len(reply) and not guardrail.check(trimmed, sources, user_message):
+        logger.warning("knowledge qa (%s) answer failed the check twice, dropped %d sentence(s): %s",
+                       topic, dropped, problems)
+        return trimmed + _PARTLY_UNVERIFIED_NOTE.format(official_url=_OFFICIAL_URL)
     logger.warning("knowledge qa (%s) answer failed the check twice, pointing to the official pages: %s",
                    topic, problems)
     return _UNVERIFIED_REPLY.format(official_url=_OFFICIAL_URL, enquiry_url=ENQUIRY_URL)

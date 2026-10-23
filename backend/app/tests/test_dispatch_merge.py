@@ -40,3 +40,28 @@ def test_the_shared_message_line_names_the_other_parts():
     line = shared_turn.instruction(("financial", "career"))
     assert "fees and funding, career planning" in line and "Answer only your own part" in line
     assert shared_turn.instruction(()) == "" and shared_turn.with_instruction("P", ()) == "P"
+
+
+def test_the_shared_message_line_says_who_owns_an_overlapping_point():
+    from app.core import shared_turn
+    line = shared_turn.instruction(("comparison",))
+    assert "anything about another programme" in line and "fees" in line
+    assert "overlap" not in shared_turn.instruction(("faq",))
+
+
+PASS = ("The School of Computing applies for a single-journey visa cum in-principle Student's Pass "
+        "approval on your behalf through SOLAR, and tells you in writing how to finish the process.")
+
+
+def test_a_later_draft_drops_a_paragraph_an_earlier_one_already_said():
+    first = ToolAnswer(text=f"Accept the offer in GDA.\n\n{PASS}", agent_used="admissions_agent")
+    second = ToolAnswer(text=f"Tuition is S$76,409.\n\n{PASS.replace('tells', 'informs')}", agent_used="financial_agent")
+    answer = merge.merge([("admissions", first), ("financial", second)])
+    assert answer.text.count("single-journey visa") == 1 and "Tuition is S$76,409." in answer.text
+
+
+def test_a_draft_that_only_repeats_is_left_out_and_short_lines_stay():
+    first = ToolAnswer(text=PASS)
+    answer = merge.merge([("admissions", first), ("faq", ToolAnswer(text=PASS)),
+                          ("financial", ToolAnswer(text="Student's Pass\n\nTuition is S$76,409."))])
+    assert answer.text == f"{PASS}\n\n---\n\nStudent's Pass\n\nTuition is S$76,409."

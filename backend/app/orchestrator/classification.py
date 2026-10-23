@@ -116,9 +116,12 @@ answerable the same way for any student.
 specific courses/electives THEY should take, based on their own background, \
 completed courses, or career goals — e.g. "which electives should I take", \
 "recommend courses for a career in AI", "what should I take next semester", \
-"help me plan my course selection". The distinguishing signal vs. "academic" is \
-personalisation: the user wants courses picked FOR THEM, not general information \
-about what courses exist.
+"help me plan my course selection" — or wants to know where THEY stand against \
+the degree requirements, e.g. "am I on track to graduate?", "how many units do I \
+still need?", "what's left for me to graduate?". The distinguishing signal vs. \
+"academic" is personalisation: the user wants courses picked FOR THEM or their \
+own progress checked, not general information about what courses exist or what \
+the programme requires of everyone.
 
 "financial" — The user is asking about: tuition fees, acceptance fees, \
 scholarships, fee rebates, bond obligations, financial assistance, disbursement \
@@ -186,8 +189,9 @@ skill, style or workload), e.g. "recommend practical Python courses", "any \
 electives on blockchain?";
 - "semester_plan": a plan for a particular semester or term, often with a \
 unit load, e.g. "plan my courses for next semester, 12 units";
-- "degree_overview": general advice on what to take for the degree, e.g. \
-"which electives should I take?", "help me plan my course selection".
+- "degree_overview": general advice on what to take for the degree, or where \
+they stand on its requirements, e.g. "which electives should I take?", "help me \
+plan my course selection", "am I on track to graduate?".
 
 "comparison_mode_hint" — ONLY when the intents include "comparison", which \
 kind of answer the user wants; otherwise null:

@@ -35,11 +35,37 @@ function toConversation(conversation) {
   };
 }
 
+// Below Tailwind's md breakpoint the expanded sidebar would leave the chat
+// almost no width: there it starts collapsed and opens as a drawer over the
+// page instead.
+const MOBILE_QUERY = "(max-width: 767px)";
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(MOBILE_QUERY);
+    const update = () => setIsMobile(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 export default function StudentSidebar() {
   const { user, lifecycleStage, logout } = useRole();
   const { clearMessages, conversationsVersion } = useChat();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState(isMobile);
+  // On a phone, moving to another page or chat closes the drawer.
+  const closeOnMobile = () => {
+    if (isMobile) setCollapsed(true);
+  };
+
+  // Crossing the breakpoint resets the sidebar to that width's default.
+  useEffect(() => {
+    setCollapsed(isMobile);
+  }, [isMobile]);
   const [conversations, setConversations] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -106,11 +132,13 @@ export default function StudentSidebar() {
   const startNewChat = () => {
     clearMessages();
     navigate("/app", { replace: true });
+    closeOnMobile();
   };
 
   const openConversation = (c) => {
     navigate(`/app?session=${encodeURIComponent(c.id)}`);
     setShowActions(null);
+    closeOnMobile();
   };
 
   const renameConversation = (id) => {
@@ -156,7 +184,12 @@ export default function StudentSidebar() {
   if (collapsed) {
     return (
       <div className="w-16 flex-shrink-0 flex flex-col items-center py-4 border-r border-app-subtle glass">
-        <button onClick={() => setCollapsed(false)} className="sidebar-item justify-center w-10" title="Expand">
+        <button
+          onClick={() => setCollapsed(false)}
+          className="sidebar-item justify-center h-10 w-10"
+          title="Expand sidebar"
+          aria-label="Expand sidebar"
+        >
           <ChevronLeft size={18} className="rotate-180" />
         </button>
         <button
@@ -194,9 +227,16 @@ export default function StudentSidebar() {
   }
 
   return (
-    <div className="w-72 flex-shrink-0 flex flex-col border-r border-app-subtle glass">
+    <>
+    {isMobile && (
+      <div className="fixed inset-0 z-30 bg-black/40" aria-hidden="true" onClick={() => setCollapsed(true)} />
+    )}
+    <div className={cn(
+      "w-72 flex-shrink-0 flex flex-col border-r border-app-subtle glass",
+      isMobile && "fixed inset-y-0 left-0 z-40 max-w-[85vw] shadow-2xl",
+    )}>
       <div className="flex items-center justify-between px-4 py-4">
-        <button onClick={() => navigate("/app", { replace: true })} className="flex items-center gap-2.5">
+        <button onClick={() => { navigate("/app", { replace: true }); closeOnMobile(); }} className="flex items-center gap-2.5">
           <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
             <img src={nusLogo} alt="NUS Logo" className="h-full w-full object-cover" />
           </div>
@@ -205,8 +245,13 @@ export default function StudentSidebar() {
             <p className="text-[10px] text-app-muted">Lifecycle Assistant</p>
           </div>
         </button>
-        <button onClick={() => setCollapsed(true)} className="text-app-faint hover:text-app-primary transition" title="Collapse">
-          <ChevronLeft size={16} />
+        <button
+          onClick={() => setCollapsed(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-app-faint hover:bg-app-hover hover:text-app-primary transition"
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
+        >
+          <ChevronLeft size={18} />
         </button>
       </div>
 
@@ -226,6 +271,7 @@ export default function StudentSidebar() {
               <NavLink
                 key={item.key}
                 to={item.to}
+                onClick={closeOnMobile}
                 className={({ isActive }) => cn("sidebar-item w-full text-left", isActive && "sidebar-item-active")}
               >
                 <Icon size={13} />
@@ -310,5 +356,6 @@ export default function StudentSidebar() {
       </div>
       {settingsDialog}
     </div>
+    </>
   );
 }

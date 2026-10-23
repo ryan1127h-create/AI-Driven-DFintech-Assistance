@@ -77,6 +77,22 @@ def test_progress_counts_current_courses_only_in_the_projection(stage):
     assert done.total_units_target == 52
 
 
+def test_progress_text_quotes_the_computed_units(stage, monkeypatch):
+    enrollments = ENROLLMENTS + [
+        {"course_code": "FT5007", "term": "AY2026/27 Sem1", "status": "current", "grade_band": None, "credits": 12},
+        {"course_code": "CS5228", "term": "AY2026/27 Sem2", "status": "planned", "grade_band": None, "credits": 4},
+    ]
+    monkeypatch.setattr(service.sis, "list_enrollments", lambda user_id: enrollments)
+    text = service.progress_text("u1")
+    assert "8 of 52 completed; 20 in progress this semester" in text and "FT5007: 12 units" in text
+    assert "Planned for later: CS5228: 4 units" in text
+
+
+def test_progress_text_is_none_before_enrolment(stage):
+    stage["value"] = "admitted"
+    assert service.progress_text("u1") is None
+
+
 def test_endpoint_returns_403_before_enrolment(stage):
     from app.main import app
 

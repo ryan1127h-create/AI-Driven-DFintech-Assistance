@@ -58,6 +58,8 @@ def input_needs(state: TurnState) -> tuple[MissingInputField, ...]:
     has_role = state.target_role_hint or facts.get("main_target_role") or facts.get("target_role_families")
     if not has_role:
         needs.append(profile_field_need(state, "course", facts, "main_target_role", "optional", _ROLE_PROMPT))
-    needs.append(profile_field_need(state, "course", facts, "track_interest", "supplementary", _TRACK_PROMPT))
+    # A student who has chosen a track (school record) isn't asked about interest in one.
+    if not facts.get("track_chosen"):
+        needs.append(profile_field_need(state, "course", facts, "track_interest", "supplementary", _TRACK_PROMPT))
     needs.append(profile_field_need(state, "course", facts, "capstone_intent", "supplementary", _CAPSTONE_PROMPT))
     return tuple(need for need in needs if need)

@@ -121,6 +121,21 @@ def test_figures_from_the_users_own_record_pass(monkeypatch):
     assert reply.startswith("Application DFT2728-0019") and len(calls) == 1
 
 
+def test_a_mostly_supported_answer_only_loses_the_unconfirmed_sentence(monkeypatch):
+    good = ("Tuition is S$76,409 for the whole programme, including GST. It covers up to 52 units, and the "
+            "acceptance fee is credited towards it. Rebates are applied automatically to those eligible.")
+    _stub_answers(monkeypatch, [f"{good} The monthly internship allowance is S$1,200.",
+                                f"{good} Interns earn about S$1,200 a month."])
+    reply = qa.answer_topic("financial", "fee?", [], context="52 units", facts="Tuition S$76,409")
+    assert reply.startswith(good) and "1,200" not in reply and "left out a detail" in reply
+
+
+def test_drop_unsupported_keeps_the_rest_of_a_line():
+    text, dropped = guardrail.drop_unsupported("Fees are S$76,409. Allowance is S$1,200.\n\n- Apply by 31 January 2027.",
+                                               "S$76,409")
+    assert text == "Fees are S$76,409." and dropped == 2
+
+
 def test_two_failed_checks_point_to_the_official_pages(monkeypatch):
     _stub_answers(monkeypatch, ["S$74,120.", "S$74,120 still."])
     reply = qa.answer_topic("financial", "fee?", [], context=None, facts="Tuition S$76,409")

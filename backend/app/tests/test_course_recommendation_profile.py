@@ -83,6 +83,18 @@ def test_request_is_built_from_profile_facts():
     assert background["completed_courses"] == ["BMD5301", "FT5005"]  # completed + current, deduplicated
 
 
+def test_planned_courses_count_as_taken_except_in_a_semester_plan(monkeypatch):
+    facts = {**FACTS, "planned_modules": [{"course_code": "CS5446", "term": "AY2026/27 Sem2"}]}
+    monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: facts)
+    fetched = prefetch.prefetch("u1", None)
+    overview = builder.build_request(fetched, ParsedRequest(mode="degree_overview"))
+    plan = builder.build_request(fetched, ParsedRequest(mode="semester_plan"))
+    assert overview["background"]["completed_courses"] == ["BMD5301", "FT5005", "CS5446"]
+    assert plan["background"]["completed_courses"] == ["BMD5301", "FT5005"]
+    assert builder.progress_basis(facts) == {
+        "completed": ["BMD5301"], "in_progress": ["FT5005", "BMD5301"], "planned": ["CS5446"]}
+
+
 def test_no_user_means_an_unpersonalised_request():
     request = builder.build_request(prefetch.prefetch(None, None))
     assert request["goals"]["target_role"] is None and request["role_profile"] is None

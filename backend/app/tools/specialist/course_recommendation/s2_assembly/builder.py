@@ -57,13 +57,29 @@ def _tech_level(labels: dict[str, str], readiness_notes: tuple[str, ...]) -> str
     return "; ".join(parts)[:_MAX_TEXT] or None
 
 
-def _done_course_codes(facts: dict) -> list[str]:
-    """Completed plus current courses, by code."""
+_TAKEN_KEYS = (("completed", "completed_modules"), ("in_progress", "current_modules"), ("planned", "planned_modules"))
+
+
+def progress_basis(facts: dict) -> dict[str, list[str]]:
+    """The course codes degree progress is counted from, by status: none of
+    them is recommended again, but only the completed ones are finished —
+    the reply says which is which."""
+    basis: dict[str, list[str]] = {}
+    for status, key in _TAKEN_KEYS:
+        codes = [item.get("course_code") if isinstance(item, dict) else item for item in facts.get(key) or []]
+        basis[status] = [c for c in codes if c]
+    return basis
+
+
+def _done_course_codes(facts: dict, with_planned: bool = True) -> list[str]:
+    """Completed and current courses, by code, plus the planned ones unless
+    `with_planned` is off (a semester plan places them itself)."""
     codes: list[str] = []
-    for key in ("completed_modules", "current_modules"):
-        for item in facts.get(key) or []:
-            code = item.get("course_code") if isinstance(item, dict) else item
-            if code and code not in codes:
+    for status, status_codes in progress_basis(facts).items():
+        if status == "planned" and not with_planned:
+            continue
+        for code in status_codes:
+            if code not in codes:
                 codes.append(code)
     return codes[:50]
 
@@ -128,7 +144,7 @@ def build_request(prefetched: Prefetched, parsed: ParsedRequest | None = None, t
         "background": {
             "academic_background": _academic_background(prefetched.fact_labels),
             "tech_level": _tech_level(prefetched.fact_labels, prefetched.readiness_notes),
-            "completed_courses": _done_course_codes(prefetched.facts),
+            "completed_courses": _done_course_codes(prefetched.facts, with_planned=parsed.mode != "semester_plan"),
         },
         "student": _student(prefetched.facts, parsed),
         "constraints": _constraints(parsed),

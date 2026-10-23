@@ -69,6 +69,24 @@ def _derived(known: set[float]) -> set[float]:
     return results
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?。！？])\s+")
+
+
+def drop_unsupported(reply: str, sources: str, user_message: str = "") -> tuple[str, int]:
+    """The reply without the sentences check() would flag on their own, and
+    how many were dropped. Lines are split into sentences; a sentence
+    carrying a figure or date the sources don't support goes, the rest of
+    the line stays."""
+    kept_lines, dropped = [], 0
+    for line in reply.split("\n"):
+        sentences = _SENTENCE_END.split(line)
+        kept = [s for s in sentences if not check(s, sources, user_message)]
+        dropped += len(sentences) - len(kept)
+        if kept or not line.strip():
+            kept_lines.append(" ".join(kept))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip(), dropped
+
+
 def check(reply: str, sources: str, user_message: str = "") -> list[str]:
     """What in `reply` the `sources` (reference material plus current facts)
     don't support; empty when everything checks out."""

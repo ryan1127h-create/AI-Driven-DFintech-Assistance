@@ -41,7 +41,8 @@ RESULT = {
 
 def test_view_keeps_what_the_reply_needs_and_drops_audit_data():
     view = to_render_view(RESULT)
-    assert set(view) == {"mode", "target_role", "groups", "degree_progress", "plan", "skill_gaps", "notes", "sources"}
+    assert set(view) == {"mode", "target_role", "groups", "degree_progress", "plan", "skill_gaps", "notes", "sources",
+                         "progress_basis"}
     assert view["plan"] is None
     course = view["groups"][0]["courses"][0]
     assert course["course_code"] == "IT5006" and course["units"] == 4 and course["recommended"] is True

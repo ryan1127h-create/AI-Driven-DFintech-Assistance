@@ -25,6 +25,7 @@ from app.core.errors import NotFoundError, ServiceUnavailableError
 from app.core.logging import get_logger
 from app.domains.auth.interface import get_assistant_preferences, get_audience
 from app.domains.conversation import interface as conversation
+from app.domains.lifecycle import interface as lifecycle
 from app.domains.profile.interface import get_profile_field, get_profile_summary_text
 from app.domains.specialist.escalation import interface as escalation
 from app.orchestrator import classification, dispatch
@@ -67,6 +68,18 @@ def _policy_stage(user_id: str) -> str:
     except Exception:
         logger.exception("could not read the lifecycle stage of %s", user_id)
         return stage_policy.DEFAULT_STAGE
+
+
+ENROLLED_STAGES = ("current", "graduating")
+
+
+def _progress_text(user_id: str) -> str | None:
+    """Never raises: without it the turn still answers, from the profile."""
+    try:
+        return lifecycle.progress_text(user_id)
+    except Exception:
+        logger.exception("could not read the degree progress of %s", user_id)
+        return None
 
 
 def _previous_turn(state) -> PreviousTurn | None:
@@ -167,10 +180,18 @@ def run_turn(
 
     profile_text = get_profile_summary_text(user_id)
     summaries_text = conversation.render_summaries(state.history_summaries)
+    stage = _policy_stage(user_id)
 
     system_blocks = []
     if profile_text:
         system_blocks.append(SystemMessage(content=profile_text))
+    # A student's degree progress, worked out by the curriculum rules: any
+    # answer about where they stand quotes these numbers instead of adding
+    # up units itself.
+    if stage in ENROLLED_STAGES:
+        progress = _progress_text(user_id)
+        if progress:
+            system_blocks.append(SystemMessage(content=progress))
     if summaries_text:
         system_blocks.append(SystemMessage(content=summaries_text))
 
@@ -202,7 +223,7 @@ def run_turn(
         reply_language=resolve_reply_language(classified.reply_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
         previous_turn=previous_turn,
-        stage=_policy_stage(user_id),
+        stage=stage,
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
     latency_ms = int((time.perf_counter() - started) * 1000)

@@ -22,7 +22,7 @@ from app.tools.contracts import OnEvent, Tool, ToolAnswer
 from app.tools.specialist.course_recommendation.gate import input_needs
 from app.tools.specialist.course_recommendation.s1_understanding import parser
 from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
-from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note
+from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note, progress_basis
 from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch
 from app.tools.specialist.course_recommendation.s7_presentation import follow_up, renderer
 from app.tools.specialist.course_recommendation.s7_presentation.save_suggestions import save_suggestions
@@ -74,6 +74,7 @@ def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     note = other_roles_note(prefetched)
     if note:
         result["notes"].append(note)
+    result["progress_basis"] = progress_basis(prefetched.facts)
     answer, sources = renderer.render(result, user_message, on_event=on_event, depth=state.answer_depth,
                                       language=state.reply_language, other_tools=state.other_tools)
     return ToolAnswer(
