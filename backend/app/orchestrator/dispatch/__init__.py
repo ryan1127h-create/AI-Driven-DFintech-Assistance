@@ -44,6 +44,7 @@ from dataclasses import replace
 
 from langchain_core.messages import AIMessage
 
+from app.core import stage_policy
 from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
 from app.orchestrator import classification
@@ -95,9 +96,25 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
     input to the merge). Answers are written, and streamed, in
     state.reply_language; localization.py below converts the finished text
     only when it is still in another language."""
-    mode, tool_names = routing.route(intents)
+    # The user's stage decides how each intent is served (see
+    # app/core/stage_policy.py): some run in a narrower mode, some are
+    # answered by another tool told the user's situation, some get a fixed
+    # reply pointing elsewhere.
+    plan = stage_policy.plan_turn(state.stage, intents, {
+        "course_recommendation": state.course_mode_hint, "career": state.career_mode_hint,
+        "comparison": state.comparison_mode_hint,
+    })
+    state = replace(
+        state, stage_notes=plan.notes, stage_search_hints=plan.search_hints,
+        course_mode_hint=plan.modes.get("course_recommendation", state.course_mode_hint),
+        career_mode_hint=plan.modes.get("career", state.career_mode_hint),
+        comparison_mode_hint=plan.modes.get("comparison", state.comparison_mode_hint),
+    )
+    mode, tool_names = routing.route(plan.intents)
 
-    if mode == "decline":
+    if plan.replies and not plan.intents:
+        answer = ToolAnswer(text="\n\n".join(plan.replies), agent_used="orchestrator_redirect")
+    elif mode == "decline":
         answer = ToolAnswer(text=_OFF_TOPIC_REPLY, agent_used="orchestrator_decline")
     elif mode == "general":
         try:
@@ -135,6 +152,9 @@ def answer_turn(state: TurnState, intents: list[str], on_event: OnEvent | None =
             except Exception:
                 logger.exception("turn failed entirely (tools=%s)", tool_names)
                 answer = ToolAnswer(text=_ERROR_REPLY, agent_used="orchestrator_error")
+        # A redirected intent asked alongside answered ones: its note follows.
+        if plan.replies and not answer.needs_clarification:
+            answer = replace(answer, text="\n\n".join([answer.text, *plan.replies]))
 
     # Applies uniformly regardless of which branch above produced `answer`
     # — a safety net for replies not already in the reply language (see

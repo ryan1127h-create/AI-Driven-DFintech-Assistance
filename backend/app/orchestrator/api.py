@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from app.core.errors import ForbiddenError
 from app.core.logging import get_logger
-from app.domains.auth.interface import get_current_user_id
+from app.domains.auth.interface import get_current_user_id, is_admin
 from app.domains.conversation import interface as conversation
 from app.orchestrator import turn_service
 from app.orchestrator.schemas import (
@@ -23,6 +23,14 @@ from app.orchestrator.schemas import (
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _chat_user_id(user_id: str = Depends(get_current_user_id)) -> str:
+    """The caller, who must not be staff: staff work in the staff console,
+    and the assistant would otherwise answer them as a prospective student."""
+    if is_admin(user_id):
+        raise ForbiddenError("Staff accounts use the staff console; the chat is for students.")
+    return user_id
 
 
 def _try_lock_or_raise(session_id: str, user_id: str) -> None:
@@ -69,7 +77,7 @@ def _schedule_freeze_if_needed(background_tasks: BackgroundTasks, session_id: st
 # operations in a threadpool so the event loop stays free for other
 # requests.
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user_id)):
+def chat(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str = Depends(_chat_user_id)):
     """
     Main conversational endpoint. Delegates the actual turn (state load,
     prompt assembly, intent classification + dispatch, state save) to
@@ -117,7 +125,7 @@ def _sse(event_type: str, data: dict) -> str:
 # Server-Sent Events as they arrive, instead of waiting for the whole turn
 # to finish before responding.
 @router.post("/chat/stream")
-def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user_id)):
+def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id: str = Depends(_chat_user_id)):
     """
     Same request shape as POST /chat. Response is `text/event-stream`:
       event: step   — {"type":"step","stage":..., ...}      (progress/path)
@@ -214,7 +222,7 @@ def chat_stream(request: ChatRequest, background_tasks: BackgroundTasks, user_id
 # psycopg call under the supabase_cached backend, same reasoning as chat()
 # above.
 @router.delete("/chat/{session_id}")
-def clear_session(session_id: UUID, user_id: str = Depends(get_current_user_id)):
+def clear_session(session_id: UUID, user_id: str = Depends(_chat_user_id)):
     """Clear a specific session's conversation history (and its archived
     messages, via the archive table's ON DELETE CASCADE foreign key). A
     session belonging to a different authenticated user is rejected with
@@ -226,7 +234,7 @@ def clear_session(session_id: UUID, user_id: str = Depends(get_current_user_id))
 
 
 @router.get("/chat/sessions", response_model=ConversationListResponse)
-def list_sessions(user_id: str = Depends(get_current_user_id)):
+def list_sessions(user_id: str = Depends(_chat_user_id)):
     """All of the current user's conversations, most recently active first —
     for a frontend sidebar. Backends with no per-user index (the "redis"
     session_store_backend) return an empty list rather than erroring."""
@@ -234,14 +242,14 @@ def list_sessions(user_id: str = Depends(get_current_user_id)):
 
 
 @router.get("/chat/escalations")
-def list_my_escalations(user_id: str = Depends(get_current_user_id)):
+def list_my_escalations(user_id: str = Depends(_chat_user_id)):
     """The user's own requests to staff, newest first — status only, never
     the staff's internal notes."""
     return {"items": conversation.list_cases(user_id)}
 
 
 @router.post("/chat/{session_id}/escalations", status_code=201)
-def accept_escalation(session_id: UUID, user_id: str = Depends(get_current_user_id)):
+def accept_escalation(session_id: UUID, user_id: str = Depends(_chat_user_id)):
     """The user took up the latest turn's offer to pass the conversation to
     staff. 404 when that turn made no offer; 403 for someone else's
     conversation. Returns the case card (an existing open case of the same
@@ -250,7 +258,7 @@ def accept_escalation(session_id: UUID, user_id: str = Depends(get_current_user_
 
 
 @router.get("/chat/{session_id}/history", response_model=ConversationHistoryResponse)
-def get_history(session_id: UUID, user_id: str = Depends(get_current_user_id)):
+def get_history(session_id: UUID, user_id: str = Depends(_chat_user_id)):
     """Full turn-by-turn transcript for one conversation — archived turns
     (real original text, not just their summary) followed by the still-live
     raw tail. A session belonging to a different authenticated user is
@@ -261,7 +269,7 @@ def get_history(session_id: UUID, user_id: str = Depends(get_current_user_id)):
 # Sync `def` — rollback_conversation() does blocking psycopg calls under the
 # supabase_cached backend, same reasoning as chat()/clear_session() above.
 @router.post("/chat/{session_id}/rollback", response_model=RollbackResponse)
-def rollback(session_id: UUID, request: RollbackRequest, user_id: str = Depends(get_current_user_id)):
+def rollback(session_id: UUID, request: RollbackRequest, user_id: str = Depends(_chat_user_id)):
     """
     Deletes the most recent `turns` turns from this conversation — only
     ever the still-unarchived tail (see app/domains/conversation/service.py

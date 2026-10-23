@@ -61,6 +61,10 @@ class UserOut(BaseModel):
     role: str  # derived app role, see Role above
     account_status: Optional[str] = None
     lifecycle_stage: Optional[str] = None
+    # The stage the assistant serves the user as (app/core/stage_policy.py):
+    # the lifecycle stage, or "rejected" for an applicant whose latest
+    # application was rejected. The client picks suggested prompts by it.
+    policy_stage: Optional[str] = None
     # not_started / skipped / completed, see repository.ONBOARDING_STATUSES.
     onboarding_status: Optional[str] = None
 

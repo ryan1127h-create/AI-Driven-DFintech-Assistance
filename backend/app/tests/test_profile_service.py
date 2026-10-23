@@ -236,7 +236,7 @@ def test_summary_with_consent(repo):
         "- Lifecycle stage (lifecycle_stage): current",
         "- Programming proficiency (code_level): Has written data-processing scripts independently (2)",
         "- Target role families (target_role_families): Blockchain (blockchain)",
-        "- Application record (application_record): A1: ACCEPTED, 2 document(s) not yet received",
+        "- Application record (application_record): A1: ACCEPTED, documents not yet received: cv, transcript",
         "- Current courses (current_modules): FT5005, FT5002",
     ]
 

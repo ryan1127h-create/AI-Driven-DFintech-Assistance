@@ -99,6 +99,14 @@ class TurnState:
     # tool answers alone). Their replies are joined, so a tool answering
     # from the whole message (knowledge Q&A) keeps to its own part.
     other_tools: tuple[str, ...] = ()
+    # The user's policy stage (app/core/stage_policy.py), resolved by
+    # turn_service, and the situation notes the stage policy attached to
+    # this turn's intents (by intent): a knowledge tool answering for a
+    # rerouted intent is told, e.g., that the user hasn't enrolled yet —
+    # and the words it adds to its retrieval query.
+    stage: str = "prospect"
+    stage_notes: dict[str, str] = field(default_factory=dict)
+    stage_search_hints: dict[str, str] = field(default_factory=dict)
 
 
 class ChatToolInput(BaseModel):

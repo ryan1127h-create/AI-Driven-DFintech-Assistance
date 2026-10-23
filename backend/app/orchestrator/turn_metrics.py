@@ -10,7 +10,8 @@ _unavailable (dispatch gave up on it) — plus the markers "revised" (the
 evaluator had the answer redone) and "clarify" (it replaced the answer with
 a question). The orchestrator's own replies are "orchestrator_need_input",
 "orchestrator_decline" and "orchestrator_error"; "supervisor" is the
-general-chat answer.
+general-chat answer; "orchestrator_redirect" is the stage policy's fixed
+reply (app/core/stage_policy.py) when no tool applies at the user's stage.
 """
 
 from __future__ import annotations
@@ -21,6 +22,8 @@ _FAILURE_SUFFIXES = ("_fallback", "_error", "_timeout", "_unavailable")
 _ORCHESTRATOR_OUTCOMES = {
     "orchestrator_need_input": "need_input",
     "orchestrator_decline": "declined",
+    # A complete answer (the outcome column only takes the values below).
+    "orchestrator_redirect": "answered",
     "orchestrator_error": "error",
 }
 # Worst first: the turn's outcome is the worst thing that happened in it.

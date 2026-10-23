@@ -11,7 +11,7 @@ import { Badge, Card, EmptyState } from "../components/ui";
 
 const CATEGORY_LABELS = {
   explicit_request: "Asked to speak to staff",
-  complaint: "Complaint",
+  complaint: "Concern or decision review",
   policy_exception: "Exception request",
   sensitive: "Personal situation",
   low_confidence: "Question the assistant couldn't answer",

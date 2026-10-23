@@ -28,11 +28,14 @@ import ChatWorkspace from "./components/student/ChatWorkspace";
 import WorkspaceLayout from "./components/student/WorkspaceLayout";
 import AdminLayout from "./components/admin/AdminLayout";
 
-function ProtectedRoute({ children, staffOnly, enrolledOnly }) {
+// Staff only use the staff console: the student app (chat, workspace,
+// Alumni Match) sends them there.
+function ProtectedRoute({ children, staffOnly, studentOnly, enrolledOnly }) {
   const { role, loading, isStaff } = useRole();
   if (loading) return null;
   if (!role) return <Navigate to="/login" replace />;
   if (staffOnly && !isStaff) return <Navigate to="/app" replace />;
+  if (studentOnly && isStaff) return <Navigate to="/admin" replace />;
   if (enrolledOnly && role !== "enrolled_student") return <Navigate to="/app" replace />;
   return children;
 }
@@ -56,7 +59,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
 
-              <Route element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>
+              <Route element={<ProtectedRoute studentOnly><StudentLayout /></ProtectedRoute>}>
                 <Route path="/app" element={<ChatWorkspace />} />
                 <Route path="/alumni-match" element={<ProtectedRoute enrolledOnly><AlumniMatchPage /></ProtectedRoute>} />
                 <Route path="/workspace" element={<WorkspaceLayout />}>

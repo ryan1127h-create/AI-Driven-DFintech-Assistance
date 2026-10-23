@@ -67,6 +67,16 @@ const STEPS = {
     subtitle: "What the school already has on file, so you don't need to enter it",
     record: true,
   },
+  alumniCareer: {
+    title: "Where you are now",
+    subtitle: "So students looking for mentors can find the right alumni",
+    fields: ["outcome_status", "current_position", "currently_hiring"],
+  },
+  givingBack: {
+    title: "Giving back",
+    subtitle: "How you'd like to support current students",
+    fields: ["volunteer_roles"],
+  },
   studyPlan: {
     title: "Study plan",
     subtitle: "Shapes your course load and capstone route",
@@ -80,6 +90,7 @@ const FLOWS = {
   admitted: ["goals", "education", "work", "skills", "starting"],
   current: ["record", "goalsStudy", "background", "skillsStudy", "studyPlan"],
   graduating: ["record", "goalsStudy", "background", "skillsStudy"],
+  alumni: ["alumniCareer", "givingBack"],
 };
 
 export function onboardingSteps(stage) {

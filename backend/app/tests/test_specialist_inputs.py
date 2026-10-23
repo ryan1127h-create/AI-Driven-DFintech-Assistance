@@ -113,6 +113,14 @@ def test_a_failed_check_regenerates_silently_with_the_problem(monkeypatch):
     assert not calls[1]["streamed"] and "74120" in calls[1]["role_prompt"]
 
 
+def test_figures_from_the_users_own_record_pass(monkeypatch):
+    calls = _stub_answers(monkeypatch, ["Application DFT2728-0019, submitted 5 September 2026, needs 2 items."])
+    history = [{"role": "system", "content": "application_record: DFT2728-0019, submitted 2026-09-05"},
+               {"role": "user", "content": "status?"}]
+    reply = qa.answer_topic("admissions", "status?", history, context=None, facts="Tuition S$76,409")
+    assert reply.startswith("Application DFT2728-0019") and len(calls) == 1
+
+
 def test_two_failed_checks_point_to_the_official_pages(monkeypatch):
     _stub_answers(monkeypatch, ["S$74,120.", "S$74,120 still."])
     reply = qa.answer_topic("financial", "fee?", [], context=None, facts="Tuition S$76,409")

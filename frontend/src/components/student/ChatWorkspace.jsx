@@ -21,8 +21,8 @@ import {
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
-import { ROLE_META } from "../../data/roles";
-import { suggestedPrompts, resolveAgent } from "../../data/chat";
+import { STAGE_LABELS } from "../../data/stages";
+import { inputPlaceholders, suggestedPrompts, resolveAgent } from "../../data/chat";
 import {
   getChatHistory,
   sendMessageStream,
@@ -124,8 +124,8 @@ function ChatView({ user, profileDone, onOpenProfile }) {
   // Card fields dismissed since the last message was sent; they go out
   // with the next one, so the backend stops offering them this session.
   const pendingDeclines = useRef([]);
-  const meta = ROLE_META[user?.role];
-  const prompts = suggestedPrompts[user?.role] || [];
+  const stageLabel = STAGE_LABELS[user?.lifecycleStage] || STAGE_LABELS.prospect;
+  const prompts = suggestedPrompts[user?.policyStage] || suggestedPrompts.prospect;
 
   useEffect(() => {
     const selectedSessionId = new URLSearchParams(location.search).get("session");
@@ -158,7 +158,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
             // logged before this field existed, in which case fall back to a
             // generic label rather than showing nothing.
             intent: isAi ? (turn.intents?.join(", ") || "AI chat") : undefined,
-            stage: meta?.stage || "prospect",
+            stage: stageLabel,
             source: isAi ? (turn.agent_used || "AI Assistant") : undefined,
             agent: isAi ? resolveAgent(turn.agent_used) : undefined,
             sources: isAi ? turn.sources || [] : undefined,
@@ -174,7 +174,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
             role: "assistant",
             content: error.message || "Unable to load this conversation.",
             intent: "Error",
-            stage: meta?.stage || "prospect",
+            stage: stageLabel,
             source: "System",
             agent: resolveAgent(null),
             time: "",
@@ -219,7 +219,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
       content: "",
       steps: [],
       streaming: true,
-      stage: meta?.stage || "prospect",
+      stage: stageLabel,
       time: timeNow(),
     });
 
@@ -356,7 +356,7 @@ function ChatView({ user, profileDone, onOpenProfile }) {
                   sendMessage();
                 }
               }}
-              placeholder={`Ask about ${meta?.label} lifecycle...`}
+              placeholder={inputPlaceholders[user?.policyStage] || inputPlaceholders.prospect}
               rows={1}
               className="flex-1 bg-transparent text-sm text-app-primary placeholder:text-app-faint focus:outline-none resize-none px-3 py-2 max-h-32"
             />

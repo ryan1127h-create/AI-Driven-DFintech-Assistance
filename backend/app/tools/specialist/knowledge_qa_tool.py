@@ -33,12 +33,15 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
         retrieved = RetrievedContext(text=None)
         if user_message:
             query = knowledge_qa.search_query(user_message, chat_history)
+            if state.stage_search_hints.get(name):
+                query = f"{query} {state.stage_search_hints[name]}"
             retrieved = retrieve_context(query, boost_topics=knowledge_qa.retrieval_scope(topic))
         facts = current_facts()
         text = knowledge_qa.answer_topic(
             topic, user_message, chat_history,
             context=retrieved.text, facts=facts.text, on_event=on_event, depth=state.answer_depth,
             language=state.reply_language, other_tools=state.other_tools,
+            stage_note=state.stage_notes.get(name),
         )
         sources = list(dict.fromkeys([*retrieved.sources, *facts.sources]))
         return ToolAnswer(text=text, sources=sources, agent_used=agent_name)

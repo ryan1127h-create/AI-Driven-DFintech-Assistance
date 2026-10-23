@@ -41,6 +41,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.adapters.redis_cache_adapter import cache
 from app.adapters.resend_email_adapter import email as email_sender
 from app.adapters.supabase_auth_adapter import auth_provider
+from app.core import stage_policy
 from app.core.config import settings
 from app.core.errors import (
     ConflictError,
@@ -135,7 +136,17 @@ def _onboarding_status(user_id: str) -> str | None:
         return None
 
 
+def _sub_stage(user_id: str) -> str | None:
+    """Fail-soft like _lifecycle_stage()."""
+    try:
+        return profile_interface.get_profile_field(user_id, "sub_stage")
+    except Exception as exc:
+        logger.warning("could not read sub_stage for %s: %s", user_id, exc)
+        return None
+
+
 def user_out(account: dict, lifecycle_stage: str | None) -> UserOut:
+    sub_stage = _sub_stage(str(account["user_id"])) if lifecycle_stage == "applicant" else None
     return UserOut(
         user_id=str(account["user_id"]),
         email=account["email"],
@@ -143,6 +154,7 @@ def user_out(account: dict, lifecycle_stage: str | None) -> UserOut:
         role=derive_role(account["role"], lifecycle_stage),
         account_status=account.get("account_status"),
         lifecycle_stage=lifecycle_stage,
+        policy_stage=stage_policy.policy_stage(lifecycle_stage, sub_stage),
         onboarding_status=_onboarding_status(str(account["user_id"])),
     )
 

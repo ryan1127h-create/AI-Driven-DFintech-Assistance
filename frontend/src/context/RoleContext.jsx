@@ -101,6 +101,7 @@ export function RoleProvider({ children }) {
       email: profile.email,
       role: profile.role,
       lifecycleStage: profile.lifecycle_stage || null,
+      policyStage: profile.policy_stage || profile.lifecycle_stage || "prospect",
       onboardingStatus: profile.onboarding_status || null,
       avatar,
     };
@@ -111,6 +112,8 @@ export function RoleProvider({ children }) {
       user,
       role: profile?.role || null,
       lifecycleStage: profile?.lifecycle_stage || null,
+      // How the assistant serves the user (backend app/core/stage_policy.py).
+      policyStage: profile?.policy_stage || profile?.lifecycle_stage || "prospect",
       loading,
       sessionExpired,
       isStaff: profile?.role === "admin",

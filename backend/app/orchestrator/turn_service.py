@@ -20,11 +20,12 @@ from dataclasses import dataclass, field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core import stage_policy
 from app.core.errors import NotFoundError, ServiceUnavailableError
 from app.core.logging import get_logger
 from app.domains.auth.interface import get_assistant_preferences, get_audience
 from app.domains.conversation import interface as conversation
-from app.domains.profile.interface import get_profile_summary_text
+from app.domains.profile.interface import get_profile_field, get_profile_summary_text
 from app.domains.specialist.escalation import interface as escalation
 from app.orchestrator import classification, dispatch
 from app.orchestrator.turn_metrics import read_agent_used
@@ -55,6 +56,17 @@ def resolve_reply_language(detected: str | None, preferred: list[str]) -> str:
     preferred language only decides when that can't be told (e.g. "ok" or
     a course code), and English when there is no preference either."""
     return detected or (preferred[0] if preferred else "en")
+
+
+def _policy_stage(user_id: str) -> str:
+    """The user's stage for the stage policy; the default stage when the
+    profile can't be read (the turn still answers)."""
+    try:
+        return stage_policy.policy_stage(get_profile_field(user_id, "lifecycle_stage"),
+                                         get_profile_field(user_id, "sub_stage"))
+    except Exception:
+        logger.exception("could not read the lifecycle stage of %s", user_id)
+        return stage_policy.DEFAULT_STAGE
 
 
 def _previous_turn(state) -> PreviousTurn | None:
@@ -190,6 +202,7 @@ def run_turn(
         reply_language=resolve_reply_language(classified.reply_language, preferences["language_pref"]),
         answer_depth=preferences["answer_depth"],
         previous_turn=previous_turn,
+        stage=_policy_stage(user_id),
     )
     ai_message, reply, agent_used = dispatch.answer_turn(turn_state, intents, on_event)
     latency_ms = int((time.perf_counter() - started) * 1000)

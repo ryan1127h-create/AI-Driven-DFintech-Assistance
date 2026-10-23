@@ -17,7 +17,7 @@ from app.orchestrator import classification, turn_service
 from app.orchestrator import dispatch
 from app.orchestrator.dispatch import merge, requirements
 from app.tools.contracts import MissingInputField, ToolAnswer
-from app.tools.turn_context import PreviousTurn, to_chat_messages
+from app.tools.turn_context import PreviousTurn, TurnState, to_chat_messages
 
 CONTEXT = {
     "tool": "career", "mode": "exploration", "subjects": ["software_engineering", "data_analytics"],
@@ -92,7 +92,7 @@ def test_dispatch_puts_the_contexts_on_the_message(monkeypatch):
                         lambda names, state: requirements.RequirementsResult(ready=True))
     monkeypatch.setattr(dispatch.execution, "run_tools",
                         lambda names, state, on_event: ToolAnswer(text="hi", contexts=[CONTEXT]))
-    state = SimpleNamespace(messages=[HumanMessage("x")], reply_language="en")
+    state = TurnState(messages=[HumanMessage("x")], user_id="u1")
     ai_message, _, _ = dispatch.answer_turn(state, ["career"])
     assert ai_message.additional_kwargs["turn_contexts"] == [CONTEXT]
 

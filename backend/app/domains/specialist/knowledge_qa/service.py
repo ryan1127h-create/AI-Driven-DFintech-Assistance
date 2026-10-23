@@ -104,17 +104,25 @@ def answer_topic(
     topic: str, user_message: str, chat_history: list[dict],
     *, context: str | None, facts: str | None = None, on_event: OnEvent | None = None,
     depth: str | None = None, language: str | None = None, other_tools: tuple[str, ...] = (),
+    stage_note: str | None = None,
 ) -> str:
     """Answers for one of the four fixed topics from the current `facts`
     block and the retrieved `context` (either may be None). `other_tools`:
     the tools answering the rest of the same message, whose parts this
-    answer leaves alone."""
+    answer leaves alone. `stage_note`: the user's situation (e.g. not
+    enrolled yet), which shapes what the answer covers."""
     if not user_message:
         return "I couldn't identify your question. Could you please rephrase it?"
     spec = _TOPICS[topic]
     role_prompt = _ADVISOR.format(role=spec.role, focus=spec.focus)
+    if stage_note:
+        role_prompt += f"\n\nThe user's situation:\n{stage_note}"
     role_prompt = shared_turn.with_instruction(role_prompt, other_tools)
-    sources = f"{facts or ''}\n{context or ''}"
+    # The user's own record (profile, application number, dates) reaches the
+    # model as system entries in the history; figures quoted from it are
+    # supported too.
+    own_record = "\n".join(m.get("content") or "" for m in chat_history if m.get("role") == "system")
+    sources = f"{facts or ''}\n{context or ''}\n{own_record}"
 
     reply = qa_agent.answer(role_prompt, user_message, chat_history,
                             context=context, facts=facts, on_event=on_event, depth=depth, language=language)

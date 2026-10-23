@@ -1,25 +1,67 @@
-// Chat workspace content: the suggested prompts on the welcome screen (per
-// role) and the agent badges shown on assistant replies.
-
-import { ROLES } from "./roles";
+// Chat workspace content: the suggested prompts and input placeholder on the
+// welcome screen (per policy stage, see backend app/core/stage_policy.py) and
+// the agent badges shown on assistant replies.
 
 export const suggestedPrompts = {
-  [ROLES.APPLICANT]: [
-    { icon: "CheckCircle", text: "Am I eligible for MSc DFT?", intent: "Assessment" },
-    { icon: "GitCompare", text: "Compare programmes", intent: "Programme Comparison" },
-    { icon: "Activity", text: "Check my application status", intent: "Status Check" },
-    { icon: "FileWarning", text: "What documents are still missing?", intent: "Document Audit" },
-    { icon: "PenLine", text: "Help me write my personal statement", intent: "Essay Guidance" },
-    { icon: "CalendarPlus", text: "Guide me through module registration", intent: "Registration Guide" },
+  prospect: [
+    { text: "Am I eligible for MSc DFT?", intent: "Assessment" },
+    { text: "Compare MSc DFT with other fintech programmes", intent: "Programme Comparison" },
+    { text: "What jobs can I get after this programme?", intent: "Career Paths" },
+    { text: "How much are the fees, and what scholarships are there?", intent: "Fees & Scholarships" },
+    { text: "Which documents do I need to apply?", intent: "Application Requirements" },
+    { text: "What should I brush up on before starting?", intent: "Preparation" },
   ],
-  [ROLES.ENROLLED_STUDENT]: [
-    { icon: "Map", text: "Plan my modules for next semester", intent: "Degree Planning" },
-    { icon: "TrendingUp", text: "Check my graduation progress", intent: "Progress Audit" },
-    { icon: "Briefcase", text: "Recommend courses for fintech roles", intent: "Course Recommendation" },
-    { icon: "Briefcase", text: "Prepare me for job interviews", intent: "Career Prep" },
-    { icon: "Network", text: "Find networking opportunities", intent: "Networking" },
-    { icon: "Briefcase", text: "Access career services", intent: "Career Services" },
+  applicant: [
+    { text: "Where is my application at?", intent: "Status Check" },
+    { text: "What documents are still missing?", intent: "Document Audit" },
+    { text: "When is the application deadline?", intent: "Deadlines" },
+    { text: "What does each document requirement mean?", intent: "Requirements" },
+    { text: "How should I write my personal statement?", intent: "Essay Guidance" },
+    { text: "I'd like to talk to the programme office", intent: "Staff Support" },
   ],
+  rejected: [
+    { text: "My application wasn't successful. What are my options?", intent: "Next Steps" },
+    { text: "What should I strengthen before reapplying?", intent: "Preparation" },
+    { text: "Am I eligible if I apply again?", intent: "Assessment" },
+    { text: "When does the next application round open?", intent: "Deadlines" },
+    { text: "Who can give me feedback on my application?", intent: "Staff Support" },
+    { text: "Compare MSc DFT with other fintech programmes", intent: "Programme Comparison" },
+  ],
+  admitted: [
+    { text: "How do I accept my offer?", intent: "Offer Acceptance" },
+    { text: "What do I need for my Student's Pass?", intent: "Student's Pass" },
+    { text: "When and how do I pay the fees?", intent: "Fees" },
+    { text: "How should I prepare before the programme starts?", intent: "Getting Ready" },
+    { text: "Plan my first semester", intent: "Course Planning" },
+    { text: "Which career paths fit my background?", intent: "Career Paths" },
+  ],
+  current: [
+    { text: "Plan my courses for next semester", intent: "Course Planning" },
+    { text: "Am I on track to graduate?", intent: "Progress Check" },
+    { text: "Which electives fit my target role?", intent: "Course Recommendation" },
+    { text: "How does the Capstone internship work?", intent: "Capstone" },
+    { text: "Help me get ready for my job search", intent: "Career Prep" },
+    { text: "Which alumni could I talk to?", intent: "Alumni" },
+  ],
+  alumni: [
+    { text: "How can I mentor or speak to current students?", intent: "Giving Back" },
+    { text: "Which NUS career services can alumni use?", intent: "Career Services" },
+    { text: "What's new in the MSc DFT programme?", intent: "Programme News" },
+    { text: "How does the Capstone work now? A student asked me", intent: "Programme Knowledge" },
+    { text: "What do MSc DFT graduates typically go on to do?", intent: "Career Outcomes" },
+    { text: "I'd like to contact the programme office", intent: "Staff Support" },
+  ],
+};
+suggestedPrompts.graduating = suggestedPrompts.current;
+
+export const inputPlaceholders = {
+  prospect: "Ask about applying to MSc DFT...",
+  rejected: "Ask about your next steps...",
+  applicant: "Ask about your application...",
+  admitted: "Ask about joining the programme...",
+  current: "Ask about your studies...",
+  graduating: "Ask about your studies...",
+  alumni: "Ask about alumni life...",
 };
 
 // The badge on an assistant reply, keyed by the backend's tool names (see

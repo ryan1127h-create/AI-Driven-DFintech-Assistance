@@ -526,9 +526,10 @@ def _format_value(key: str, value, labels: dict | None) -> str:
     if key == "application_record" and isinstance(value, list):
         parts = []
         for app in value:
-            missing = len(app.get("missing_items") or [])
-            text = f"{app.get('application_no')}: {app.get('status')}"
-            parts.append(text + (f", {missing} document(s) not yet received" if missing else ""))
+            missing = [str(item).replace("_", " ") for item in app.get("missing_items") or []]
+            term = f" ({app['admission_term']})" if app.get("admission_term") else ""
+            text = f"{app.get('application_no')}{term}: {app.get('status')}"
+            parts.append(text + (f", documents not yet received: {', '.join(missing)}" if missing else ""))
         return "; ".join(parts)
     if key == "admission_tests" and isinstance(value, list):
         return ", ".join(

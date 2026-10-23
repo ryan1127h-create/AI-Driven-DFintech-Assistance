@@ -65,6 +65,11 @@ class Built:
     notes: tuple[str, ...]
 
 
+def _keys(items) -> list:
+    """List items as plain keys (certifications store {key, level} items)."""
+    return [item.get("key") if isinstance(item, dict) else item for item in items or []]
+
+
 def _codes(items) -> list[str]:
     return [item.get("course_code") if isinstance(item, dict) else item for item in items or []]
 
@@ -124,8 +129,9 @@ def build_report(
     if parsed.parse_failed:
         notes.append(_NOTES["parse_failed"])
 
-    profile = {key: facts[key] for key in (*_LEVEL_FIELDS, *_LIST_FIELDS, *_TEXT_FIELDS)
+    profile = {key: facts[key] for key in (*_LEVEL_FIELDS, *_TEXT_FIELDS)
                if facts.get(key) not in (None, "", [])}
+    profile.update({key: _keys(facts[key]) for key in _LIST_FIELDS if facts.get(key) not in (None, "", [])})
     profile["function_experience"] = _functions(facts.get("function_experience"))
     profile["completed_courses"] = _codes(facts.get("completed_modules"))
     profile["current_courses"] = _codes(facts.get("current_modules"))

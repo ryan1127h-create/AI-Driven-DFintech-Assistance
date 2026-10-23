@@ -189,6 +189,13 @@ def test_the_report_maps_profile_facts_and_lets_the_message_win():
     assert report["evidence_sources"] == list(builder.SOURCES)
 
 
+def test_certifications_reach_the_report_as_keys():
+    # The profile stores certifications as {key, level}; the planner's contract takes keys.
+    facts = {"certifications": [{"key": "cfa", "level": "L2"}, "frm"]}
+    report = builder.build_report(_prefetched(facts), ParsedCareerRequest(), "exploration", date(2026, 10, 13)).report
+    assert report["profile"]["certifications"] == ["cfa", "frm"]
+
+
 def test_unmatched_roles_and_a_failed_parse_are_noted():
     built = builder.build_report(_prefetched(), ParsedCareerRequest(unmatched_roles=["pilot"], parse_failed=True),
                                  "exploration", date(2026, 10, 13))
