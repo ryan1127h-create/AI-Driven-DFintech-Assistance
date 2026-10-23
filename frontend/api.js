@@ -363,12 +363,6 @@ export async function getAdminEscalationCase(caseId) {
 }
 
 export function updateAdminEscalationCase(caseId, updates) {
-  // MOCK FALLBACK: delete this branch after PATCH /admin/escalations/{id} is live.
-  if (USE_ESCALATION_MOCK_DATA) {
-    const index = adminEscalationCases.findIndex((item) => item.id === caseId);
-    if (index >= 0) adminEscalationCases[index] = { ...adminEscalationCases[index], ...updates };
-    return Promise.resolve(adminEscalationCases[index] || null);
-  }
   return jsonRequest("PATCH", `/admin/escalations/${encodeURIComponent(caseId)}`, updates);
 }
 
