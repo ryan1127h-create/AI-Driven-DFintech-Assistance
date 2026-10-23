@@ -379,8 +379,20 @@ export async function getAdminOverview() {
   return handleResponse(response);
 }
 
-export function getAdminUsers(search = "") {
-  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+// Resolution rate, questions by stage, unanswered questions, funnel and alumni use over the last `days`.
+export async function getAdminInsights(days = 30) {
+  const response = await fetch(buildUrl(`/admin/insights?days=${days}`), {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(response);
+}
+
+// stage: a lifecycle stage ("prospect" ... "alumni") or "staff"; "" for everyone.
+export function getAdminUsers(search = "", stage = "") {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (stage) params.set("stage", stage);
+  const query = params.toString() ? `?${params}` : "";
   return fetch(buildUrl(`/admin/users${query}`), { headers: getAuthHeaders() }).then(handleResponse);
 }
 

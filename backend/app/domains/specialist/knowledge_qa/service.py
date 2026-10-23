@@ -87,8 +87,11 @@ dates that appear in the CURRENT PROGRAMME FACTS or the REFERENCE MATERIAL, exac
 written, or one-step calculations on them with the working shown (both figures and \
 the result); leave out anything else."""
 
+# How the reply that replaces an answer failing the figure check begins (the
+# tool counts that turn as a fallback in the dashboard metrics).
+UNVERIFIED_REPLY_START = "I couldn't confirm every detail of this answer"
 _UNVERIFIED_REPLY = (
-    "I couldn't confirm every detail of this answer against the official programme information, "
+    UNVERIFIED_REPLY_START + " against the official programme information, "
     "so rather than risk giving you a wrong figure, please check the official pages:\n\n"
     "- Programme website: {official_url}\n"
     "- Enquiries: {enquiry_url}"

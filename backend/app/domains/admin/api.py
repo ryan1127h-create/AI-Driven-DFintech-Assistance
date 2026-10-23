@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.domains.admin import service
-from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate, AdminProgramUpdate
+from app.domains.admin.schemas import AdminApplication, AdminApplicationList, AdminApplicationUpdate, AdminChecklistUpdate, AdminCourseUpdate, AdminInsights, AdminKnowledgeUpdate, AdminOverview, AdminUser, AdminUserList, AdminUserUpdate, AdminEscalationCase, AdminEscalationCaseList, AdminEscalationUpdate, AdminProgramUpdate
 from app.domains.alumni.schemas import StaffAlumnusCreate, StaffAlumnusFields
 from app.domains.auth.interface import get_current_user_id
 
@@ -28,9 +28,14 @@ def get_admin_overview(user_id: str = Depends(get_current_user_id)):
     return service.get_overview(user_id)
 
 
+@router.get("/insights", response_model=AdminInsights)
+def get_admin_insights(days: int = Query(30, ge=1, le=365), user_id: str = Depends(get_current_user_id)):
+    return service.get_insights(user_id, days)
+
+
 @router.get("/users", response_model=AdminUserList)
-def list_admin_users(search: str = "", user_id: str = Depends(get_current_user_id)):
-    return service.list_users(user_id, search)
+def list_admin_users(search: str = "", stage: str = "", user_id: str = Depends(get_current_user_id)):
+    return service.list_users(user_id, search, stage)
 
 
 @router.get("/users/{target_user_id}", response_model=AdminUser)

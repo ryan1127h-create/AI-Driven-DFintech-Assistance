@@ -98,17 +98,24 @@ def resolve_escalation(case_id: str, resolved_by: str, notes: str | None) -> dic
     return get_escalation(case_id)
 
 
-def list_users(search: str = "") -> dict:
+def list_users(search: str = "", stage: str = "") -> dict:
+    """Accounts with their lifecycle stage and sub-stage (e.g. applicant /
+    DOCS_REQUIRED); `stage` narrows to one lifecycle stage, or "staff" to
+    admins."""
     term = f"%{search.strip()}%"
     items = reporting_db.fetch_all_dict(
         """
-        select user_id::text, email, coalesce(full_name, '') as full_name,
-               account_status, role, is_anonymous, last_login_at, created_at
-          from account.accounts
-         where (%s = '%%' or email ilike %s or full_name ilike %s)
-         order by created_at desc
+        select a.user_id::text, a.email, coalesce(a.full_name, '') as full_name,
+               a.account_status, a.role, a.is_anonymous, a.last_login_at, a.created_at,
+               p.lifecycle_stage, p.sub_stage
+          from account.accounts a
+          left join profile.v_profile_flat p on p.user_id = a.user_id
+         where (%s = '%%' or a.email ilike %s or a.full_name ilike %s)
+           and (%s = '' or (%s = 'staff' and a.role = 'admin')
+                or (a.role <> 'admin' and p.lifecycle_stage = %s))
+         order by a.created_at desc
         """,
-        (term, term, term),
+        (term, term, term, stage, stage, stage),
     )
     return {"items": items, "total": len(items)}
 
@@ -564,3 +571,94 @@ def fetch_usage(days: int) -> dict:
     except psycopg.errors.UndefinedTable:
         return {"available": False, "topics": [], "agents": []}
     return {"available": True, "topics": topics, "agents": agents}
+
+
+
+# --- insights: how well the assistant answers, and who asks what ---
+
+# A turn's stage as recorded when it was asked; turns recorded before the
+# column existed fall back to the user's stage now.
+_TURN_STAGE = "coalesce(m.stage, p.lifecycle_stage, 'unknown')"
+_TURNS_SINCE = """
+    from chat.turn_metrics m
+    left join profile.v_profile_flat p on p.user_id = m.user_id
+   where m.created_at >= now() - (%s * interval '1 day')"""
+_GAP_LIMIT = 20
+
+
+def fetch_insights(days: int) -> dict:
+    """Raw counts for the staff insights over the last `days` (the funnel
+    and alumni sharing are as of now): {"available", "resolution",
+    "stage_turns", "stage_topics", "gaps", "funnel", "alumni"}. "available"
+    is False while the metrics table doesn't exist yet."""
+    try:
+        resolution = reporting_db.fetch_one_dict(
+            f"""select count(*)::int as turns,
+                       count(*) filter (where m.outcome in ('fallback', 'error'))::int as unresolved_turns
+                {_TURNS_SINCE}""",
+            (days,),
+        )
+        stage_turns = reporting_db.fetch_all_dict(
+            f"select {_TURN_STAGE} as stage, count(*)::int as total {_TURNS_SINCE} group by 1",
+            (days,),
+        )
+        stage_topics = reporting_db.fetch_all_dict(
+            f"""select {_TURN_STAGE} as stage, intent, count(*)::int as total
+                  from chat.turn_metrics m
+                 cross join unnest(m.intents) as intent
+                  left join profile.v_profile_flat p on p.user_id = m.user_id
+                 where m.created_at >= now() - (%s * interval '1 day') and intent <> 'off_topic'
+                 group by 1, 2""",
+            (days,),
+        )
+        # A handover offered on a turn is the first case of that conversation
+        # opened at or after it.
+        gaps = reporting_db.fetch_all_dict(
+            f"""select m.created_at, {_TURN_STAGE} as stage, m.intents, m.failed_agents, m.outcome,
+                       m.conversation_id::text as conversation_id,
+                       (select c.summary from chat.cases c
+                         where c.conversation_id = m.conversation_id and c.created_at >= m.created_at
+                         order by c.created_at limit 1) as case_summary
+                {_TURNS_SINCE} and m.outcome in ('fallback', 'error')
+                order by m.created_at desc limit {_GAP_LIMIT}""",
+            (days,),
+        )
+        alumni_questions = reporting_db.fetch_one_dict(
+            f"select count(*) filter (where 'alumni' = any(m.intents))::int as total {_TURNS_SINCE}",
+            (days,),
+        )
+    except psycopg.errors.UndefinedTable:
+        return {"available": False}
+    # Low-confidence cases come from fallback answers, already counted above.
+    cases = reporting_db.fetch_one_dict(
+        """select count(*) filter (where category <> 'low_confidence')::int as escalated
+             from chat.cases where created_at >= now() - (%s * interval '1 day')""",
+        (days,),
+    )
+    funnel = reporting_db.fetch_all_dict(
+        """select p.lifecycle_stage as stage, p.sub_stage, count(*)::int as total
+             from account.accounts a join profile.v_profile_flat p on p.user_id = a.user_id
+            where a.role <> 'admin' and p.lifecycle_stage is not null
+            group by 1, 2""",
+    )
+    requests = reporting_db.fetch_all_dict(
+        """select status, count(*)::int as total from alumni.requests
+            where created_at >= now() - (%s * interval '1 day') group by status""",
+        (days,),
+    )
+    sharing = reporting_db.fetch_one_dict(
+        """select count(*)::int as alumni,
+                  count(*) filter (where listed)::int as listed,
+                  count(*) filter (where story_for_applicants)::int as story_for_applicants,
+                  count(*) filter (where story_for_students)::int as story_for_students
+             from alumni.profiles""",
+    )
+    return {
+        "available": True,
+        "resolution": {**resolution, "escalated": cases["escalated"]},
+        "stage_turns": stage_turns,
+        "stage_topics": stage_topics,
+        "gaps": gaps,
+        "funnel": funnel,
+        "alumni": {"questions": alumni_questions["total"], "requests": requests, "sharing": sharing},
+    }

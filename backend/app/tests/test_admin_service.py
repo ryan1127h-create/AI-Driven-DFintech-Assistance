@@ -59,9 +59,57 @@ def repo_updates(monkeypatch):
 
 
 def test_non_admins_are_refused(auth, monkeypatch):
-    monkeypatch.setattr(service.repository, "list_users", lambda search: pytest.fail("must not query"))
+    monkeypatch.setattr(service.repository, "list_users", lambda search, stage="": pytest.fail("must not query"))
     with pytest.raises(ForbiddenError):
         service.list_users(STUDENT)
+
+
+def test_the_user_list_narrows_to_a_known_stage(auth, monkeypatch):
+    seen = []
+    monkeypatch.setattr(service.repository, "list_users", lambda search, stage="": seen.append((search, stage)) or {"items": []})
+    service.list_users(ADMIN, "tan", "applicant")
+    service.list_users(ADMIN, "", "staff")
+    assert seen == [("tan", "applicant"), ("", "staff")]
+    with pytest.raises(ValidationError):
+        service.list_users(ADMIN, "", "student")
+
+
+
+_RAW_INSIGHTS = {
+    "available": True,
+    "resolution": {"turns": 20, "unresolved_turns": 2, "escalated": 3},
+    "stage_turns": [{"stage": "alumni", "total": 4}, {"stage": "prospect", "total": 16}],
+    "stage_topics": [{"stage": "prospect", "intent": "financial", "total": 5},
+                     {"stage": "prospect", "intent": "admissions", "total": 9},
+                     {"stage": "alumni", "intent": "career", "total": 4}],
+    "gaps": [{"created_at": "2026-10-23", "stage": "prospect", "intents": ["financial", "off_topic"],
+              "failed_agents": ["financial"], "outcome": "fallback", "conversation_id": "c1", "case_summary": None}],
+    "funnel": [{"stage": "applicant", "sub_stage": "SUBMITTED", "total": 2},
+               {"stage": "applicant", "sub_stage": "REJECTED", "total": 1},
+               {"stage": "prospect", "sub_stage": "browsing", "total": 3}],
+    "alumni": {"questions": 2, "requests": [{"status": "accepted", "total": 3}, {"status": "declined", "total": 1},
+                                            {"status": "pending", "total": 2}],
+               "sharing": {"alumni": 10, "listed": 9, "story_for_applicants": 8, "story_for_students": 7}},
+}
+
+
+def test_insights_count_fallbacks_and_handovers_against_resolution(auth, monkeypatch):
+    monkeypatch.setattr(service.repository, "fetch_insights", lambda days: _RAW_INSIGHTS)
+    insights = service.get_insights(ADMIN, 30)
+    assert insights["resolution"]["rate"] == 0.75
+    assert [stage["stage"] for stage in insights["stages"]] == ["prospect", "alumni"]
+    assert [topic["label"] for topic in insights["stages"][0]["top_topics"]] == ["Admissions", "Fees & Finance"]
+    assert insights["gaps"][0]["topics"] == ["Fees & Finance"] and insights["gaps"][0]["agents"] == ["Fees & Finance"]
+    # Turned-down applicants are their own step, after the applicants.
+    assert [(step["stage"], step["total"]) for step in insights["funnel"]] == [("prospect", 3), ("applicant", 2), ("rejected", 1)]
+    assert insights["alumni"]["acceptance_rate"] == 0.75 and insights["alumni"]["requests"] == 6
+
+
+def test_insights_without_metrics_say_so(auth, monkeypatch):
+    monkeypatch.setattr(service.repository, "fetch_insights", lambda days: {"available": False})
+    assert service.get_insights(ADMIN)["available"] is False
+    with pytest.raises(ForbiddenError):
+        service.get_insights(STUDENT)
 
 
 def test_deleting_a_user_deletes_through_auth(auth):
@@ -431,7 +479,7 @@ def client():
 def test_admin_routes_require_a_token(client):
     _, http = client
     routes = list(_admin_routes())
-    assert len(routes) == 26
+    assert len(routes) == 27
     for method, path in routes:
         assert http.request(method, path, json={}).status_code in (401, 403), (method, path)
 

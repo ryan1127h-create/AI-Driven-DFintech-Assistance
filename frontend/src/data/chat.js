@@ -84,6 +84,32 @@ const AGENTS = {
 
 const MODIFIERS = new Set(["clarify", "revised"]);
 
+// What kind of answer a specialist gives (the proposal asks answers to be
+// marked official policy, advisory guidance or recommendation/inference),
+// keyed like AGENTS. General chat and fixed replies get no label.
+const BASES = {
+  official: { label: "Official programme information", tone: "official" },
+  facts: { label: "Published programme facts", tone: "facts" },
+  recommendation: { label: "Personalised recommendation · not an official decision", tone: "recommendation" },
+  alumni: { label: "From the alumni directory", tone: "alumni" },
+};
+const AGENT_BASIS = {
+  admissions: "official", academic: "official", financial: "official", faq: "official",
+  comparison: "facts",
+  assessment: "recommendation", course_recommendation: "recommendation", career: "recommendation",
+  alumni: "alumni",
+};
+
+// The answer-type labels for a reply's agent_used (one per kind, in order).
+export function resolveBasis(agentUsed) {
+  const kinds = (agentUsed || "")
+    .split("+")
+    .filter((part) => part && !MODIFIERS.has(part) && !/_(fallback|error|timeout|unavailable)$/.test(part))
+    .map((part) => AGENT_BASIS[part.replace(/_agent$/, "")])
+    .filter(Boolean);
+  return [...new Set(kinds)].map((kind) => BASES[kind]);
+}
+
 function agentKey(part) {
   const base = part.replace(/_(fallback|error|timeout|unavailable)$/, "").replace(/_agent$/, "");
   return AGENTS[base] ? base : "assistant";

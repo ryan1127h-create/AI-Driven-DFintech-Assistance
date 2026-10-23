@@ -76,9 +76,95 @@ def get_overview(user_id: str, days: int = 7) -> dict:
     return {"generated_at": datetime.now(timezone.utc), "days": days, **overview}
 
 
-def list_users(user_id: str, search: str = "") -> dict:
+
+# The policy stages in the order a student moves through them (app/core/stage_policy.py).
+_STAGE_LABELS = {
+    "prospect": "Prospective students", "applicant": "Applicants", "rejected": "Not admitted",
+    "admitted": "Admitted", "current": "Current students", "graduating": "Graduating", "alumni": "Alumni",
+}
+_SUB_STAGE_LABELS = {
+    "browsing": "Browsing", "comparing": "Comparing", "decided_to_apply": "Decided to apply", "DRAFT": "Draft",
+    "SUBMITTED": "Submitted", "UNDER_REVIEW": "Under review", "DOCS_REQUIRED": "Documents required",
+    "WAITLIST": "Waitlisted", "OFFER": "Offer", "ACCEPTED": "Accepted",
+}
+_TOPICS_PER_STAGE = 3
+
+
+def _stage_order(stage: str) -> int:
+    return list(_STAGE_LABELS).index(stage) if stage in _STAGE_LABELS else len(_STAGE_LABELS)
+
+
+def _insights_view(raw: dict) -> dict:
+    """The staff insights: the share of questions answered without a person,
+    questions per stage with their commonest topics, the latest questions the
+    assistant couldn't answer, the student funnel, and alumni use."""
+    turns = raw["resolution"]["turns"]
+    unresolved = raw["resolution"]["unresolved_turns"] + raw["resolution"]["escalated"]
+    resolution = {
+        "turns": turns, "unresolved_turns": raw["resolution"]["unresolved_turns"],
+        "escalated": raw["resolution"]["escalated"],
+        "rate": round(max(turns - unresolved, 0) / turns, 3) if turns else None,
+    }
+
+    topics: dict[str, list] = {}
+    for row in sorted(raw["stage_topics"], key=lambda row: (-row["total"], row["intent"])):
+        topics.setdefault(row["stage"], []).append({"label": _label(_TOPIC_LABELS, row["intent"]), "total": row["total"]})
+    stages = [
+        {"stage": row["stage"], "label": _label(_STAGE_LABELS, row["stage"]), "questions": row["total"],
+         "top_topics": topics.get(row["stage"], [])[:_TOPICS_PER_STAGE]}
+        for row in sorted(raw["stage_turns"], key=lambda row: _stage_order(row["stage"]))
+    ]
+
+    gaps = [
+        {"created_at": row["created_at"], "stage": _label(_STAGE_LABELS, row["stage"]),
+         "topics": [_label(_TOPIC_LABELS, intent) for intent in row["intents"] if intent != "off_topic"],
+         "agents": [_label(_AGENT_LABELS, agent) for agent in row["failed_agents"]],
+         "outcome": row["outcome"], "conversation_id": row["conversation_id"], "case_summary": row["case_summary"]}
+        for row in raw["gaps"]
+    ]
+
+    # Applicants turned down sit under "applicant"; the funnel shows them apart.
+    funnel: dict[str, dict] = {}
+    for row in raw["funnel"]:
+        stage = "rejected" if row["stage"] == "applicant" and row["sub_stage"] == "REJECTED" else row["stage"]
+        step = funnel.setdefault(stage, {"stage": stage, "label": _label(_STAGE_LABELS, stage), "total": 0, "breakdown": []})
+        step["total"] += row["total"]
+        if stage != "rejected" and row["sub_stage"] in _SUB_STAGE_LABELS:
+            step["breakdown"].append({"label": _SUB_STAGE_LABELS[row["sub_stage"]], "total": row["total"]})
+    for step in funnel.values():
+        step["breakdown"].sort(key=lambda part: -part["total"])
+
+    requests = {row["status"]: row["total"] for row in raw["alumni"]["requests"]}
+    answered = requests.get("accepted", 0) + requests.get("declined", 0)
+    alumni = {
+        "questions": raw["alumni"]["questions"],
+        "requests": sum(requests.values()), "pending": requests.get("pending", 0),
+        "accepted": requests.get("accepted", 0), "declined": requests.get("declined", 0),
+        "acceptance_rate": round(requests.get("accepted", 0) / answered, 3) if answered else None,
+        **raw["alumni"]["sharing"],
+    }
+    return {
+        "available": True, "resolution": resolution, "stages": stages, "gaps": gaps,
+        "funnel": sorted(funnel.values(), key=lambda step: _stage_order(step["stage"])), "alumni": alumni,
+    }
+
+
+def get_insights(user_id: str, days: int = 30) -> dict:
     _require_admin(user_id)
-    return repository.list_users(search)
+    raw = repository.fetch_insights(days)
+    view = _insights_view(raw) if raw["available"] else {"available": False}
+    return {"generated_at": datetime.now(timezone.utc), "days": days, **view}
+
+
+# The stages the user list can be narrowed to ("staff": admins).
+USER_STAGES = ("prospect", "applicant", "admitted", "current", "graduating", "alumni", "staff")
+
+
+def list_users(user_id: str, search: str = "", stage: str = "") -> dict:
+    _require_admin(user_id)
+    if stage and stage not in USER_STAGES:
+        raise ValidationError(f"Unknown stage: {stage}")
+    return repository.list_users(search, stage)
 
 
 def get_user(user_id: str, target_user_id: str) -> dict:

@@ -145,3 +145,20 @@ def test_usage_is_reported_unavailable_until_the_table_exists(monkeypatch):
     monkeypatch.setattr(admin_repository.reporting_db, "fetch_all_dict", missing)
     assert admin_repository.fetch_usage(7) == {"available": False, "topics": [], "agents": []}
     assert admin_service._usage_view(admin_repository.fetch_usage(7))["top_topics"]["all"] == []
+
+
+def test_an_answer_pointing_to_the_official_pages_counts_as_a_fallback(monkeypatch):
+    from app.domains.specialist.knowledge_qa import interface as knowledge_qa
+    from app.domains.specialist.knowledge_qa import service as qa_service
+    from app.tools.specialist import knowledge_qa_tool
+    from app.tools.turn_context import TurnState
+    from langchain_core.messages import HumanMessage
+
+    monkeypatch.setattr(knowledge_qa_tool, "retrieve_context", lambda *a, **k: knowledge_qa_tool.RetrievedContext(text=None))
+    monkeypatch.setattr(knowledge_qa_tool, "current_facts", lambda: knowledge_qa_tool.RetrievedContext(text=None))
+    monkeypatch.setattr(knowledge_qa, "search_query", lambda message, history: message)
+    state = TurnState(messages=[HumanMessage("What is the fee?")], user_id="u1")
+    for text, used in ((qa_service.UNVERIFIED_REPLY_START + " ...", "financial_agent_fallback"),
+                       ("The fee is listed on the programme page.", "financial_agent")):
+        monkeypatch.setattr(knowledge_qa, "answer_topic", lambda *a, text=text, **k: text)
+        assert knowledge_qa_tool.FINANCIAL_TOOL.handler(state).agent_used == used

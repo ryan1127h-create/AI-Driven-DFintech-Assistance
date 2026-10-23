@@ -102,11 +102,12 @@ def _previous_turn(state) -> PreviousTurn | None:
     )
 
 
-def _record_metrics(session_id: str, user_id: str, intents: list[str], agent_used: str, latency_ms: int) -> None:
+def _record_metrics(session_id: str, user_id: str, stage: str, intents: list[str], agent_used: str,
+                   latency_ms: int) -> None:
     def build() -> dict:
         outcome = read_agent_used(agent_used)
         return {
-            "conversation_id": session_id, "user_id": user_id, "audience": get_audience(user_id),
+            "conversation_id": session_id, "user_id": user_id, "audience": get_audience(user_id), "stage": stage,
             "intents": list(intents), "agent_used": agent_used, "agents": outcome.agents,
             "failed_agents": outcome.failed_agents, "outcome": outcome.outcome, "latency_ms": latency_ms,
         }
@@ -249,7 +250,7 @@ def run_turn(
 
     conversation.record_turn(session_id, state, new_message, ai_message, intents, agent_used,
                              escalation_offer=offer if decision and decision.action == "offer" else None)
-    _record_metrics(session_id, user_id, intents, agent_used, latency_ms)
+    _record_metrics(session_id, user_id, stage, intents, agent_used, latency_ms)
 
     escalation_card = None
     if decision is not None and decision.action == "open":

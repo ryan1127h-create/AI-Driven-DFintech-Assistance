@@ -71,3 +71,9 @@ def answer_topic(
         context=context, facts=facts, on_event=on_event, depth=depth, language=language,
         other_tools=other_tools, stage_note=stage_note,
     )
+
+
+def is_unverified(text: str) -> bool:
+    """True when `text` is the reply pointing to the official pages that
+    replaces an answer whose figures couldn't be confirmed."""
+    return text.startswith(service.UNVERIFIED_REPLY_START)

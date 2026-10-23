@@ -51,7 +51,8 @@ function ModalShell({ children, onClose, wide = false }) {
   return <div className="overlay modal-overlay" onMouseDown={onClose}><div className={`modal ${wide ? "modal-wide" : ""}`} role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>{children}</div></div>;
 }
 
-const firstName = (name) => (name || "").split(" ")[0];
+// The whole name: the first word isn't reliably the given name (Chen Yuxin).
+const displayName = (name) => (name || "").trim();
 // Must match the consent_alumni_matching description (0033) and the fields
 // tagged with purpose "alumni": what an alumnus sees about a requesting student.
 const SHARED_WITH_ALUMNI = "your name, study stage, graduation term, whether you are looking for a mentor, your target roles, degree discipline, work experience, preferred job markets, job search timeline and your note";
@@ -96,7 +97,7 @@ function ProfileDrawer({ person, canSend, onClose, onConnect }) {
         <section><div className="section-heading"><Icon name="briefcase" size={19} /><h3>Professional information</h3></div><div className="info-grid"><div><span>Current company</span><strong>{person.company}</strong></div><div><span>Current position</span><strong>{person.position}</strong></div>{person.class_year && <div><span>Class of</span><strong>{person.class_year}</strong></div>}</div>{person.bio && <p className="drawer-bio">{person.bio}</p>}</section>
         <section><div className="section-heading"><Icon name="sparkles" size={19} /><h3>Expertise</h3></div><ExpertiseTags items={person.expertise} max={12} /></section>
         <section><div className="section-heading"><Icon name="user" size={19} /><h3>Contact information</h3></div>
-          <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Contact information is private</strong><p>If {firstName(person.name)} accepts your request, the contact details they choose to share appear under My Requests.</p></div></div>
+          <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Contact information is private</strong><p>If {displayName(person.name)} accepts your request, the contact details they choose to share appear under My Requests.</p></div></div>
         </section>
       </div>
     </aside>
@@ -107,10 +108,10 @@ function ConnectModal({ person, onClose, onSend, busy, error }) {
   const [note, setNote] = useState("");
   return <ModalShell onClose={onClose}>
     <div className="modal-header"><div className="modal-symbol"><Icon name="plusUser" /></div><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><Icon name="close" /></button></div>
-    <h2>Connect with {firstName(person.name)}?</h2><p className="modal-lead">{firstName(person.name)} will see {SHARED_WITH_ALUMNI}.</p>
+    <h2>Connect with {displayName(person.name)}?</h2><p className="modal-lead">{displayName(person.name)} will see {SHARED_WITH_ALUMNI}.</p>
     <div className="mini-profile"><Avatar src={person.photo_url} name={person.name} size="sm" /><div><strong>{person.name}</strong><span>{person.position} at {person.company}</span></div></div>
     <label className="field-label" htmlFor="note">Add a note <span>(optional)</span></label>
-    <div className="textarea-wrap"><textarea id="note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={`Hi ${firstName(person.name)}, I'd like to hear about your path into ${person.expertise[0]?.label || "your field"}...`} /><span>{note.length}/300</span></div>
+    <div className="textarea-wrap"><textarea id="note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={`Hi ${displayName(person.name)}, I'd like to hear about your path into ${person.expertise[0]?.label || "your field"}...`} /><span>{note.length}/300</span></div>
     {error && <p role="alert" className="form-error">{error}</p>}
     <div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button icon="plusUser" disabled={busy} onClick={() => onSend(note.trim())}>{busy ? "Sending…" : "Send request"}</Button></div>
   </ModalShell>;
@@ -126,7 +127,7 @@ function SentRequests({ requests, onCancel, busyId, onFind }) {
       <div className="request-name"><h3>{r.alumnus.name}</h3><span className={r.status === "declined" ? "declined-pill" : "pending-pill"}>{STATUS_LABELS[r.status]}</span></div>
       <p>{r.alumnus.position} at {r.alumnus.company} · Sent {formatDate(r.created_at)}{r.status === "declined" && r.responded_at ? ` · Declined ${formatDate(r.responded_at)}` : ""}</p>
       {r.note ? <blockquote>“{r.note}”</blockquote> : <p className="no-note">No note added.</p>}
-      {r.status === "declined" && <p className="ranking-note">You can send {firstName(r.alumnus.name)} a new request from Find Alumni.</p>}
+      {r.status === "declined" && <p className="ranking-note">You can send {displayName(r.alumnus.name)} a new request from Find Alumni.</p>}
     </div>
     {r.status === "pending" && <div className="request-actions"><Button variant="ghost" disabled={busyId === r.id} onClick={() => onCancel(r.id)}>Withdraw</Button></div>}
   </article>)}</div>;
@@ -143,15 +144,15 @@ function StudentConnections({ connections, onFind }) {
       <div className="request-main">
         <div className="request-name"><h3>{r.alumnus.name}</h3><span className="connected-label"><Icon name="check" size={13} />Connected</span></div>
         <p>{r.alumnus.position} at {r.alumnus.company}{r.responded_at ? ` · Connected ${formatDate(r.responded_at)}` : ""}</p>
-        {r.reply_note && <blockquote><strong>{firstName(r.alumnus.name)}:</strong> “{r.reply_note}”</blockquote>}
+        {r.reply_note && <blockquote><strong>{displayName(r.alumnus.name)}:</strong> “{r.reply_note}”</blockquote>}
         {shared ? <dl className="summary-background contact-list">
           {contact.email && <div><dt>Email</dt><dd>{contact.email}</dd></div>}
           {contact.phone && <div><dt>Phone</dt><dd>{contact.phone}</dd></div>}
           {contact.linkedin && <div><dt>LinkedIn</dt><dd>{contact.linkedin.replace(/^https?:\/\/(www\.)?/, "")}</dd></div>}
-        </dl> : <p className="no-note">{firstName(r.alumnus.name)} accepted without sharing contact details.</p>}
+        </dl> : <p className="no-note">{displayName(r.alumnus.name)} accepted without sharing contact details.</p>}
       </div>
       {(contact.email || contact.linkedin) && <div className="request-actions">
-        {contact.email && <a className="btn btn-primary" href={mailto(contact.email, "Hello from an MSc DFinTech student", `Hi ${firstName(r.alumnus.name)},\n\nThank you for accepting my request on Alumni Match.\n\n`)}><Icon name="mail" size={17} /><span>Email</span></a>}
+        {contact.email && <a className="btn btn-primary" href={mailto(contact.email, "Hello from an MSc DFinTech student", `Hi ${displayName(r.alumnus.name)},\n\nThank you for accepting my request on Alumni Match.\n\n`)}><Icon name="mail" size={17} /><span>Email</span></a>}
         {contact.linkedin && <a className="btn btn-secondary" href={contact.linkedin} target="_blank" rel="noreferrer"><Icon name="link" size={17} /><span>LinkedIn</span></a>}
       </div>}
     </article>;
@@ -266,7 +267,7 @@ function AcceptModal({ request, profile, onClose, onAccept, busy, error }) {
       {available.length ? available.map(([key, column, label, icon]) => <label key={key} className={`check-option ${share.includes(key) ? "selected" : ""}`}><input type="checkbox" checked={share.includes(key)} onChange={() => toggle(key)} /><span className="fake-check">{share.includes(key) && <Icon name="check" size={14} />}</span><Icon name={icon} /><div><strong>{label}</strong><span>{profile[column]}</span></div></label>)
         : <p className="permission-help">Your directory entry has no contact details yet. Ask the programme office to add them.</p>}
       <label className="field-label permission-note-label" htmlFor="alumni-note">Add a note <span>(optional)</span></label>
-      <div className="textarea-wrap"><textarea id="alumni-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={`Welcome, ${firstName(request.student.name)}. Happy to share career advice...`} /><span>{note.length}/300</span></div>
+      <div className="textarea-wrap"><textarea id="alumni-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={`Welcome, ${displayName(request.student.name)}. Happy to share career advice...`} /><span>{note.length}/300</span></div>
       <p className="permission-help"><Icon name="lock" size={14} />Only what you select and your note are shared. You can accept without sharing contact details.</p>
     </div>
     {error && <p role="alert" className="form-error">{error}</p>}
@@ -277,7 +278,7 @@ function AcceptModal({ request, profile, onClose, onAccept, busy, error }) {
 function emailToStudent(request, profile) {
   const shared = request.shared_contact || {};
   const lines = [shared.email && `Email: ${shared.email}`, shared.phone && `Phone: ${shared.phone}`, shared.linkedin && `LinkedIn: ${shared.linkedin}`].filter(Boolean);
-  const body = `Hi ${firstName(request.student.name)},\n\nThanks for reaching out on Alumni Match — happy to connect.\n\n${lines.length ? `${lines.join("\n")}\n\n` : ""}${request.reply_note ? `${request.reply_note}\n\n` : ""}Best regards`;
+  const body = `Hi ${displayName(request.student.name)},\n\nThanks for reaching out on Alumni Match — happy to connect.\n\n${lines.length ? `${lines.join("\n")}\n\n` : ""}${request.reply_note ? `${request.reply_note}\n\n` : ""}Best regards`;
   return mailto(request.student.email, `Alumni Match: connecting with ${profile?.company ? `an alumnus at ${profile.company}` : "an MSc DFinTech alumnus"}`, body);
 }
 
@@ -350,7 +351,7 @@ function AlumniView({ notify }) {
       <Avatar name={r.student.name} /><div className="request-main"><StudentSummary student={r.student} note={r.note} createdAt={r.created_at} /></div>
       <div className="request-actions"><Button variant="danger" onClick={() => decline(r)}>Decline</Button><Button onClick={() => { setActionError(""); setAccepting(r); }}>Accept</Button></div>
     </article>) : <div className="request-empty"><Icon name="check" size={20} /><span>No requests waiting for you.</span></div>}</div>}
-    {tab === "connections" && (connected.length ? <div className="connection-row">{connected.map((r) => <div className="student-connection" key={r.id}><Avatar name={r.student.name} size="sm" /><span><strong>{r.student.name}</strong><small>{r.student.stage}</small></span><a className="btn btn-primary" href={emailToStudent(r, data.profile)}><Icon name="mail" size={17} /><span>Email {firstName(r.student.name)}</span></a></div>)}</div>
+    {tab === "connections" && (connected.length ? <div className="connection-row">{connected.map((r) => <div className="student-connection" key={r.id}><Avatar name={r.student.name} size="sm" /><span><strong>{r.student.name}</strong><small>{r.student.stage}</small></span><a className="btn btn-primary" href={emailToStudent(r, data.profile)}><Icon name="mail" size={17} /><span>Email {displayName(r.student.name)}</span></a></div>)}</div>
       : <div className="empty-connections"><div className="empty-icon"><Icon name="link" size={30} /></div><h2>Your student connections</h2><p>Students whose requests you accept appear here, with a button that opens your email app to reply.</p></div>)}
     {accepting && <AcceptModal request={accepting} profile={data.profile} busy={busy} error={actionError} onClose={() => setAccepting(null)} onAccept={accept} />}
   </>;

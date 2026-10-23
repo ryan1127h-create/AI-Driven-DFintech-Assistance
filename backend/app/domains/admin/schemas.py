@@ -46,6 +46,19 @@ class AdminOverview(BaseModel):
     recent_activity: list[dict]
 
 
+
+class AdminInsights(BaseModel):
+    """Staff insights (service._insights_view); only the dates when
+    "available" is False (no metrics table yet)."""
+    generated_at: datetime
+    days: int
+    available: bool
+    resolution: dict | None = None
+    stages: list[dict] = []
+    gaps: list[dict] = []
+    funnel: list[dict] = []
+    alumni: dict | None = None
+
 class AdminUserConversation(BaseModel):
     conversation_id: str
     turn_count: int | None = 0
@@ -73,6 +86,8 @@ class AdminUser(BaseModel):
     is_anonymous: bool
     last_login_at: datetime | None = None
     created_at: datetime
+    lifecycle_stage: str | None = None
+    sub_stage: str | None = None
     profile: list[dict] = []
     conversations: list[AdminUserConversation] = []
     applications: list[AdminUserApplication] = []

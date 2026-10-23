@@ -44,7 +44,9 @@ def make_knowledge_qa_tool(name: str, topic: str, agent_name: str, trigger_inten
             stage_note=state.stage_notes.get(name),
         )
         sources = list(dict.fromkeys([*retrieved.sources, *facts.sources]))
-        return ToolAnswer(text=text, sources=sources, agent_used=agent_name)
+        # Pointing to the official pages instead of answering is a fallback.
+        used = f"{agent_name}_fallback" if knowledge_qa.is_unverified(text) else agent_name
+        return ToolAnswer(text=text, sources=sources, agent_used=used)
 
     return Tool(
         name=name,

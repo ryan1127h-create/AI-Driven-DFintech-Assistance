@@ -18,11 +18,14 @@ import {
   Pencil,
   BookOpen,
   ExternalLink,
+  ShieldCheck,
+  Lightbulb,
+  Info,
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
 import { STAGE_LABELS } from "../../data/stages";
-import { inputPlaceholders, suggestedPrompts, resolveAgent } from "../../data/chat";
+import { inputPlaceholders, suggestedPrompts, resolveAgent, resolveBasis } from "../../data/chat";
 import {
   getChatHistory,
   sendMessageStream,
@@ -407,10 +410,10 @@ function WelcomeView({ user, prompts, onPrompt, onOpenProfile, profileDone, remi
           <Sparkles size={28} className="text-brand-300" />
         </div>
         <h1 className="font-display text-2xl lg:text-3xl font-bold text-app-primary">
-          Hello, {user?.name?.split(" ")[0]}
+          Hello, {user?.name}
         </h1>
         <p className="text-app-muted mt-1">
-          I'm your MSc DFT lifecycle assistant. How can I help you today?
+          I&apos;m your MSc DFT lifecycle assistant. How can I help you today?
         </p>
         <button onClick={onOpenProfile} className="btn-outline mt-4">
           {profileDone ? <Pencil size={14} /> : <Sparkles size={14} />}
@@ -513,6 +516,8 @@ function AssistantMessage({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
+                  // `node` is taken out so it isn't spread onto the <a> element.
+                  // eslint-disable-next-line no-unused-vars
                   a: ({ node, ...props }) => {
                     const href = props.href || "";
                     if (href.startsWith("mailto:")) {
@@ -574,8 +579,7 @@ function AssistantMessage({
           {/* Metadata — only meaningful once the reply has fully resolved */}
           {!msg.streaming && (
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-app-subtle">
-              <MetaChip label="Intent" value={msg.intent} color="brand" />
-              <MetaChip label="Stage" value={msg.stage} color="royal" />
+              {resolveBasis(msg.source).map((basis) => <BasisBadge key={basis.label} basis={basis} />)}
               <MetaChip label="Agent" value={msg.source} color="cyan2" />
               {sources.length > 0 && <SourcesChip sources={sources} />}
             </div>
@@ -695,6 +699,24 @@ function SourcesChip({ sources }) {
           document.body,
         )}
     </>
+  );
+}
+
+// What kind of answer this is (see data/chat.js resolveBasis).
+const BASIS_STYLES = {
+  official: "border-emerald2-400/30 bg-emerald2-400/10 text-emerald2-400",
+  facts: "border-brand-400/30 bg-brand-500/10 text-brand-300",
+  recommendation: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  alumni: "border-royal-400/30 bg-royal-500/10 text-royal-300",
+};
+
+function BasisBadge({ basis }) {
+  const Icon = basis.tone === "official" ? ShieldCheck : basis.tone === "recommendation" ? Lightbulb : Info;
+  return (
+    <span className={cn("chip border inline-flex items-center gap-1 font-medium", BASIS_STYLES[basis.tone])}>
+      <Icon size={11} />
+      {basis.label}
+    </span>
   );
 }
 

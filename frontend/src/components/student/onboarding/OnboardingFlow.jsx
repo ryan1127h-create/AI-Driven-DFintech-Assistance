@@ -333,7 +333,7 @@ export default function OnboardingFlow({ onDone, initialPhase = "entry" }) {
                   <Sparkles size={28} className="text-brand-300" />
                 </div>
                 <h1 className="font-display text-2xl font-bold text-app-primary lg:text-3xl">
-                  Welcome, {user?.name?.split(" ")[0]}
+                  Welcome, {user?.name}
                 </h1>
                 <p className="mx-auto mt-2 max-w-md text-sm text-app-muted">
                   A few minutes on your profile makes every answer more specific to you. You can change anything later.

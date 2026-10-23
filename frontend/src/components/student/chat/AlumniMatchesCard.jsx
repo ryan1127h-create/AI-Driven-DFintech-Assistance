@@ -7,8 +7,9 @@ import { Check, UserPlus, Users } from "lucide-react";
 
 const REQUEST_LABELS = { pending: "Request sent", accepted: "Connected" };
 
-function firstName(name) {
-  return (name || "").split(" ")[0];
+// The whole name: the first word isn't reliably the given name (Chen Yuxin).
+function displayName(name) {
+  return (name || "").trim();
 }
 
 export default function AlumniMatchesCard({ card }) {
@@ -27,7 +28,7 @@ export default function AlumniMatchesCard({ card }) {
               className="inline-flex items-center gap-1.5 rounded-lg border border-app-subtle bg-app-elevated px-3 py-1.5 text-xs text-app-primary transition hover:border-brand-400/40"
             >
               {status ? <Check size={12} className="text-emerald2-400" /> : <UserPlus size={12} className="text-brand-300" />}
-              {status ? `${firstName(person.name)} · ${status}` : `View ${firstName(person.name)}`}
+              {status ? `${displayName(person.name)} · ${status}` : `View ${displayName(person.name)}`}
             </Link>
           );
         })}
