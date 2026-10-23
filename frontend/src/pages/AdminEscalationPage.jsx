@@ -4,7 +4,7 @@ import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
 
 function FeatureButton({ children, variant = "primary", className = "", ...props }) {
-  return <button className={`feature-button feature-button-${variant} ${className}`.trim()} {...props}>{children}</button>
+  return <button className={`feature-button feature-button-${variant} ${className} ${className.includes("view-button") ? "table-action" : ""}`.trim()} {...props}>{children}</button>
 }
 
 function Icon({ name, size = 18 }) {
@@ -590,8 +590,8 @@ export default function App() {
             />
           </div>
 
-          <section className="table-card">
-            <div className="toolbar">
+          <section className="data-table">
+            <div className="data-table-toolbar">
               <div className="search-wrap">
                 <Icon name="search" size={18} />
                 <input
@@ -605,7 +605,7 @@ export default function App() {
                 <strong>{filteredCases.length || 0}</strong> visible cases
               </div>
             </div>
-            <div className="filters">
+            <div className="data-table-filters">
               <div className="filter-icon">
                 <Icon name="filter" size={17} />
               </div>
@@ -663,7 +663,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="table-scroll">
+            <div className="data-table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -771,7 +771,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="pagination">
+            <div className="data-table-pagination">
               <span>
                 Showing <strong>{filteredCases.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filteredCases.length)}</strong> of <strong>{filteredCases.length}</strong> cases
               </span>

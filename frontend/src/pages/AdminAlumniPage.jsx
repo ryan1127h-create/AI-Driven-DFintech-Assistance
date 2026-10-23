@@ -43,6 +43,9 @@ export default function AdminAlumniPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [expertiseFilter, setExpertiseFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [sort, setSort] = useState({ key: "name", direction: "asc" });
   const [editing, setEditing] = useState(null); // "new" | item
   const [saving, setSaving] = useState(false);
@@ -53,13 +56,19 @@ export default function AdminAlumniPage() {
 
   const items = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (data?.items || []).filter((item) => !query || `${item.name} ${item.email} ${item.position} ${item.company}`.toLowerCase().includes(query)).sort((a, b) => {
+    return (data?.items || []).filter((item) => {
+      const matchesSearch = !query || `${item.name} ${item.email} ${item.position} ${item.company}`.toLowerCase().includes(query);
+      const matchesExpertise = expertiseFilter === "all" || (item.expertise || []).some((tag) => (tag.tag || tag.label) === expertiseFilter);
+      return matchesSearch && matchesExpertise;
+    }).sort((a, b) => {
       const value = (item) => sort.key === "expertise" ? (item.expertise || []).map((tag) => tag.label).join(", ") : sort.key === "listed" ? (item.listed ? "Listed" : "Hidden") : item[sort.key] || "";
       const result = String(value(a)).localeCompare(String(value(b)), undefined, { numeric: true, sensitivity: "base" });
       return sort.direction === "asc" ? result : -result;
     });
-  }, [data, search, sort]);
-  const toggleSort = (key) => setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
+  }, [data, search, expertiseFilter, sort]);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const paginatedItems = items.slice((page - 1) * pageSize, page * pageSize);
+  const toggleSort = (key) => { setPage(1); setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" })); };
   const header = (label, key) => <AdminSortableHeader label={label} sortKey={key} sort={sort} onSort={toggleSort} />;
 
   const save = async (form) => {
@@ -85,15 +94,15 @@ export default function AdminAlumniPage() {
   return <main className="admin-overview-page">
     <header className="admin-shared-page-header admin-alumni-header"><div><h1>Alumni</h1><p>Maintain the alumni directory students see in Alumni Match.</p></div><button type="button" className="admin-primary-button" onClick={() => { setFormError(""); setMessage(""); setEditing("new"); }}>Add alumnus</button></header>
     {message && <p role="status" className="admin-subline">{message}</p>}
-    <section className="admin-users-table-card"><div className="admin-users-toolbar"><AdminSearchBar placeholder="Search alumni" value={search} onChange={setSearch} /><span><strong>{items.length}</strong> visible alumni</span></div><div className="admin-table-wrap"><table><thead><tr><th>{header("NAME", "name")}</th><th>{header("POSITION", "position")}</th><th>{header("EXPERTISE", "expertise")}</th><th>{header("LISTED", "listed")}</th><th>ACTIONS</th></tr></thead><tbody>
-      {items.length ? items.map((item) => <tr key={item.user_id}>
+    <section className="admin-users-table-card"><div className="admin-users-toolbar"><AdminSearchBar placeholder="Search alumni" value={search} onChange={(value) => { setSearch(value); setPage(1); }} /><span><strong>{items.length}</strong> visible alumni</span></div><div className="admin-users-filter-row"><span className="admin-filter-mark">☷</span><select aria-label="Filter alumni by expertise" value={expertiseFilter} onChange={(event) => { setExpertiseFilter(event.target.value); setPage(1); }}><option value="all">All expertise</option>{(data.expertise_options || []).map((option) => <option key={option.tag} value={option.tag}>{option.label}</option>)}</select><button type="button" className="data-table-filter-reset" onClick={() => { setSearch(""); setExpertiseFilter("all"); setPage(1); }}>Reset</button></div><div className="admin-table-wrap"><table><thead><tr><th>{header("NAME", "name")}</th><th>{header("POSITION", "position")}</th><th>{header("EXPERTISE", "expertise")}</th><th>{header("LISTED", "listed")}</th><th>ACTIONS</th></tr></thead><tbody>
+      {paginatedItems.length ? paginatedItems.map((item) => <tr key={item.user_id}>
         <td><Link className="admin-related-link" to={`/admin/users/${item.user_id}`}>{item.name || item.email}</Link><br /><small>{item.email}</small></td>
         <td>{item.position} · {item.company}{item.class_year ? ` · ${item.class_year}` : ""}</td>
         <td>{item.expertise.map((tag) => tag.label).join(", ") || "—"}</td>
         <td>{item.listed ? "Listed" : "Hidden"}</td>
-        <td><button type="button" className="admin-table-action" onClick={() => { setFormError(""); setMessage(""); setEditing(item); }}>Edit</button>{item.listed && <button type="button" className="admin-table-action" onClick={() => hide(item)}>Hide</button>}<button type="button" className="admin-table-action" onClick={() => remove(item)}>Remove</button></td>
+        <td><button type="button" className="table-action" onClick={() => { setFormError(""); setMessage(""); setEditing(item); }}>Edit</button>{item.listed && <button type="button" className="table-action" onClick={() => hide(item)}>Hide</button>}<button type="button" className="table-action" onClick={() => remove(item)}>Remove</button></td>
       </tr>) : <tr><td colSpan="5">{data.items.length ? "No alumni match your search." : "No alumni in the directory yet."}</td></tr>}
-    </tbody></table></div></section>
+    </tbody></table>{!items.length && <div className="data-table-empty-state"><strong>{data.items.length ? "No alumni match your filters" : "No alumni in the directory yet"}</strong><span>Try adjusting the search or expertise filter.</span></div>}</div><div className="admin-application-pagination"><span>Showing <strong>{items.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, items.length)}</strong> of <strong>{items.length}</strong> alumni</span><div className="admin-application-page-buttons"><button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>‹ Previous</button>{Array.from({ length: pageCount }, (_, index) => index + 1).slice(0, 7).map((number) => <button type="button" className={number === page ? "active" : ""} key={number} onClick={() => setPage(number)}>{number}</button>)}<button type="button" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>Next ›</button></div></div></section>
     {editing && <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-label={editing === "new" ? "Add an alumnus" : "Edit alumnus"}>
       <div className="admin-modal-scroll">
         <button type="button" className="admin-modal-close" aria-label="Close" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setEditing(null); }}>×</button>

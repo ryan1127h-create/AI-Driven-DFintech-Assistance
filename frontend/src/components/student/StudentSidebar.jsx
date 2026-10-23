@@ -16,6 +16,7 @@ import {
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
 import { STAGE_LABELS, pagesForStage } from "../../data/stages";
+import { LoadingSpinner } from "./apiWidgets";
 import { cn } from "../../utils/cn";
 import { formatDateTime } from "../../utils/format";
 import nusLogo from "../../assets/nus_logo.png";
@@ -239,7 +240,7 @@ export default function StudentSidebar() {
         <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-app-faint">Chats</p>
         <div className="space-y-0.5">
           {sessionsLoading ? (
-            <p className="text-xs text-app-faint px-3 py-4 text-center">Loading conversations...</p>
+            <LoadingSpinner label="Loading conversations…" />
           ) : sortedConversations.map((c) => (
             <div key={c.id} className="relative group">
               {editingId === c.id ? (

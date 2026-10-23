@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FileUp, Sparkles } from "lucide-react";
+import { FileUp, Sparkles, UserRound } from "lucide-react";
 import {
   getConsents,
   getLatestCvImport,
@@ -15,7 +15,8 @@ import { STAGE_LABELS } from "../data/stages";
 import { isRecommended } from "../data/onboarding";
 import { profilePages } from "../data/profileSections";
 import { cn } from "../utils/cn";
-import { ErrorBanner, LoadingSpinner, SuccessBanner } from "../components/student/apiWidgets";
+import { ErrorBanner, SuccessBanner } from "../components/student/apiWidgets";
+import { LoadingState } from "../components/student/PageParts";
 import { changedFields, formatFieldValue } from "../components/student/profile/ProfileFields";
 import { OverviewPage, SectionPage, filledCount } from "../components/student/profile/ProfilePages";
 
@@ -201,7 +202,7 @@ export default function ProfilePage() {
 
   const updateFromCv = () => navigate("/app", { state: { openCvImport: true } });
 
-  if (loading) return <LoadingSpinner label="Loading profile..." />;
+  if (loading) return <LoadingState icon={UserRound} title="Loading profile" subtitle="Fetching your profile details…" />;
 
   const subStageDefinition = definitionsByKey.sub_stage;
   const subStage = fields.sub_stage?.value && subStageDefinition

@@ -5,7 +5,7 @@ import {
   acceptAlumniRequest, cancelAlumniRequest, createAlumniRequest, declineAlumniRequest,
   getAlumniMatches, getAlumniMe, getAlumniRequests, setAlumniListed,
 } from "../../api";
-import { PageHeader } from "../components/student/PageParts";
+import { LoadingState, PageHeader } from "../components/student/PageParts";
 
 // Alumni Match has two sides. Enrolled students browse listed alumni and send
 // requests; alumni answer them. Contact details appear only once a request is
@@ -204,11 +204,11 @@ function StudentView({ notify }) {
       {data && !data.can_send_requests && <div className="privacy-card"><div className="privacy-icon"><Icon name="lock" /></div><div><strong>Turn on alumni matching to send requests</strong><p>When you contact an alumnus, they see {SHARED_WITH_ALUMNI}. Turn on “Alumni matching” under Settings → Privacy first.</p></div></div>}
       <div className="filter-panel">
         <label className="search-wrap"><Icon name="search" size={17} /><input aria-label="Search alumni" placeholder="Search by name, position or company" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
-        <div className="chip-row"><Icon name="filter" size={15} />{(data?.expertise_options || []).map((o) => <button type="button" key={o.tag} className={`chip ${expertise.includes(o.tag) ? "active" : ""}`} aria-pressed={expertise.includes(o.tag)} onClick={() => toggleTag(o.tag)}>{o.label}</button>)}</div>
-        {data && <p className="ranking-note">{data.ranked_by_interests ? "Ordered by how well each alumnus's expertise matches your target roles." : "Add target roles to your profile to see the best matches first."}</p>}
+        <div className="chip-row"><Icon name="filter" size={15} />{(data?.expertise_options || []).map((o) => <button type="button" key={o.tag} className={`chip ${expertise.includes(o.tag) ? "active" : ""}`} aria-pressed={expertise.includes(o.tag)} onClick={() => toggleTag(o.tag)}>{expertise.includes(o.tag) && <Icon name="check" size={13} />}{o.label}</button>)}{(search || expertise.length > 0) && <button type="button" className="reset-filters" onClick={() => { setSearch(""); setExpertise([]); }}>Reset filters</button>}</div>
+        {data && <div className="results-summary"><span><strong>{data.total}</strong> alumni found</span>{expertise.length > 0 && <span className="active-filter-summary">{expertise.length} active filter{expertise.length === 1 ? "" : "s"}</span>}</div>}
       </div>
-      {!data ? <p className="ranking-note">Loading alumni…</p> : data.items.length ? <div className="alumni-grid">{data.items.map((person) => <AlumniCard key={person.id} person={person} canSend={data.can_send_requests} onView={() => setViewing(person)} onConnect={() => { setActionError(""); setConnecting(person); }} />)}</div>
-        : <div className="request-empty"><Icon name="search" size={20} /><span>No alumni match your search yet.</span></div>}
+      {!data ? <LoadingState className="alumni-loading" icon={Users} title="Loading alumni" subtitle="Finding matches for your interests…" /> : data.items.length ? <div className="alumni-grid">{data.items.map((person) => <AlumniCard key={person.id} person={person} canSend={data.can_send_requests} onView={() => setViewing(person)} onConnect={() => { setActionError(""); setConnecting(person); }} />)}</div>
+        : <div className="alumni-no-results"><div className="alumni-no-results-icon"><Icon name="search" size={22} /></div><strong>No alumni match your search yet</strong><span>Try removing a filter or searching by a broader role, company, or skill.</span>{(search || expertise.length > 0) && <button type="button" onClick={() => { setSearch(""); setExpertise([]); }}>Clear filters</button>}</div>}
     </>}
     {tab === "sent" && <SentRequests requests={openRequests} onCancel={cancel} busyId={busy} onFind={() => setTab("find")} />}
     {tab === "connections" && <StudentConnections connections={connections} onFind={() => setTab("find")} />}
@@ -293,7 +293,7 @@ function AlumniView({ notify }) {
   };
 
   if (error) return <p role="alert" className="form-error">{error}</p>;
-  if (!data) return <p className="ranking-note">Loading…</p>;
+  if (!data) return <LoadingState className="alumni-loading" icon={Users} title="Loading requests" subtitle="Checking your connection requests…" />;
   const pending = data.incoming.filter((r) => r.status === "pending");
   const connected = data.incoming.filter((r) => r.status === "accepted");
   return <>
@@ -322,7 +322,7 @@ export default function AlumniMatchPage() {
 
   return <div className="alumni-match-page">
     <div className="main-shell"><main className="main">
-      <PageHeader icon={Users} title="Alumni Match" subtitle={role === "alumni" ? "Help current students by answering their connection requests." : "Find MSc DFinTech alumni whose careers match your goals, and ask to connect."} />
+      <PageHeader className="alumni-page-header" icon={Users} title="Alumni Match" subtitle={role === "alumni" ? "Help current students by answering their connection requests." : "Find MSc DFinTech alumni whose careers match your goals and ask to connect."} />
       {error && <p role="alert" className="form-error">{error}</p>}
       {role === "student" && <StudentView notify={notify} />}
       {role === "alumni" && <AlumniView notify={notify} />}

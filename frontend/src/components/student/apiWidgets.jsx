@@ -3,9 +3,9 @@ import { cn } from "../../utils/cn";
 
 export function LoadingSpinner({ label = "Loading..." }) {
   return (
-    <div className="flex items-center justify-center py-12 text-app-muted">
-      <Loader2 size={20} className="animate-spin mr-2" />
-      {label}
+    <div className="student-loading-inline" role="status" aria-live="polite">
+      <span className="student-loading-orb"><Loader2 size={16} className="animate-spin" /></span>
+      <span>{label}</span>
     </div>
   );
 }
