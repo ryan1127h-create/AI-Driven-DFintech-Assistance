@@ -34,3 +34,7 @@ class CachePort(Protocol):
     def delete(self, key: str) -> None:
         """Removes key. A no-op if it wasn't present."""
         ...
+
+    def delete_prefix(self, prefix: str) -> int:
+        """Removes every key starting with prefix; returns how many."""
+        ...

@@ -16,12 +16,25 @@ class ChatRequest(BaseModel):
     # a cryptic Postgres error surfacing as a 500 later.
     session_id: Optional[UUID] = None
     message: str
+    # Input fields the user just skipped or dismissed in a card (see
+    # app/tools/contracts.py ToolAnswer.card); not asked for again this
+    # conversation.
+    declined_fields: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
     agent_used: str
+    # A quick-fill card asking for missing profile fields (see
+    # app/tools/contracts.py ToolAnswer.card), and facts from this turn the
+    # user may save to their profile.
+    card: Optional[dict] = None
+    supplement_card: Optional[dict] = None
+    save_suggestions: list[dict] = Field(default_factory=list)
+    # Passed to staff ({"kind": "opened", "case", "resources"?}) or offered
+    # ({"kind": "offer", "category"}); see turn_service.ChatTurnResult.
+    escalation: Optional[dict] = None
 
 
 class ConversationSummary(BaseModel):
@@ -48,6 +61,9 @@ class ConversationTurn(BaseModel):
     # existed, not for "no intent". Never set on "human" turns.
     intents: Optional[list[str]] = None
     agent_used: Optional[str] = None
+    # What the answer cited (URLs or source names); [] when nothing was,
+    # None for turns logged before sources were kept.
+    sources: Optional[list[str]] = None
 
 
 class HistoryBlockOut(BaseModel):

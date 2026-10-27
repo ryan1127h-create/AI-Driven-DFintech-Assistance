@@ -1,102 +1,58 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { GraduationCap, LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
+import { LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
 import { login as apiLogin } from "../../api";
 import { useRole } from "../../src/context/RoleContext";
 import ThemeToggle from "../components/ThemeToggle";
 import { cn } from "../utils/cn";
 import nusLogo from "../assets/nus_logo.png";
 
+const NUS_EMAIL_DOMAIN = "@u.nus.edu";
+
+// ids match the backend's login portals (see
+// backend/app/domains/auth/schemas.py::Role) — the tab the user picks is
+// sent as part of the login request and checked against the account (see
+// service.py::login_portal), so picking the wrong tab is rejected with a
+// clear message rather than silently logging in anyway. Alumni share the
+// "admin" tab with staff.
 const tabs = [
   { id: "applicant", label: "Applicant", icon: User, hint: "Prospective & applying students" },
-  { id: "student", label: "Current Student", icon: BookOpen, hint: "Enrolled, graduating & alumni" },
-  { id: "admin", label: "Staff / Admin", icon: ShieldCheck, hint: "Management portal" },
-];
-const adminRoles = [
-  "System Admin",
-  "Admissions Staff",
-  "Career Advisor",
-  "Program Office",
-  "Faculty Support",
+  { id: "enrolled_student", label: "Enrolled Student", icon: BookOpen, hint: "Email always ends in @u.nus.edu" },
+  { id: "admin", label: "Alumni / Admin", icon: ShieldCheck, hint: "Alumni and programme staff" },
 ];
 
 export default function Login() {
   const navigate = useNavigate();
   const [tab, setTab] = useState("applicant");
   const [email, setEmail] = useState("");
+  // Local part only (before "@u.nus.edu") for the enrolled_student tab —
+  // kept separate from `email` so the fixed domain suffix can never be
+  // edited, replacing the old "does email end with @u.nus.edu" check.
+  const [nusLocalPart, setNusLocalPart] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const { login: setAuth, sessionExpired } = useRole();
+  const [error, setError] = useState(sessionExpired ? "Your session has expired. Log in again." : null);
   const [loading, setLoading] = useState(false);
-  const { login: setAuth } = useRole();
 
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
+  const emailValue = tab === "enrolled_student" ? `${nusLocalPart.trim()}${NUS_EMAIL_DOMAIN}` : email.trim();
 
-  //   setError(null);
-  //   setLoading(true);
-
-  //   try {
-  //     const response =
-  //       await login({
-  //         email,
-  //         password
-  //       });
-
-  //     const { session, user, roles } = response.data;
-
-  //     const role = roles?.[0]?.roles?.role_name || null;
- 
-  //     setAuth({
-  //       session,
-  //       user,
-  //       role,
-  //     });
-
-  //     const roleNames =
-  //       roles.map(
-  //         role => role.roles.role_name
-  //       );
-
-  //     if (adminRoles.some(role => roleNames.includes(role))) {
-  //       navigate("/admin");
-  //     } else {
-  //       navigate("/app");
-  //     }
-
-  //   } catch (err) {
-
-  //     setError(
-  //       err.message ||
-  //       "Failed to sign in."
-  //     );
-
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-   const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError(null);
+
+    if (tab === "enrolled_student" && !nusLocalPart.trim()) {
+      setError("Your NUS email (before @u.nus.edu) is required.");
+      return;
+    }
+
     setLoading(true);
-
     try {
-      const response =
-        await apiLogin({
-          email,
-          password
-        });
-      const { access_token, token_type, expires_in } = response;
+      const response = await apiLogin({ email: emailValue, password, role: tab });
+      const { access_token, user } = response;
 
-      setAuth({
-        access_token,
-        user: {
-          email,
-        },
-        role: "Prospective Student",
-      });
+      setAuth({ access_token, user, role: user.role });
 
-      navigate("/app");
+      navigate(user.role === "admin" ? "/admin" : user.lifecycle_stage === "alumni" ? "/alumni-match" : "/app");
 
     } catch (err) {
       console.error("LOGIN ERROR:", err);
@@ -137,12 +93,13 @@ export default function Login() {
           </div>
 
           {/* Role tabs */}
-          {/* <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {tabs.map((t) => {
               const TIcon = t.icon;
               return (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => setTab(t.id)}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-xl p-3 border transition-all",
@@ -156,9 +113,9 @@ export default function Login() {
                 </button>
               );
             })}
-          </div> */}
+          </div>
 
-          {/* <p className="text-center text-xs text-app-muted mb-6">{tabs.find((t) => t.id === tab).hint}</p> */}
+          <p className="text-center text-xs text-app-muted mb-6">{tabs.find((t) => t.id === tab).hint}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -169,14 +126,31 @@ export default function Login() {
             )}
             <div>
               <label className="text-sm font-medium text-app-secondary mb-1.5 block">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="input"
-              />
+              {tab === "enrolled_student" ? (
+                <div
+                  className="w-full flex items-center gap-1 rounded-lg px-3.5 py-2.5 text-sm transition focus-within:ring-1 focus-within:ring-brand-500/40"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border-input)" }}
+                >
+                  <input
+                    type="text"
+                    required
+                    className="min-w-0 flex-1 bg-transparent border-0 p-0 outline-none text-app-primary placeholder:text-[var(--text-faint)]"
+                    placeholder="e0123456"
+                    value={nusLocalPart}
+                    onChange={(e) => setNusLocalPart(e.target.value.replace(/[^a-zA-Z0-9._+-]/g, ""))}
+                  />
+                  <span className="text-app-muted whitespace-nowrap select-none">{NUS_EMAIL_DOMAIN}</span>
+                </div>
+              ) : (
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="input"
+                />
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-app-secondary mb-1.5 block">Password</label>
@@ -195,7 +169,7 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center text-sm text-app-muted">
-            {tab === "applicant" && (
+            {tab !== "admin" && (
               <p>New to MSc DFT? <Link to="/register" className="text-brand-300 hover:underline">Register your profile</Link></p>
             )}
           </div>

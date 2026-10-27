@@ -24,7 +24,10 @@ from app.adapters.knowledge_db_adapter import knowledge_db
 from app.adapters.openai_embedding_adapter import embedding
 from app.adapters.redis_cache_adapter import cache
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.models import Hit
+
+logger = get_logger(__name__)
 
 # RRF weights: semantic-first, keyword as a booster for codes/numbers that
 # embeddings tend to blur together (e.g. FT5005 vs FT5009).
@@ -32,7 +35,7 @@ W_SEMANTIC = 0.8
 W_BM25 = 0.2
 
 # Each of vector/BM25 first pulls this many candidates for RRF to fuse.
-# 50 is generous relative to the corpus size (~184 chunks).
+# 50 is generous relative to the corpus size (~160 chunks).
 RECALL_K = 50
 
 # Score multiplier applied to hits whose topic is in a caller's
@@ -44,93 +47,33 @@ TOPIC_BOOST_FACTOR = 1.3
 # distinguishing them — a query like "core course requirements" competes
 # equally between both regardless of which cohort is actually current,
 # risking a stale-rules answer for the prospective/current-intake students
-# who are the overwhelming majority of callers. _CURRENT_INTAKE mirrors
-# course_recommendation/service.py's own hardcoded _CURRENT_INTAKE constant
-# (same underlying assumption, kept in sync manually since the two domains
-# don't share this value). Deliberately a soft down-weight (never a filter/
+# who are the overwhelming majority of callers. course_recommendation's
+# policy/curriculum.py keeps the same value in CURRENT_INTAKE (its policy
+# layer may not import this domain); test_knowledge_catalog.py checks the
+# two agree. Deliberately a soft down-weight (never a filter/
 # exclusion) applied to the non-current cohort's course_rules hits — a
 # caller that genuinely needs the older cohort's rules can still surface
 # them, just ranked lower rather than removed outright.
-_CURRENT_INTAKE = "2026-08-onwards"
+CURRENT_CURRICULUM_INTAKE = "2026-08-onwards"
 INTAKE_MISMATCH_PENALTY = 0.5
 
 _CACHE_KEY_PREFIX = "rag:retrieve:"
 
-# Maps a document_chunks row to one of the topic buckets callers filter/
-# boost by. source_table alone is enough for most tables; knowledge_snippets
-# and programme_pages need a metadata field to disambiguate since they mix
-# topics internally.
-_PAGE_TOPIC = {
-    "page_02": "academic",    # programme_overview
-    "page_03": "academic",    # capstone
-    "page_04": "admissions",  # admissions requirements
-    "page_05": "admissions",  # application information
-    "page_06": "financial",   # fees_scholarships
-    "page_07": "faq",         # faq
-}
-
-# Per-snippet override for knowledge_snippets(namespace='faq_web') — these 27
-# chunks are scraped verbatim from the official FAQ webpage and arrive with
-# no topic tag beyond the blanket 'faq_web' namespace; most are
-# substantively about admissions eligibility/documents/test-scores, a
-# couple about career outcomes, and a couple about the student's own
-# costs/payment — not the miscellaneous "faq" catch-all _topic_of() uses
-# for everything else.
-#
-# Keyed by metadata['source_id'] (stable per chunk, e.g.
-# "faq_page#faq_web_cut_off_average_score"). An unlisted source_id (a
-# genuinely miscellaneous FAQ, or a newly-ingested one this override hasn't
-# been updated for) safely falls back to "faq" below — this only feeds a
-# soft boost, never a hard exclusion, so a missed/imperfect classification
-# here only weakens ranking, it never hides the chunk from being found via
-# plain semantic/BM25 relevance.
-_FAQ_WEB_TOPIC_OVERRIDES: dict[str, str] = {
-    "faq_page#faq_web_application_has_closed_still": "admissions",
-    "faq_page#faq_web_apply_programme_gre_gmat": "admissions",
-    "faq_page#faq_web_compulsory_submit_financial_documents": "admissions",
-    "faq_page#faq_web_cut_off_average_score": "admissions",
-    "faq_page#faq_web_fresh_graduate_from_university": "admissions",
-    "faq_page#faq_web_have_fintech_work_experience": "admissions",
-    "faq_page#faq_web_have_more_than_2": "admissions",
-    "faq_page#faq_web_interviews_applicants": "admissions",
-    "faq_page#faq_web_level_finance_computer_science": "admissions",
-    "faq_page#faq_web_many_intakes_you_have": "admissions",
-    "faq_page#faq_web_minimum_gpa_apply_msc": "admissions",
-    "faq_page#faq_web_not_have_experience_programming": "admissions",
-    "faq_page#faq_web_requirement_education_major_master": "admissions",
-    "faq_page#faq_web_toefl_ielts_score_mandatory": "admissions",
-    "faq_page#faq_web_use_parents_bank_account": "admissions",
-    "faq_page#faq_web_who_nominate_as_referees": "admissions",
-    "faq_page#faq_web_would_average_years_experience": "admissions",
-    "faq_page#faq_web_would_know_scores_good": "admissions",
-    "faq_page#faq_web_career_planning_support_provided": "career",
-    "faq_page#faq_web_industry_role_different_vertical": "career",
-    "faq_page#faq_web_estimated_cost_living_singapore": "financial",
-    "faq_page#faq_web_payment_method": "financial",
-    # Left unmapped (fall back to "faq"): apply_entry_visa_student,
-    # find_part_time_job, foreigner_where_find_more, have_accepted_offer_via,
-    # possible_msc_dfintech_students — genuinely general/logistics FAQs, not
-    # anchored on admissions/academic/financial/career/comparison.
+# The topic bucket callers filter/boost by. The web chunks (programme
+# pages and FAQ answers) carry their own in metadata['topic'], set when they
+# are built (scripts/knowledge/rebuild_web_chunks.py); the chunks built from
+# the structured tables follow from their table.
+_TABLE_TOPIC = {
+    "admissions_items": "admissions",
+    "application_status_translations": "admissions",
+    "courses": "academic",
+    "course_rules": "academic",
+    "tags_definition": "career",
 }
 
 
 def _topic_of(source_table: str, metadata: dict | None) -> str:
-    md = metadata or {}
-    if source_table in ("admissions_items", "application_status_translations"):
-        return "admissions"
-    if source_table in ("courses", "course_rules"):
-        return "academic"
-    if source_table == "career_roles":
-        return "career"
-    if source_table == "competitor_programs":
-        return "comparison"
-    if source_table == "knowledge_snippets":
-        if md.get("namespace") == "admissions":
-            return "admissions"
-        return _FAQ_WEB_TOPIC_OVERRIDES.get(md.get("source_id"), "faq")
-    if source_table == "programme_pages":
-        return _PAGE_TOPIC.get(md.get("page_id"), "faq")
-    return "faq"
+    return (metadata or {}).get("topic") or _TABLE_TOPIC.get(source_table, "faq")
 
 
 def _tokenize(text: str) -> list[str]:
@@ -220,7 +163,7 @@ def _apply_intake_penalty(hits: list[Hit]) -> None:
         if h.source_table != "course_rules":
             continue
         intake = (h.metadata or {}).get("intake")
-        if intake and intake != _CURRENT_INTAKE:
+        if intake and intake != CURRENT_CURRICULUM_INTAKE:
             h.score *= INTAKE_MISMATCH_PENALTY
 
 
@@ -297,7 +240,7 @@ def retrieve(
 
     filter_topics: hard-restrict candidates to these topics before fusion
         (use only for topics with no overlap elsewhere in the corpus, e.g.
-        "career", "comparison" — a bad guess here loses recall entirely).
+        "career" — a bad guess here loses recall entirely).
     boost_topics: soft-boost matching hits after fusion without excluding
         anything else (safe default for topics whose boundaries aren't
         clean, e.g. "admissions", "academic", "financial", "faq").
@@ -309,8 +252,8 @@ def retrieve(
 
     try:
         hits = _retrieve_uncached(query, top_k, filter_topics, boost_topics)
-    except Exception as exc:
-        print(f"[knowledge_retrieval.service] Warning: retrieval failed — {exc}")
+    except Exception:
+        logger.exception("knowledge retrieval failed")
         return []
 
     _cache_set(key, hits)
@@ -325,11 +268,9 @@ _FALLBACK_SOURCE = {
     "admissions_items": "NUS MSc DFT admissions requirements (official)",
     "course_rules": "Annex A curriculum structure",
     "application_status_translations": "Application status guide (official)",
-    "career_roles": "Career pathway mapping — compiled by this project, not official NUS content",
-    "knowledge_snippets": "Programme FAQ (official)",
+    "tags_definition": "Role tags — compiled by this project, not official NUS content",
     "programme_pages": "NUS MSc DFT programme website",
     "courses": "NUSMods course catalogue",
-    "competitor_programs": "Competitor programme comparison — compiled by this project",
 }
 
 
@@ -378,3 +319,194 @@ def cited_sources(hits: list[Hit]) -> list[str]:
             seen.add(s)
             sources.append(s)
     return sources
+
+
+# --- structured, non-search access ------------------------------------------
+#
+# The three functions below are deterministic reads, not retrieval — for a
+# caller that needs "every row of X", not "the most relevant chunks for this
+# query". course_recommendation's chat adapter (see
+# app/tools/specialist/course_recommendation/s2_assembly/) is the current
+# consumer of all three.
+
+# course_requirements.prerequisite keeps corequisites in the same text, as
+# " | "-separated parts prefixed "Corequisite:" (there is no corequisite
+# column). _split_requirements() moves them into corequisite_grad_text. The
+# importer's older "并修(coreq):" prefix is still read.
+_COREQ_PREFIX = re.compile(r"^\s*(?:并修\s*)?\(?\s*coreq(?:uisite)?\s*\)?\s*[:：]\s*", re.IGNORECASE)
+
+
+def _split_requirements(text: str | None) -> tuple[str | None, str | None]:
+    """(prerequisite, corequisite) from the stored prerequisite text."""
+    prereqs, coreqs = [], []
+    for part in (text or "").split("|"):
+        part = part.strip()
+        if not part:
+            continue
+        match = _COREQ_PREFIX.match(part)
+        if match:
+            coreqs.append(part[match.end():].strip())
+        else:
+            prereqs.append(part)
+    return " | ".join(prereqs) or None, "; ".join(coreqs) or None
+
+
+def reload_catalogue() -> None:
+    """Drops what this process has cached from the knowledge schema after
+    the staff console edits it: the tables and chunks (re-read on next use,
+    which also rebuilds the BM25 index) and the cached retrievals, which
+    may quote the old text."""
+    knowledge_db.invalidate()
+    try:
+        cache.delete_prefix(_CACHE_KEY_PREFIX)
+    except Exception as exc:  # best effort: cached retrievals expire on their own
+        logger.warning("could not clear the cached retrievals: %s", exc)
+
+
+def embed_for_retrieval(text: str) -> list[float]:
+    """Embeds text with the same model the retriever embeds queries with,
+    so a rebuilt chunk stays comparable to every other chunk."""
+    return embedding.embed(text)
+
+
+def warm_cache() -> None:
+    """Loads the cached catalogue tables (courses, chunks, course tags,
+    role tags, electives) so the first request in a process doesn't pay
+    for them. Safe to call more than once."""
+    list_courses()
+    list_curriculum_rules()
+    list_course_tags()
+    list_role_tags()
+    list_course_electives()
+    list_course_schedule()
+
+
+def list_courses() -> list[dict]:
+    """The complete course catalogue, unranked — one dict per course
+    assembled from the course tables (see
+    knowledge_db_adapter.fetch_all_courses()); workload as floats, and
+    corequisites split out of the prerequisite text."""
+    courses = []
+    for row in knowledge_db.fetch_all_courses():
+        prerequisite, corequisite = _split_requirements(row["prerequisite_grad_text"])
+        courses.append({
+            **row,
+            "prerequisite_grad_text": prerequisite,
+            "corequisite_grad_text": corequisite,
+            "workload": [float(x) for x in row["workload"]] if row["workload"] is not None else None,
+        })
+    return courses
+
+
+def list_curriculum_rules() -> list[dict]:
+    """Every course_rules chunk for the current intake (CURRENT_CURRICULUM_INTAKE),
+    verbatim — a deterministic filter over fetch_all_chunks(), not a
+    semantic search, so nothing is missed or reordered by relevance
+    scoring."""
+    return [
+        c for c in knowledge_db.fetch_all_chunks()
+        if c["source_table"] == "course_rules"
+        and (c["metadata"] or {}).get("intake") == CURRENT_CURRICULUM_INTAKE
+    ]
+
+
+def _clock(hhmm: str) -> str:
+    """'1830' -> '18:30'."""
+    return f"{hhmm[:2]}:{hhmm[2:]}" if len(hhmm) == 4 else hhmm
+
+
+def list_course_schedule() -> dict[str, list[dict]]:
+    """Every course's class slots for the regular semesters on file,
+    grouped by course code: {ay, semester (int), lesson_type, class_no,
+    day, start, end} with times as "HH:MM". A lesson type with several
+    class numbers offers a choice of slot; one with a single number is
+    fixed."""
+    grouped: dict[str, list[dict]] = {}
+    for row in knowledge_db.fetch_course_schedule():
+        grouped.setdefault(row["course_code"], []).append({
+            "ay": row["ay"],
+            "semester": int(row["semester"]),
+            "lesson_type": row["lesson_type"],
+            "class_no": row["class_no"],
+            "day": row["day"],
+            "start": _clock(row["start_time"]),
+            "end": _clock(row["end_time"]),
+        })
+    return grouped
+
+
+def list_course_electives() -> dict[str, list[str]]:
+    """Every course's elective-vertical membership(s), grouped by course
+    code. A course can belong to more than one entry here (or to none,
+    e.g. a pure core course) — this is where a core-replacement course
+    that's also a vertical elective (see contracts.py's dual-membership
+    note) shows both memberships, unlike the single-valued
+    `annex_section` column list_courses() returns."""
+    grouped: dict[str, list[str]] = {}
+    for row in knowledge_db.fetch_course_electives():
+        grouped.setdefault(row["course_code"], []).append(row["vertical"])
+    return grouped
+
+
+def list_role_tags() -> list[dict]:
+    """The 12 role tags (role families): {tag, name_en, name_zh,
+    definition, required_skills}. Courses carry these tags, and a profile's
+    target_role_families takes its values from them."""
+    return [
+        {**row, "required_skills": list(row["required_skills"] or [])}
+        for row in knowledge_db.fetch_role_tags()
+    ]
+
+
+def list_course_tags() -> dict[str, list[str]]:
+    """Every course's role tags, grouped by course code."""
+    grouped: dict[str, list[str]] = {}
+    for row in knowledge_db.fetch_course_tags():
+        grouped.setdefault(row["course_code"], []).append(row["tag"])
+    return grouped
+
+
+def list_admissions_items() -> dict[str, dict]:
+    """key -> {label, description, required} for every admissions document."""
+    return {
+        row["key"]: {"label": row["label"], "description": row["why"], "required": bool(row["required"])}
+        for row in knowledge_db.fetch_admissions_items()
+    }
+
+
+def explain_application_status(status_code: str | None) -> dict:
+    """{status_label, next_step} for an application status code (both None
+    when the code has no explanation)."""
+    for row in knowledge_db.fetch_status_translations():
+        if row["status_code"] == status_code:
+            return {"status_label": row["human_status"], "next_step": row["next_step"]}
+    return {"status_label": None, "next_step": None}
+
+
+def get_role_profile(tag: str) -> dict | None:
+    """{role_id, role_title, required_skills} for one role tag (role_id is
+    the tag, role_title its English name), or None for an unknown tag."""
+    for row in list_role_tags():
+        if row["tag"] == tag:
+            return {"role_id": row["tag"], "role_title": row["name_en"], "required_skills": row["required_skills"]}
+    return None
+
+
+def _normalize_role_text(text: str) -> str:
+    text = text.lower().replace("&", " and ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+def match_role_tag(text: str) -> str | None:
+    """Maps free text naming a role family ("machine learning & AI",
+    "data_analytics", "I want a blockchain job") to its tag — the tag key
+    or English name appearing in the text, preferring the longest match.
+    None if no tag is named."""
+    normalized = f" {_normalize_role_text(text)} "
+    best, best_len = None, 0
+    for row in list_role_tags():
+        for name in (row["tag"], row["name_en"]):
+            candidate = _normalize_role_text(name)
+            if candidate and f" {candidate} " in normalized and len(candidate) > best_len:
+                best, best_len = row["tag"], len(candidate)
+    return best

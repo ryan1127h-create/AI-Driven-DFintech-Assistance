@@ -25,24 +25,24 @@ class Settings:
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
-    # Auth — self-issued JWT access tokens (see
-    # app/domains/auth/security.py). Signing algorithm is fixed at
-    # HS256; there's no reason for this project to vary it.
-    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "")
-    jwt_access_token_expire_minutes: int = int(
-        os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7))  # 7 days
-    )
+    # Auth — Supabase Auth (auth.users) owns account/password storage and
+    # issues the access tokens this app verifies (see
+    # app/domains/auth/security.py, which fetches the verification key
+    # straight from this project's own JWKS endpoint — no separate JWT
+    # secret to configure here). supabase_anon_key is the public API key
+    # used for the sign-in call itself (service_role below is reserved for
+    # admin-only operations like creating a user).
+    supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY", "")
 
-    # Conversation storage — the Supabase Postgres project holding
-    # student.users and every other per-user table (profiles, checklist
-    # items, conversations, ...).
-    conversation_database_url: str = os.getenv("CONVERSATION_DATABASE_URL", "")
+    # The one Supabase Postgres database behind every schema adapter
+    # (account, profile, sis, chat read+write; knowledge read-only), which
+    # share one connection pool (see app/adapters/postgres_pool.py).
+    database_url: str = os.getenv("DATABASE_URL", "")
 
-    # Knowledge base — read-only connection to the separate Supabase project
-    # holding the RAG corpus (schema `app`, table `document_chunks`) plus
-    # the course/career-role/curriculum-rule chunks course_recommendation
-    # parses. Only SELECT statements are ever issued against it.
-    knowledge_database_url: str = os.getenv("KNOWLEDGE_DATABASE_URL", "")
+    # Upper bound on the shared PostgreSQL connection pool (every schema
+    # adapter, knowledge retrieval included — see postgres_pool.py): how
+    # many database calls can run at once.
+    db_pool_max_size: int = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
 
     # Query-time embeddings for hybrid retrieval — unrelated to DeepSeek.
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -54,18 +54,25 @@ class Settings:
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
     # Chat session storage — which ConversationStore backend the
-    # orchestrator uses (see orchestrator/conversation_repository.py):
-    # "memory" (default, no Redis required), "redis", or "supabase_cached".
+    # conversation domain uses (see app/domains/conversation/repository.py):
+    # "supabase_cached" (what the app runs on) or "memory" (the default:
+    # development and tests, no database or Redis needed).
     session_store_backend: str = os.getenv("SESSION_STORE_BACKEND", "memory")
     session_ttl_seconds: int = int(os.getenv("SESSION_TTL_SECONDS", "86400"))
 
     # Block-based incremental history summarization (see
-    # orchestrator/conversation_service.py) — once the raw tail would exceed
+    # app/domains/conversation/service.py) — once the raw tail would exceed
     # history_raw_tail_max turns, the oldest history_block_size turns get
     # frozen into a permanent summary, keeping both the raw tail and the
     # per-turn database row bounded regardless of conversation length.
     history_block_size: int = int(os.getenv("HISTORY_BLOCK_SIZE", "10"))
     history_raw_tail_max: int = int(os.getenv("HISTORY_RAW_TAIL_MAX", "15"))
+    # Earlier assistant replies longer than this are shortened (start and
+    # end kept) wherever the history goes into a prompt — a recommendation
+    # or plan can run to thousands of characters, and replaying fifteen of
+    # them in full every turn costs more than it tells the model. The
+    # stored conversation keeps them whole.
+    history_reply_max_chars: int = int(os.getenv("HISTORY_REPLY_MAX_CHARS", "1500"))
 
     # How long a session's lock (status='processing' or 'summarizing') is
     # honored before being treated as stale. Kept well above typical turn/
@@ -81,13 +88,53 @@ class Settings:
     # before the processing lock would be considered stale.
     dispatch_branch_timeout_seconds: int = int(os.getenv("DISPATCH_BRANCH_TIMEOUT_SECONDS", "45"))
 
-    # Object storage — checklist file uploads. Same Supabase project as
-    # conversation_database_url, but a separate API-style credential (a
-    # project URL + service_role key, not a Postgres DSN), since Storage is
-    # accessed through its own REST API rather than SQL.
+    # Whether the orchestrator runs its post-answer evaluation step (see
+    # orchestrator/dispatch/evaluation.py) — one extra cheap LLM call per
+    # turn (skipped entirely for "general" chat and whenever a tool already
+    # signalled needs_clarification) that checks a draft answer actually
+    # covers what was asked before it's returned. A kill switch, not a
+    # normal per-request knob — useful for isolating cost/latency during
+    # load testing.
+    enable_answer_evaluation: bool = os.getenv("ENABLE_ANSWER_EVALUATION", "true").lower() == "true"
+
+    # Whether the orchestrator's final-step reply-language conversion runs
+    # (see orchestrator/dispatch/localization.py) — every generation prompt
+    # answers in English regardless; this is the one step that, when the
+    # user's question wasn't in English, rewrites the finished answer into
+    # that language before it's returned. A kill switch, same rationale as
+    # enable_answer_evaluation above.
+    enable_localization: bool = os.getenv("ENABLE_LOCALIZATION", "true").lower() == "true"
+
+    # Whether the pre-execution requirements gate runs (see
+    # orchestrator/dispatch/requirements.py) — if any tool routing.py
+    # matched this turn is missing a required input, none of the matched
+    # tools run and the turn is answered with a single consolidated
+    # need-input request instead. Unlike the two kill switches above this
+    # costs no LLM call either way, so this exists purely as an emergency
+    # off switch (e.g. a tool's input_needs check turns out to be wrong
+    # in production) rather than for cost/latency isolation.
+    enable_input_requirements_gate: bool = (
+        os.getenv("ENABLE_INPUT_REQUIREMENTS_GATE", "true").lower() == "true"
+    )
+
+    # Supabase project URL + service_role key — API-style credentials for
+    # the same project as database_url (not a Postgres DSN), used by the
+    # Auth adapter's admin calls (see supabase_auth_adapter.py).
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
-    checklist_storage_bucket: str = os.getenv("CHECKLIST_STORAGE_BUCKET", "checklist-documents")
+
+    # Email verification codes (see app/domains/auth/service.py +
+    # app/adapters/resend_email_adapter.py). Unset RESEND_API_KEY makes the
+    # adapter print the code to the server log instead of emailing it — a
+    # deliberate dev-mode fallback, not an error, so registration is
+    # testable without a Resend account.
+    resend_api_key: str = os.getenv("RESEND_API_KEY", "")
+    email_from_address: str = os.getenv("EMAIL_FROM_ADDRESS", "onboarding@resend.dev")
+    email_verification_ttl_seconds: int = int(os.getenv("EMAIL_VERIFICATION_TTL_SECONDS", "600"))
+    email_verification_resend_cooldown_seconds: int = int(
+        os.getenv("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS", "60")
+    )
+    email_verification_max_attempts: int = int(os.getenv("EMAIL_VERIFICATION_MAX_ATTEMPTS", "5"))
 
     # CORS — comma-separated list of allowed frontend origins. Deliberately
     # not "*": that combined with allow_credentials=True isn't a valid CORS
@@ -102,15 +149,10 @@ class Settings:
 
 settings = Settings()
 
-# Fail closed rather than silently signing/verifying tokens with an empty or
-# guessable key — an unset JWT_SECRET_KEY would let anyone forge a valid
-# token for any user_id. 32 characters is the same floor commonly
-# recommended for an HS256 HMAC key.
-if not settings.jwt_secret_key or len(settings.jwt_secret_key) < 32:
-    raise RuntimeError(
-        "JWT_SECRET_KEY is missing or shorter than 32 characters. Refusing "
-        "to start: signing tokens with an empty/weak key lets anyone forge "
-        "a valid login for any user. Set JWT_SECRET_KEY in your environment "
-        "(see .env) to a long random value, e.g. `python -c \"import secrets; "
-        "print(secrets.token_urlsafe(48))\"`."
-    )
+# No fail-closed secret-strength check here (unlike the self-issued-JWT
+# design this replaced): access-token verification now uses Supabase's own
+# public JWKS endpoint (see app/domains/auth/security.py), not a value from
+# this app's own config — there's no shared secret that could be
+# missing/weak/forged, and a misconfigured/unreachable supabase_url simply
+# makes every verification fail closed on its own (JWKS lookup errors out
+# rather than ever accepting an unsigned/forged token).

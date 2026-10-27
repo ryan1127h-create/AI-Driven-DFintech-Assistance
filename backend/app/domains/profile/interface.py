@@ -1,14 +1,28 @@
 """
 Public interface of the profile domain — the only module other domains
 (and the orchestrator) are allowed to import from app.domains.profile.
-Everything else in this package (repository, resume_agent, resume_parser,
-service internals) is private.
+Everything else in this package (repository, validation, service
+internals) is private.
 
 Current consumers:
-    - chatbot uses get_profile_summary_text() to inject the applicant's
-      profile into the conversation.
-    - course_recommendation, program_comparison, and career_planning use
-      get_profile() for personalisation.
+    - chatbot uses get_profile_summary_text() to inject the user's profile
+      into the conversation.
+    - auth uses set_lifecycle_stage() and record_consents() at
+      registration, and get_profile_field() to derive the user's role.
+    - checklist uses set_lifecycle_stage() when an application is bound.
+    - the specialist chat tools read get_profile_for_purpose() — course
+      recommendation ("course"), career planning ("career"), programme
+      comparison ("adm") — and render facts with describe_value() /
+      describe_facts() for the specialists they call.
+    - cv_import checks the CV-processing consent, asks which fields a CV
+      may fill (cv_targets) and how each value would be stored
+      (check_value), and records each upload and its extracted
+      candidates (start/fail/finish_cv_document, latest_cv_import), and
+      forgets them on request (delete_cv_data).
+    - derived_labels reads the profile (get_profile_values,
+      field_definitions) and stores what it computes (save_derived_labels);
+      the course recommendation tool reads derived_course_notes(), which the
+      chat summary includes too.
 
 Usage:
     from app.domains.profile.interface import get_profile_summary_text
@@ -16,60 +30,154 @@ Usage:
 
 from __future__ import annotations
 
-from app.domains.profile import repository
+from app.domains.profile import service
 
-__all__ = ["get_profile", "get_profile_summary_text", "render_profile_summary"]
+__all__ = [
+    "check_value",
+    "derived_course_notes",
+    "derived_readiness_gaps",
+    "cv_targets",
+    "describe_facts",
+    "delete_cv_data",
+    "describe_value",
+    "field_labels",
+    "get_profile_field",
+    "get_profile_for_purpose",
+    "fail_cv_document",
+    "field_definitions",
+    "get_derived_labels",
+    "get_profile_values",
+    "finish_cv_document",
+    "get_profile_summary_text",
+    "has_consent",
+    "missing_purpose_consent",
+    "latest_cv_import",
+    "list_user_ids",
+    "record_consents",
+    "save_derived_labels",
+    "set_lifecycle_stage",
+    "start_cv_document",
+]
 
 
-def get_profile(user_id: str) -> dict | None:
-    """Public read interface for other domains."""
-    return repository.get(user_id)
+def get_profile_for_purpose(user_id: str, purpose: str) -> dict:
+    """{field_key: value} usable for one purpose under the user's consents
+    (empty without consent); see service.get_facts_for_purpose."""
+    return service.get_facts_for_purpose(user_id, purpose)
+
+
+def get_fact_sources_for_purpose(user_id: str, purpose: str) -> dict[str, str]:
+    """{field_key: source} ("QA", "CV", "DB", ...) for the same facts as
+    get_profile_for_purpose — where each value came from."""
+    return service.get_fact_sources_for_purpose(user_id, purpose)
+
+
+def describe_facts(facts: dict) -> list[str]:
+    """One English "Label: value" line per fact, in field-dictionary order."""
+    return service.describe_facts(facts)
+
+
+def describe_value(field_key: str, value) -> str:
+    """English display text for a field value."""
+    return service.describe_value(field_key, value)
+
+
+def field_labels(field_keys) -> dict[str, str]:
+    """field_key -> its English label (field_definitions.label)."""
+    return service.field_labels(field_keys)
+
+
+def get_profile_field(user_id: str, field_key: str):
+    """The current merged value of one field (see v_profile), or None."""
+    return service.get_field(user_id, field_key)
+
+
+def set_lifecycle_stage(user_id: str, stage: str, *, source: str, actor: str) -> None:
+    """Moves the user to a lifecycle stage; see service.set_lifecycle_stage."""
+    service.set_lifecycle_stage(user_id, stage, source=source, actor=actor)
+
+
+def record_consents(user_id: str, decisions: dict[str, bool]) -> None:
+    """Records consent decisions (e.g. those made at registration)."""
+    service.update_consents(user_id, decisions)
 
 
 def get_profile_summary_text(user_id: str) -> str:
-    """Fetches the profile and renders it — see render_profile_summary()
-    if you already have the profile dict (e.g. via get_profile()) and want
-    to avoid fetching it twice."""
-    return render_profile_summary(repository.get(user_id))
+    """The consent-filtered profile summary for the chat prompt; empty
+    string if there is nothing to inject (caller should then skip the
+    SystemMessage entirely)."""
+    return service.chat_summary_text(user_id)
 
 
-def render_profile_summary(profile: dict | None) -> str:
-    """Pure rendering of an already-fetched profile dict into the same
-    compact text block get_profile_summary_text() produces — no I/O. No
-    profile on file -> empty string (caller should skip injecting a
-    SystemMessage entirely in that case)."""
-    if not profile:
-        return ""
+def has_consent(user_id: str, consent_key: str) -> bool:
+    return service.has_consent(user_id, consent_key)
 
-    lines = []
 
-    def _raw_std(raw_field: str, std_field: str, label: str):
-        raw, std = profile.get(raw_field), profile.get(std_field)
-        if std or raw:
-            lines.append(f"- {label}: {std or raw}")
+def missing_purpose_consent(user_id: str, purpose: str) -> str | None:
+    """The consent still needed before the profile can serve `purpose`
+    (e.g. "consent_personalized_rec" for "course"), or None."""
+    return service.missing_purpose_consent(user_id, purpose)
 
-    _raw_std("academic_background_raw", "academic_background_std", "Academic background")
-    if profile.get("school_tier"):
-        lines.append(f"- Undergrad tier: {profile['school_tier']}")
-    _raw_std("tech_level_raw", "tech_level_std", "Technical level")
-    if profile.get("work_years") is not None:
-        lines.append(f"- Work experience: {profile['work_years']} years")
-    for field, label in [("gmat", "GMAT"), ("gre", "GRE"), ("toefl", "TOEFL"), ("ielts", "IELTS")]:
-        if profile.get(field) is not None:
-            lines.append(f"- {label}: {profile[field]}")
-    _raw_std("target_role_raw", "target_role_std", "Target career")
-    _raw_std("target_industry_raw", "target_industry_std", "Target industry")
-    if profile.get("lifecycle_stage"):
-        lines.append(f"- Lifecycle stage: {profile['lifecycle_stage']}")
-    if profile.get("application_term"):
-        lines.append(f"- Application term: {profile['application_term']}")
-    if profile.get("intake_year"):
-        lines.append(f"- Intake year: {profile['intake_year']}")
-    if profile.get("completed_courses"):
-        courses = ", ".join(profile["completed_courses"])
-        lines.append(f"- Relevant prior/completed courses: {courses}")
 
-    if not lines:
-        return ""
+def cv_targets(user_id: str) -> list[dict]:
+    """The field definitions a CV may pre-fill for this user."""
+    return service.cv_targets(user_id)
 
-    return "Known applicant profile (from their uploaded resume, use it but don't recite it verbatim):\n" + "\n".join(lines)
+
+def check_value(field_key: str, value):
+    """The value normalized as the profile would store it, or None."""
+    return service.check_value(field_key, value)
+
+
+def start_cv_document(user_id: str) -> str:
+    return service.start_cv_document(user_id)
+
+
+def fail_cv_document(document_id: str, error: str) -> None:
+    service.fail_cv_document(document_id, error)
+
+
+def finish_cv_document(user_id: str, document_id: str, candidates: dict) -> dict:
+    """candidates: {field_key: {value, quote}}, already checked."""
+    return service.finish_cv_document(user_id, document_id, candidates)
+
+
+def latest_cv_import(user_id: str) -> dict | None:
+    return service.latest_cv_import(user_id)
+
+
+def delete_cv_data(user_id: str) -> int:
+    """Clears kept CV candidates and quotes; profile values stay."""
+    return service.delete_cv_data(user_id)
+
+
+def field_definitions() -> dict:
+    """The whole field dictionary, {field_key: definition}."""
+    return service.repository.load_field_definitions()
+
+
+def get_profile_values(user_id: str) -> dict:
+    """Unfiltered {field_key: value}; for derived-label rules only."""
+    return service.get_profile_values(user_id)
+
+
+def save_derived_labels(user_id: str, labels: dict, rules_version: str) -> None:
+    service.save_derived_labels(user_id, labels, rules_version)
+
+
+def get_derived_labels(user_id: str) -> dict | None:
+    return service.get_derived_labels(user_id)
+
+
+def list_user_ids() -> list[str]:
+    return service.list_user_ids()
+
+
+def derived_course_notes(user_id: str) -> dict[str, list[str]]:
+    """{"readiness": [...], "graduation": [...]} sentences (consent-gated)."""
+    return service.derived_course_notes(user_id)
+
+
+def derived_readiness_gaps(user_id: str) -> list[dict]:
+    """[{area, level, required}] readiness gaps (consent-gated)."""
+    return service.derived_readiness_gaps(user_id)

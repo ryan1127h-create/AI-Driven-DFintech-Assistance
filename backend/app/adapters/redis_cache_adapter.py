@@ -33,5 +33,12 @@ class RedisCacheAdapter(CachePort):
     def delete(self, key: str) -> None:
         self._client.delete(key)
 
+    def delete_prefix(self, prefix: str) -> int:
+        # SCAN, not KEYS: it doesn't block the server while it walks the keyspace.
+        keys = list(self._client.scan_iter(match=f"{prefix}*", count=500))
+        if keys:
+            self._client.delete(*keys)
+        return len(keys)
+
 
 cache = RedisCacheAdapter(settings.redis_url)

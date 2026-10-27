@@ -15,7 +15,10 @@ from typing import Iterator, Protocol, TypedDict
 
 
 class ChatMessage(TypedDict):
-    role: str  # "user" or "assistant"
+    # "user" or "assistant" for the conversation's turns; "system" for
+    # context placed among them (the user's profile, earlier-turn
+    # summaries) — never the user's own words.
+    role: str
     content: str
 
 

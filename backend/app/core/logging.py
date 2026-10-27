@@ -45,10 +45,6 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def get_correlation_id() -> str:
-    return _correlation_id.get()
-
-
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """Assigns a correlation id to every incoming request — reusing the
     `X-Correlation-ID` request header when the caller supplies one (so an

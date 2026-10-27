@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Send,
@@ -15,38 +16,33 @@ import {
   Undo2,
   Loader2,
   Pencil,
+  BookOpen,
+  ExternalLink,
+  ShieldCheck,
+  Lightbulb,
+  Info,
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
-import { ROLE_META } from "../../data/roles";
-import { suggestedPrompts, agents } from "../../data/conversations";
+import { STAGE_LABELS } from "../../data/stages";
+import { inputPlaceholders, suggestedPrompts, resolveAgent, resolveBasis } from "../../data/chat";
 import {
-  getProfile,
-  updateProfile,
-  createProfile,
-  extractProfile,
   getChatHistory,
   sendMessageStream,
   rollbackChat,
 } from "../../../api";
 import { cn } from "../../utils/cn";
-import ThemeToggle from "../ThemeToggle";
-import LandingStep from "./wizard/LandingStep";
-import FormStep from "./wizard/FormStep";
-import SettingsModal from "./wizard/SettingsModal";
-import { LoadingSpinner } from "./apiWidgets";
+import { formatTime } from "../../utils/format";
+import OnboardingFlow from "./onboarding/OnboardingFlow";
+import ConsentCard from "./chat/ConsentCard";
+import QuickFillCard from "./chat/QuickFillCard";
+import SaveSuggestions from "./chat/SaveSuggestions";
+import EscalationCard from "./chat/EscalationCard";
+import AlumniMatchesCard from "./chat/AlumniMatchesCard";
+import { ReminderItem } from "./reminders/ReminderBell";
+import useReminders from "./reminders/useReminders";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-
-const WIZARD_LANDING = "landing";
-const WIZARD_FORM = "form";
-const CHAT = "chat";
-
-const SETTINGS_STATUS = {
-  configured: false,
-  model: "deepseek-v4-pro",
-  key_hint: "",
-};
 
 // How many of the most recent AI replies get a rollback ("go back to before
 // this point") button. This is a UI display cap, not a safety boundary — the
@@ -80,170 +76,76 @@ function computeRollbackEligibility(messages) {
 export default function ChatWorkspace() {
   const { user } = useRole();
   const navigate = useNavigate();
-  const { messages, addMessage, isStreaming, setIsStreaming, clearMessages } = useChat();
-  const [view, setView] = useState(WIZARD_LANDING);
-  const [landingData, setLandingData] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [profileChecked, setProfileChecked] = useState(false);
-  const [error, setError] = useState(null);
-
+  const location = useLocation();
+  // The profile page's "Update from CV" lands here with this state, opening
+  // profile setup straight on the CV step.
+  const [cvImportOpen, setCvImportOpen] = useState(Boolean(location.state?.openCvImport));
+  // Settings' "Run it again" lands here with this state.
+  const [onboardingOpen, setOnboardingOpen] = useState(Boolean(location.state?.openOnboarding));
+  // Also when that happens while this page is already open.
   useEffect(() => {
-    let active = true;
+    if (location.state?.openOnboarding) setOnboardingOpen(true);
+  }, [location.state]);
 
-    const checkProfile = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const existingProfile = await getProfile();
-        if (!active) return;
-
-        if (existingProfile !== null) {
-          setProfile(existingProfile);
-          setView(CHAT);
-        }
-      } catch (err) {
-        if (active) setError(err.message || "Unable to check your profile.");
-      } finally {
-        if (active) {
-          setLoading(false);
-          setProfileChecked(true);
-        }
-      }
-    };
-
-    checkProfile();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (!profileChecked) {
-    return <LoadingSpinner label="Checking your profile..." />;
-  }
-
-  const handleLandingAdvance = async (data) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = data.cvFile
-        ? await extractProfile(data)
-        : {
-            prefill: {
-              lifecycle_stage: data.lifecycle_stage,
-              profile_summary: data.text || "",
-            },
-          };
-      setLandingData({ ...response.prefill, cvFile: data.cvFile });
-      setView(WIZARD_FORM);
-    } catch (err) {
-      setError(err.message || "Unable to extract profile data.");
-    } finally {
-      setLoading(false);
+  const closeOnboarding = () => {
+    setOnboardingOpen(false);
+    if (cvImportOpen || location.state) {
+      setCvImportOpen(false);
+      navigate("/app", { replace: true, state: null });
     }
   };
 
-  const handleGenerate = async (formProfile) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const profilePayload = {
-        lifecycle_stage: formProfile.lifecycle_stage === "applicant" ? "applicant" : "prospect" ,
-        academic_background_raw: formProfile.academic_background_raw || null,
-        academic_background_std: formProfile.academic_background_std || null,
-        school_tier: formProfile.school_tier || null,
-        tech_level_raw: formProfile.tech_level_raw || null,
-        tech_level_std: formProfile.tech_level_std || null,
-        work_years: formProfile.work_years === "" ? null : Number(formProfile.work_years),
-        gmat: formProfile.gmat === "" ? null : Number(formProfile.gmat),
-        gre: formProfile.gre === "" ? null : Number(formProfile.gre),
-        toefl: formProfile.toefl === "" ? null : Number(formProfile.toefl),
-        ielts: formProfile.ielts === "" ? null : Number(formProfile.ielts),
-        target_role_raw: formProfile.target_role_raw || null,
-        target_role_std: formProfile.target_role_std || null,
-        target_industry_std: formProfile.target_industry_std || null,
-        completed_courses: formProfile.completed_courses || [],
-      };
-      const savedProfile = profile
-        ? await updateProfile(profilePayload)
-        : await createProfile(profilePayload);
-      setProfile(savedProfile);
-      setView(CHAT);
-    } catch (err) {
-      setError(err.message || "Unable to generate analysis.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSkip = () => {
-    clearMessages();
-    setView(CHAT);
-  };
-
-  const handleStartWizard = () => {
-    if (profile) {
-      // Already has a profile — send them to the real editing page instead
-      // of just re-affirming the CHAT view they're already in (see
-      // StudentSidebar.jsx's own "Profile" quick-access link, same target).
-      navigate("/workspace/profile");
-      return;
-    }
-
-    setView(WIZARD_LANDING);
-    setLandingData(null);
-    setProfile(null);
-    setError(null);
-  };
-
-  if (view === WIZARD_LANDING) {
-    return (
-      <div className="flex-1 flex flex-col h-full overflow-y-auto">
-        <LandingStep
-          onAdvance={handleLandingAdvance}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onSkip={handleSkip}
-          loading={loading}
-          error={error}
-        />
-        {settingsOpen && <SettingsModal status={SETTINGS_STATUS} onClose={() => setSettingsOpen(false)} onSave={() => {}} />}
-      </div>
-    );
+  if (user?.onboardingStatus === "not_started" || onboardingOpen || cvImportOpen) {
+    return <OnboardingFlow onDone={closeOnboarding} initialPhase={cvImportOpen ? "cv" : "entry"} />;
   }
 
-  if (view === WIZARD_FORM) {
-    return (
-      <div className="flex-1 flex flex-col h-full overflow-y-auto">
-        <FormStep
-          initial={landingData || { lifecycle_stage: "applicant" }}
-          onBack={() => setView(WIZARD_LANDING)}
-          onSave={handleGenerate}
-          loading={loading}
-          error={error}
-        />
-      </div>
-    );
-  }
-
-  return <ChatView user={user} onStartWizard={handleStartWizard} />;
+  // Once the questionnaire is done the profile page is where answers change;
+  // until then the same button reopens the questionnaire.
+  const profileDone = user?.onboardingStatus === "completed";
+  const openProfile = () => (profileDone ? navigate("/workspace/profile") : setOnboardingOpen(true));
+  return <ChatView user={user} profileDone={profileDone} onOpenProfile={openProfile} />;
 }
 
-function ChatView({ user, onStartWizard }) {
-  const { messages, addMessage, updateLastMessage, removeLastMessages, isStreaming, setIsStreaming, clearMessages } = useChat();
+function ProfileReminder({ onOpen }) {
+  return (
+    <div className="mx-4 lg:mx-8 mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-400/20 bg-brand-500/10 px-4 py-2.5 text-sm">
+      <span className="text-app-secondary">Add a few details to get advice that fits you.</span>
+      <button type="button" onClick={onOpen} className="font-medium text-brand-300 hover:underline">
+        Set up profile
+      </button>
+    </div>
+  );
+}
+
+function ChatView({ user, profileDone, onOpenProfile }) {
+  const {
+    messages, addMessage, updateLastMessage, removeLastMessages, isStreaming, setIsStreaming, clearMessages,
+    conversationsChanged,
+  } = useChat();
   const location = useLocation();
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState(null);
-  const [profile, setProfile] = useState(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
-  const meta = ROLE_META[user?.role];
-  const prompts = suggestedPrompts[user?.role] || [];
+  // Card fields dismissed since the last message was sent; they go out
+  // with the next one, so the backend stops offering them this session.
+  const pendingDeclines = useRef([]);
+  const stageLabel = STAGE_LABELS[user?.lifecycleStage] || STAGE_LABELS.prospect;
+  const prompts = suggestedPrompts[user?.policyStage] || suggestedPrompts.prospect;
+  const { items: reminders, dismiss: dismissReminder } = useReminders();
+  const navigate = useNavigate();
 
+  // ?prompt=<question> (a reminder's action) fills the input for the user to
+  // send; it is never sent on their behalf.
   useEffect(() => {
-    getProfile().then(setProfile).catch(() => setProfile(null));
-  }, []);
+    const params = new URLSearchParams(location.search);
+    const prompt = params.get("prompt");
+    if (!prompt) return;
+    setInput(prompt);
+    params.delete("prompt");
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    inputRef.current?.focus();
+  }, [location.search, location.pathname, navigate]);
 
   useEffect(() => {
     const selectedSessionId = new URLSearchParams(location.search).get("session");
@@ -251,6 +153,7 @@ function ChatView({ user, onStartWizard }) {
 
     setSessionId(selectedSessionId);
     clearMessages();
+    pendingDeclines.current = [];
 
     if (!selectedSessionId) {
       return () => {
@@ -275,9 +178,10 @@ function ChatView({ user, onStartWizard }) {
             // logged before this field existed, in which case fall back to a
             // generic label rather than showing nothing.
             intent: isAi ? (turn.intents?.join(", ") || "AI chat") : undefined,
-            stage: meta?.stage || "prospect",
+            stage: stageLabel,
             source: isAi ? (turn.agent_used || "AI Assistant") : undefined,
-            agent: isAi ? (agents.find((a) => a.id === turn.agent_used) || agents[0]) : undefined,
+            agent: isAi ? resolveAgent(turn.agent_used) : undefined,
+            sources: isAi ? turn.sources || [] : undefined,
             // Frozen/archived turns can never be rolled back (see
             // backend/app/orchestrator/turn_service.py::rollback_conversation)
             // — drives whether this message is eligible for the rollback button.
@@ -290,9 +194,9 @@ function ChatView({ user, onStartWizard }) {
             role: "assistant",
             content: error.message || "Unable to load this conversation.",
             intent: "Error",
-            stage: meta?.stage || "prospect",
+            stage: stageLabel,
             source: "System",
-            agent: agents[0],
+            agent: resolveAgent(null),
             time: "",
           });
         }
@@ -303,19 +207,26 @@ function ChatView({ user, onStartWizard }) {
     return () => {
       active = false;
     };
-  }, [location.search]);
+    // location.key, not only the search: "New Chat" from a conversation
+    // that was started here (its URL is still plain /app) navigates to the
+    // same URL, and only the key tells the two apart — without it the old
+    // session id survived and the next message continued that conversation.
+  }, [location.search, location.key]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isStreaming]);
 
-  const timeNow = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeNow = () => formatTime(new Date());
 
-  const sendMessage = async (text, prompt) => {
+  // declinedFields: card fields the user skipped to get this answer.
+  const sendMessage = async (text, prompt, declinedFields = []) => {
     const promptObj = typeof prompt === "string" ? { text: prompt } : prompt;
     const content = (text || promptObj?.text || input).trim();
 
     if (!content || isStreaming) return;
+    const declined = [...new Set([...pendingDeclines.current, ...declinedFields])];
+    pendingDeclines.current = [];
 
     addMessage({ role: "user", content, time: timeNow() });
     setInput("");
@@ -328,7 +239,7 @@ function ChatView({ user, onStartWizard }) {
       content: "",
       steps: [],
       streaming: true,
-      stage: meta?.stage || "prospect",
+      stage: stageLabel,
       time: timeNow(),
     });
 
@@ -339,12 +250,12 @@ function ChatView({ user, onStartWizard }) {
         content: m.content || message || "Chat failed. Please try again.",
         intent: "Error",
         source: "System",
-        agent: agents[0],
+        agent: resolveAgent(null),
       }));
     };
 
     try {
-      await sendMessageStream(content, { session_id: sessionId }, {
+      await sendMessageStream(content, { session_id: sessionId, declined_fields: declined }, {
         onStep: (event) => {
           updateLastMessage((m) => ({ ...m, steps: [...(m.steps || []), event] }));
         },
@@ -353,16 +264,22 @@ function ChatView({ user, onStartWizard }) {
         },
         onDone: (data) => {
           setSessionId(data.session_id);
-          const agent = agents.find((a) => a.id === data.agent_used) || agents[0];
+          conversationsChanged();
+          const agent = resolveAgent(data.agent_used);
           updateLastMessage((m) => {
             const classified = (m.steps || []).find((s) => s.stage === "classified");
             return {
               ...m,
-              // Snap to the authoritative final text (includes the Sources
-              // footer, appended server-side only after streaming ends —
-              // see agents/supervisor.py/rag_agent.py).
+              // Snap to the authoritative final text: it includes the
+              // Sources footer (appended server-side after streaming ends,
+              // see backend/app/orchestrator/dispatch/__init__.py), and a
+              // checked answer may replace the streamed draft.
               content: data.reply,
               streaming: false,
+              card: data.card || null,
+              supplementCard: data.supplement_card || null,
+              saveSuggestions: data.save_suggestions || [],
+              escalation: data.escalation || null,
               intent: classified?.intents?.join(", ") || "AI chat",
               source: data.agent_used || "AI Assistant",
               agent,
@@ -411,15 +328,15 @@ function ChatView({ user, onStartWizard }) {
             Online
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-        </div>
       </div>
+
+      {user?.onboardingStatus === "skipped" && <ProfileReminder onOpen={onOpenProfile} />}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 lg:px-8 py-6">
         {messages.length === 0 ? (
-          <WelcomeView user={user} meta={meta} prompts={prompts} onPrompt={(prompt) => sendMessage(prompt.text, prompt)} onStartWizard={onStartWizard} hasProfile={!!profile} />
+          <WelcomeView user={user} prompts={prompts} onPrompt={(prompt) => sendMessage(prompt.text, prompt)} onOpenProfile={onOpenProfile} profileDone={profileDone}
+            reminder={reminders[0]} onDismissReminder={dismissReminder} />
         ) : (
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((msg, i) =>
@@ -432,6 +349,13 @@ function ChatView({ user, onStartWizard }) {
                   rollbackTurns={rollbackEligibility.get(i)}
                   rollbackPrefill={messages[i - 1]?.content}
                   onRollback={handleRollback}
+                  cardActive={i === messages.length - 1 && !isStreaming}
+                  sessionId={sessionId}
+                  onCardAnswered={() => sendMessage(messages[i - 1]?.content)}
+                  onCardSkipped={(fields) => sendMessage(messages[i - 1]?.content, null, fields)}
+                  onCardDismissed={(fields) => {
+                    pendingDeclines.current = [...pendingDeclines.current, ...fields];
+                  }}
                 />
               ),
             )}
@@ -453,7 +377,7 @@ function ChatView({ user, onStartWizard }) {
                   sendMessage();
                 }
               }}
-              placeholder={`Ask about ${meta?.label} lifecycle...`}
+              placeholder={inputPlaceholders[user?.policyStage] || inputPlaceholders.prospect}
               rows={1}
               className="flex-1 bg-transparent text-sm text-app-primary placeholder:text-app-faint focus:outline-none resize-none px-3 py-2 max-h-32"
             />
@@ -474,39 +398,27 @@ function ChatView({ user, onStartWizard }) {
   );
 }
 
-function WelcomeView({ user, meta, prompts, onPrompt, onStartWizard, hasProfile }) {
+function WelcomeView({ user, prompts, onPrompt, onOpenProfile, profileDone, reminder, onDismissReminder }) {
   return (
     <div className="max-w-3xl mx-auto animate-fadeIn">
+      {/* The most pressing reminder, if any */}
+      {reminder && <ul className="mb-6"><ReminderItem reminder={reminder} onDismiss={onDismissReminder} /></ul>}
+
       {/* Hero */}
       <div className="text-center mb-8">
         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-royal-600/20 border border-brand-400/20 mb-4">
           <Sparkles size={28} className="text-brand-300" />
         </div>
         <h1 className="font-display text-2xl lg:text-3xl font-bold text-app-primary">
-          Hello, {user?.name?.split(" ")[0]}
+          Hello, {user?.name}
         </h1>
         <p className="text-app-muted mt-1">
-          I'm your MSc DFT lifecycle assistant. How can I help you today?
+          I&apos;m your MSc DFT lifecycle assistant. How can I help you today?
         </p>
-        <button onClick={onStartWizard} className="btn-outline mt-4">
-          {hasProfile ? <Pencil size={14} /> : <Sparkles size={14} />}
-          {hasProfile ? "Edit profile" : "Create profile"}
+        <button onClick={onOpenProfile} className="btn-outline mt-4">
+          {profileDone ? <Pencil size={14} /> : <Sparkles size={14} />}
+          {profileDone ? "Edit profile" : "Set up profile"}
         </button>
-      </div>
-
-      {/* Profile summary */}
-      <div className="card p-4 mb-6 flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300 font-display font-bold">
-          {user?.avatar}
-        </div>
-        <div className="flex-1">
-          <p className="font-medium text-app-primary">{user?.name}</p>
-          <p className="text-sm text-app-muted">{meta?.label} · {meta?.stage} stage</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-app-faint">Lifecycle progress</p>
-          <p className="font-display text-lg font-bold text-app-primary">{user?.progress}%</p>
-        </div>
       </div>
 
       {/* Suggested prompts */}
@@ -550,8 +462,14 @@ function UserMessage({ msg }) {
   );
 }
 
-function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
+function AssistantMessage({
+  msg, rollbackTurns, rollbackPrefill, onRollback, cardActive, sessionId, onCardAnswered, onCardSkipped, onCardDismissed,
+}) {
   const [copied, setCopied] = useState(false);
+  // A live reply carries its sources inside its text; one loaded from
+  // history has them alongside.
+  const { body, sources: inText } = splitSources(msg.content);
+  const sources = msg.sources?.length ? msg.sources : inText;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(msg.content);
@@ -565,7 +483,7 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
         <Bot size={16} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="card p-4 relative">
+        <div className="card assistant-reply-card p-4 relative">
           {rollbackTurns !== undefined && (
             <button
               onClick={() => onRollback(rollbackTurns, rollbackPrefill)}
@@ -592,11 +510,14 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
 
           {msg.streaming && !msg.steps?.length && !msg.content && <ThinkingDots />}
 
-          {msg.content && (
-            <div className="prose prose-sm prose-invert text-sm text-app-primary leading-relaxed break-words">
+          {body && (
+            <div className="assistant-reply-reading">
+            <div className="prose assistant-reply-content prose-sm prose-invert text-sm text-app-primary leading-relaxed break-words">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
+                  // `node` is taken out so it isn't spread onto the <a> element.
+                  // eslint-disable-next-line no-unused-vars
                   a: ({ node, ...props }) => {
                     const href = props.href || "";
                     if (href.startsWith("mailto:")) {
@@ -624,18 +545,43 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
                   },
                 }}
               >
-                {msg.content}
+                {body}
               </ReactMarkdown>
               {msg.streaming && <span className="inline-block w-1.5 h-4 bg-brand-300 ml-0.5 align-middle animate-pulseDot" />}
             </div>
+            </div>
           )}
+
+          {/* What the reply needs before it can answer, answerable in place */}
+          {msg.card?.kind === "quick_fill" && (
+            <QuickFillCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} onSkip={onCardSkipped} />
+          )}
+          {msg.card?.kind === "consent" && (
+            <ConsentCard card={msg.card} active={cardActive} onAnswered={onCardAnswered} />
+          )}
+          {msg.card?.kind === "alumni_matches" && <AlumniMatchesCard card={msg.card} />}
+
+          {/* Details that would sharpen the answer, never in the way */}
+          {msg.supplementCard && (
+            <QuickFillCard
+              card={msg.supplementCard}
+              active={cardActive}
+              onAnswered={onCardAnswered}
+              onDismiss={onCardDismissed}
+            />
+          )}
+
+          {msg.saveSuggestions?.length > 0 && <SaveSuggestions suggestions={msg.saveSuggestions} />}
+
+          {/* Passed to the programme office, or offered to be */}
+          {msg.escalation && <EscalationCard escalation={msg.escalation} sessionId={sessionId} active={cardActive} />}
 
           {/* Metadata — only meaningful once the reply has fully resolved */}
           {!msg.streaming && (
             <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-app-subtle">
-              <MetaChip label="Intent" value={msg.intent} color="brand" />
-              <MetaChip label="Stage" value={msg.stage} color="royal" />
-              <MetaChip label="Source" value={msg.source} color="cyan2" />
+              {resolveBasis(msg.source).map((basis) => <BasisBadge key={basis.label} basis={basis} />)}
+              <MetaChip label="Agent" value={msg.source} color="cyan2" />
+              {sources.length > 0 && <SourcesChip sources={sources} />}
             </div>
           )}
         </div>
@@ -652,6 +598,125 @@ function AssistantMessage({ msg, rollbackTurns, rollbackPrefill, onRollback }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// The backend appends a reply's sources as a trailing "Sources:" list (see
+// orchestrator/dispatch/__init__.py::_reply_with_sources); the chat shows
+// them in the Sources chip instead of the message body. Copy keeps the full
+// text.
+const SOURCES_BLOCK = /\n+Sources:\n((?:[ \t]*- .*(?:\n|$))+)\s*$/;
+
+function splitSources(content) {
+  const match = (content || "").match(SOURCES_BLOCK);
+  if (!match) return { body: content, sources: [] };
+  const sources = match[1].split("\n").map((line) => line.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+  return { body: content.slice(0, match.index).trimEnd(), sources };
+}
+
+const POPOVER_WIDTH = 320;
+const POPOVER_MARGIN = 12;
+
+// The list opens above the chip in a portal on <body>, positioned from the
+// chip and the window, so it never widens the chat column (no horizontal
+// scrollbar) and shifts left when the chip sits near the right edge. It is
+// only rendered while open; scrolling or resizing closes it.
+function SourcesChip({ sources }) {
+  const chipRef = useRef(null);
+  const closeTimer = useRef(null);
+  const [position, setPosition] = useState(null);
+
+  const open = () => {
+    clearTimeout(closeTimer.current);
+    const rect = chipRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - POPOVER_MARGIN * 2);
+    const left = Math.min(Math.max(rect.left, POPOVER_MARGIN), window.innerWidth - width - POPOVER_MARGIN);
+    setPosition({ left, width, bottom: window.innerHeight - rect.top + 6 });
+  };
+  // A short delay lets the pointer travel from the chip onto the list.
+  const scheduleClose = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setPosition(null), 120);
+  };
+
+  useEffect(() => {
+    if (!position) return undefined;
+    const close = () => setPosition(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [position]);
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  return (
+    <>
+      <span
+        ref={chipRef}
+        tabIndex={0}
+        onMouseEnter={open}
+        onMouseLeave={scheduleClose}
+        onFocus={open}
+        onBlur={scheduleClose}
+        className={cn(
+          "chip cursor-default border bg-app-hover transition",
+          position ? "border-brand-400/30" : "border-app-subtle",
+        )}
+      >
+        <BookOpen size={11} className="text-app-faint" />
+        <span className="text-app-faint">Sources</span>
+        <span className="font-medium text-app-secondary">{sources.length}</span>
+      </span>
+      {position &&
+        createPortal(
+          <div
+            role="tooltip"
+            onMouseEnter={open}
+            onMouseLeave={scheduleClose}
+            style={{ position: "fixed", left: position.left, bottom: position.bottom, width: position.width }}
+            className="z-50 rounded-xl border border-app-subtle p-3 shadow-glass glass animate-fadeIn"
+          >
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-app-faint">Sources</p>
+            <ul className="space-y-1.5">
+              {sources.map((source) => (
+                <li key={source} className="flex items-start gap-1.5 text-xs">
+                  <ExternalLink size={11} className="mt-0.5 flex-shrink-0 text-app-faint" />
+                  {/^https?:\/\//.test(source) ? (
+                    <a href={source} target="_blank" rel="noopener noreferrer" className="min-w-0 break-all text-brand-300 hover:underline">
+                      {source}
+                    </a>
+                  ) : (
+                    <span className="min-w-0 break-words text-app-secondary">{source}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+// What kind of answer this is (see data/chat.js resolveBasis).
+const BASIS_STYLES = {
+  official: "border-emerald2-400/30 bg-emerald2-400/10 text-emerald2-400",
+  facts: "border-brand-400/30 bg-brand-500/10 text-brand-300",
+  recommendation: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  alumni: "border-royal-400/30 bg-royal-500/10 text-royal-300",
+};
+
+function BasisBadge({ basis }) {
+  const Icon = basis.tone === "official" ? ShieldCheck : basis.tone === "recommendation" ? Lightbulb : Info;
+  return (
+    <span className={cn("chip border inline-flex items-center gap-1 font-medium", BASIS_STYLES[basis.tone])}>
+      <Icon size={11} />
+      {basis.label}
+    </span>
   );
 }
 
@@ -688,8 +753,8 @@ function ThinkingDots() {
 }
 
 // One entry per {"type":"step", "stage": ..., ...} event from POST
-// /chat/stream (see agents/supervisor.py / rag_agent.py / etc. on the
-// backend for exactly when each stage fires). Renders the "path" the agent
+// /chat/stream (see backend/app/orchestrator/dispatch/ for exactly when
+// each stage fires). Renders the "path" the agent
 // took — expanded while the reply is still streaming in, collapsible into a
 // small toggle once it's done (mirrors Claude's collapsed "Thinking" panel).
 const STEP_LABELS = {
@@ -697,8 +762,10 @@ const STEP_LABELS = {
   classified: (e) => `Classified as: ${(e.intents || []).join(", ") || "general"}`,
   dispatch_start: (e) => `Multiple topics detected — processing in parallel: ${(e.agents || []).join(", ")}`,
   branch_done: (e) => `${e.agent} ${e.timeout ? "timed out" : e.ok ? "finished" : "failed"}`,
-  synthesizing: () => "Combining the answers into one reply",
+  waiting_for_history: () => "Tidying up the earlier conversation — sending in a moment",
   answering: (e) => `Generating the answer${e.agent ? ` (${e.agent})` : ""}`,
+  evaluating: () => "Checking the answer actually covers your question",
+  revising: () => "Answer needed more — refining it",
 };
 
 // `active` = this is the step currently being worked on (the last one, while

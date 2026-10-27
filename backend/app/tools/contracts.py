@@ -12,8 +12,8 @@ the same "optional, ignored when absent" convention). A tool being run as
 the orchestrator's sole answer to a turn is called with a real callback so
 its answer streams to the user as it's produced; a tool running as one
 branch of a multi-tool dispatch is called with on_event=None, since its
-output is only a draft the orchestrator synthesizes further — never shown
-to the user verbatim.
+output is joined with the other branches' answers (orchestrator/dispatch/
+merge.py) before the user sees it.
 
 Domains and shared utilities register themselves into the module-level
 `registry` at import time; the orchestrator (and anything else that wants
@@ -23,11 +23,14 @@ to call a tool by name) only ever reads from it.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Type
+from typing import Any, Callable, Literal, Type
 
 from pydantic import BaseModel
 
+from app.core.logging import get_logger
 from app.core.resilience import run_with_timeout
+
+logger = get_logger(__name__)
 
 OnEvent = Callable[[dict], None]
 ToolHandler = Callable[..., Any]  # (input, *, on_event: OnEvent | None = None) -> Any
@@ -46,6 +49,79 @@ class ToolAnswer:
     # but may differ when a tool degraded to a fallback path internally
     # (e.g. "career_agent_fallback" when the primary integration raised).
     agent_used: str = ""
+    # Set by a handler that already knows, deterministically, that it's
+    # short of what it needs from the user (not from a database it already
+    # has) rather than guessing an answer — e.g. a career-plan request with
+    # no target role and no profile on file. The orchestrator's post-answer
+    # evaluation step (orchestrator/dispatch/evaluation.py) treats this as a
+    # signal to skip its own LLM judgement entirely: the tool already knows
+    # more cheaply and more reliably than a second LLM call re-guessing it
+    # would.
+    needs_clarification: bool = False
+    # A card asking for what the turn is missing, rendered in place of (and
+    # as well as) the clarifying question — set by
+    # orchestrator/dispatch/requirements.py when it blocks a turn:
+    #   {"kind": "quick_fill", "level": "required" | "optional",
+    #    "skippable": bool, "reason": str,
+    #    "fields": [{"slot", "field_key", "prompt"}]}
+    #   — each field_key a profile field the client fills from its own field
+    #   definitions and saves through PATCH /profile before re-sending the
+    #   user's message (or, when skippable, re-sends it with the fields in
+    #   ChatRequest.declined_fields);
+    #   {"kind": "consent", "consent_key": str, "reason": str}
+    #   — the profile can't be used without this consent; the client turns
+    #   it on through PUT /profile/consents and re-sends the message.
+    card: dict | None = None
+    # A non-blocking card under an answer offering supplementary profile
+    # fields: {"kind": "quick_fill", "level": "supplementary", "reason",
+    # "fields": [...]}; dismissing it declines the fields for the session.
+    supplement_card: dict | None = None
+    # Facts the user stated this turn that differ from their profile,
+    # offered under the reply for the user to save: [{"field_key",
+    # "value"}] — the client labels them from its field definitions. Never
+    # written without the user's confirmation.
+    save_suggestions: list[dict] = field(default_factory=list)
+    # What this turn did, in structured form, for the next turn to read
+    # (see TurnState.previous_turn) — one entry per tool that answered:
+    #   {"tool": str, "mode": str | None,
+    #    "subjects": [str],            # what was shown: role tags, course codes
+    #    "awaiting": {"kind": "choose_role" | "fields" | "consent",
+    #                 "options": [{"key", "label"}],   # choose_role
+    #                 "field_keys": [str]}             # fields
+    #                | None}           # a question the reply ended on
+    # Persisted with the turn's log entry (conversation.record_turn), never
+    # shown to the user.
+    contexts: list[dict] = field(default_factory=list)
+
+
+InputLevel = Literal["required", "optional", "supplementary"]
+
+
+@dataclass(frozen=True)
+class MissingInputField:
+    """One input a tool could not resolve for this turn, at one of three
+    levels: "required" (no meaningful answer without it — the turn waits
+    for it, no skipping), "optional" (an answer is possible but much worse
+    — the turn waits, but the user may skip) and "supplementary" (it would
+    help somewhat — asked under the answer, never blocking).
+    `slot` is a stable, machine-readable id (e.g. "target_role") used to
+    de-duplicate the same requirement across multiple matched tools;
+    `prompt` is the exact user-facing text asking for it — reused verbatim
+    from the tool's own existing wording wherever one already exists, so
+    the single-tool case reads identically to before this mechanism
+    existed."""
+
+    slot: str
+    prompt: str
+    # The profile field that answers this slot, when one does — the
+    # requirement then becomes a quick-fill card field the user can answer
+    # in place. None for a slot no profile field captures (e.g. a free-text
+    # background description), which stays a plain question.
+    field_key: str | None = None
+    level: InputLevel = "required"
+    # Set instead of field_key when the profile can't be used at all
+    # without this consent (see app/tools/input_needs.py).
+    consent_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +140,20 @@ class Tool:
     # tool that's only ever called directly (by name), never routed to by
     # intent classification.
     trigger_intents: frozenset[str] = field(default_factory=frozenset)
+    # Declares what this tool is missing for the current turn's TurnState,
+    # each at its level (see MissingInputField). Called once per turn —
+    # before any of this turn's matched tools actually run — by
+    # orchestrator/dispatch/requirements.py, never by the tool itself.
+    # None (the default) means "needs nothing". Must be cheap,
+    # deterministic, and synchronous — no LLM call (the same rule
+    # ToolAnswer.needs_clarification already follows: a tool should know
+    # this more cheaply and reliably than asking an LLM to re-guess it).
+    input_needs: Callable[[Any], tuple[MissingInputField, ...]] | None = None
+    # Skips the orchestrator's post-answer evaluation (see
+    # orchestrator/dispatch/evaluation.py) for a tool whose answer is
+    # deterministic — a "retry" verdict would only reproduce the same
+    # answer — and that checks its own reply against its result.
+    skip_evaluation: bool = False
 
 
 class ToolNotFoundError(Exception):
@@ -104,6 +194,9 @@ class ToolRegistry:
             return run_with_timeout(lambda: tool.handler(input_obj, on_event=on_event), tool.timeout_seconds)
         except Exception:
             if tool.fallback is not None:
+                # The user only sees the fallback reply, so the cause must
+                # reach the log.
+                logger.exception("tool %s failed; answering with its fallback", tool.name)
                 return tool.fallback(input_obj, on_event=on_event)
             raise
 

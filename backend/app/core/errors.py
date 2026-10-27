@@ -22,6 +22,10 @@ class DomainError(Exception):
     an expected outcome of the request, not a bug. See the subclasses
     below for the specific situations each one covers."""
 
+    def response_content(self) -> dict[str, object]:
+        """Public response body; domains may add safe structured fields."""
+        return {"detail": str(self)}
+
 
 class NotFoundError(DomainError):
     """The requested resource doesn't exist, or doesn't belong to the
@@ -52,12 +56,28 @@ class ForbiddenError(DomainError):
     from UnauthorizedError, where authentication itself is the problem."""
 
 
+class RateLimitError(DomainError):
+    """The request is individually valid, but the caller is doing it too
+    often (a resend cooldown, too many wrong verification-code attempts).
+    Distinct from ConflictError: nothing about the underlying state
+    conflicts, the caller just needs to slow down or start over."""
+
+
+class ServiceUnavailableError(DomainError):
+    """An external dependency this request needs (email delivery, etc.)
+    failed — the caller should retry later. Distinct from RateLimitError,
+    which is about the caller's own request rate, not a downstream
+    provider's availability."""
+
+
 _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     NotFoundError: 404,
     ValidationError: 400,
     ConflictError: 409,
     UnauthorizedError: 401,
     ForbiddenError: 403,
+    RateLimitError: 429,
+    ServiceUnavailableError: 503,
 }
 
 
@@ -67,7 +87,8 @@ def register_error_handlers(app: FastAPI) -> None:
     for error_type, status_code in _STATUS_BY_ERROR.items():
 
         def _handler(request: Request, exc: DomainError, _status: int = status_code) -> JSONResponse:
-            return JSONResponse(status_code=_status, content={"detail": str(exc)})
+            actual_status = getattr(exc, "status_code", _status)
+            return JSONResponse(status_code=actual_status, content=exc.response_content())
 
         app.add_exception_handler(error_type, _handler)
 

@@ -13,22 +13,26 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import health
 from app.domains.auth import api as auth_api
-from app.domains.career_planning import api as career_planning_api
+from app.domains.admin import api as admin_api
+from app.domains.alumni import api as alumni_api
 from app.domains.checklist import api as checklist_api
-from app.domains.course_catalog import api as course_catalog_api
-from app.domains.course_recommendation import api as course_recommendation_api
+from app.domains.cv_import import api as cv_import_api
+from app.domains.lifecycle import api as lifecycle_api
 from app.domains.profile import api as profile_api
-from app.domains.program_comparison import api as program_comparison_api
+from app.domains.programme_page import api as programme_page_api
+from app.domains.reminders import api as reminders_api
 from app.orchestrator import api as orchestrator_api
 
 router = APIRouter(prefix="/api/v1")
 
 router.include_router(health.router, tags=["health"])  # GET /health
 router.include_router(auth_api.router, tags=["auth"])  # POST /auth/register, /auth/login, /auth/logout, GET /auth/me
-router.include_router(checklist_api.router, tags=["checklist"])  # GET /checklist, PATCH/POST/GET /checklist/items/{item_id}[/file]
-router.include_router(profile_api.router, tags=["profile"])  # GET/PATCH/POST /profile, POST /profile/resume
-router.include_router(course_recommendation_api.router, tags=["course_recommendation"])  # POST /course-recommendations
-router.include_router(course_catalog_api.router, tags=["course_catalog"])  # GET /courses
-router.include_router(program_comparison_api.router, tags=["program_comparison"])  # GET/POST /program-comparisons
-router.include_router(career_planning_api.router, tags=["career_planning"])  # POST /career-plans
+router.include_router(admin_api.router, tags=["admin"])  # GET /admin/overview
+router.include_router(alumni_api.router, tags=["alumni"])  # GET /alumni/matches, /alumni/requests, /alumni/me
+router.include_router(checklist_api.router, tags=["checklist"])  # GET /checklist, POST /checklist/application
+router.include_router(cv_import_api.router, tags=["cv-import"])  # POST /cv-import, GET /cv-import/latest
+router.include_router(lifecycle_api.router, tags=["lifecycle"])  # GET /lifecycle
+router.include_router(profile_api.router, tags=["profile"])  # GET/PATCH /profile, /profile/definitions, /conflicts, /consents
+router.include_router(programme_page_api.router, tags=["programme"])  # GET /programme/overview (public)
+router.include_router(reminders_api.router, tags=["reminders"])  # GET /reminders, POST /reminders/dismiss
 router.include_router(orchestrator_api.router, tags=["chatbot"])  # POST /chat, /chat/stream, GET /chat/sessions, /chat/{id}/history, etc.

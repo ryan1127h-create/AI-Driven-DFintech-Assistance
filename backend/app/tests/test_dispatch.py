@@ -1,0 +1,342 @@
+"""Exercises orchestrator/dispatch/'s routing decisions and its resilience
+layers: per-draft evaluate-and-fix (accept/clarify/retry), the
+all-branches-failed shortcut, and the top-level safety net in answer_turn()
+that turns any uncaught exception into a graceful reply instead of letting
+it escape the turn.
+
+Domain-tool dispatch (routing.py/execution.py) still goes through
+app.tools.contracts.registry, so those tests monkeypatch `contracts.registry`
+directly (not `dispatch.registry` — with evaluation.py/execution.py each
+doing `from app.tools import contracts` and calling `contracts.registry...`,
+patching the one shared `contracts` module object is what makes a single
+patch visible to every dispatch submodule, regardless of which one actually
+calls it). evaluation.py/merge.py/localization.py are no longer
+registered Tools, so tests targeting them monkeypatch the relevant
+dispatch submodule's function (or its own `llm`) directly instead of
+registering a fake Tool."""
+
+from __future__ import annotations
+
+import pytest
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel
+
+from app.core.config import settings
+from app.orchestrator import classification, dispatch
+from app.orchestrator.dispatch.evaluation import BranchVerdict
+from app.tools import contracts
+from app.tools.contracts import Tool, ToolAnswer, ToolRegistry
+from app.tools.turn_context import TurnState
+
+
+@pytest.fixture(autouse=True)
+def _empty_registry(monkeypatch):
+    """Every test starts from an empty registry; tests that need tools
+    install their own. Without this, the result depended on whether an
+    earlier test module had imported app.main (which registers the real
+    tools — the real admissions tool skips evaluation, so evaluate_and_fix
+    returned the draft unchanged)."""
+    monkeypatch.setattr(contracts, "registry", ToolRegistry())
+
+
+class _Input(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
+
+def _state(message: str = "What's the tuition fee?", reply_language: str = "en") -> TurnState:
+    return TurnState(messages=[HumanMessage(content=message)], user_id="u1", reply_language=reply_language)
+
+
+def _tool(name: str, intents: frozenset[str], reply: str = "ok") -> Tool:
+    return Tool(
+        name=name, description=name, input_model=_Input,
+        handler=lambda inp, on_event=None: ToolAnswer(text=reply, agent_used=name),
+        trigger_intents=intents,
+    )
+
+
+# ---- routing.route -------------------------------------------------------
+
+def test_off_topic_alone_declines():
+    assert dispatch.routing.route(["off_topic"]) == ("decline", [])
+
+
+def test_off_topic_mixed_with_a_valid_intent_still_answers_it(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("admissions_tool", frozenset({"admissions"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    assert dispatch.routing.route(["off_topic", "admissions"]) == ("tools", ["admissions_tool"])
+
+
+def test_no_valid_intents_falls_back_to_general():
+    assert dispatch.routing.route([]) == ("general", [])
+
+
+def test_single_intent_with_no_registered_tool_falls_back_to_general(monkeypatch):
+    monkeypatch.setattr(contracts, "registry", ToolRegistry())
+    assert dispatch.routing.route(["admissions"]) == ("general", [])
+
+
+def test_single_intent_with_a_registered_tool(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("admissions_tool", frozenset({"admissions"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    assert dispatch.routing.route(["admissions"]) == ("tools", ["admissions_tool"])
+
+
+def test_two_intents_route_to_both_tools_in_order(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("admissions_tool", frozenset({"admissions"})))
+    reg.register(_tool("financial_tool", frozenset({"financial"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    assert dispatch.routing.route(["financial", "admissions"]) == ("tools", ["financial_tool", "admissions_tool"])
+
+
+def test_a_personalised_intent_is_kept_alongside_a_factual_one(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("course_tool", frozenset({"course_recommendation"})))
+    reg.register(_tool("financial_tool", frozenset({"financial"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    assert dispatch.routing.route(["course_recommendation", "financial"]) == ("tools", ["course_tool", "financial_tool"])
+
+
+def test_general_or_off_topic_next_to_a_real_intent_is_ignored(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("financial_tool", frozenset({"financial"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    assert dispatch.routing.route(["off_topic", "financial"]) == ("tools", ["financial_tool"])
+    assert dispatch.routing.route(["general", "financial"]) == ("tools", ["financial_tool"])
+    assert dispatch.routing.route(["off_topic"]) == ("decline", [])
+    assert dispatch.routing.route(["general"]) == ("general", [])
+
+
+# ---- evaluation.evaluate_and_fix -----------------------------------------
+
+def test_evaluate_and_fix_skips_when_already_needs_clarification(monkeypatch):
+    called = []
+    monkeypatch.setattr(dispatch.evaluation, "evaluate_branch", lambda *a, **k: called.append(1))
+    draft = ToolAnswer(text="Which role?", agent_used="career", needs_clarification=True)
+    result = dispatch.evaluation.evaluate_and_fix("career", _state(), "help me plan my career", draft, None)
+    assert result is draft
+    assert called == []
+
+
+def test_evaluate_and_fix_respects_the_settings_kill_switch(monkeypatch):
+    monkeypatch.setattr(settings, "enable_answer_evaluation", False)
+    try:
+        draft = ToolAnswer(text="Tuition is S$74,120.", agent_used="financial")
+        result = dispatch.evaluation.evaluate_and_fix("financial", _state(), "What's the fee?", draft, None)
+        assert result is draft
+    finally:
+        monkeypatch.setattr(settings, "enable_answer_evaluation", True)
+
+
+def test_evaluate_and_fix_accept_returns_the_same_draft(monkeypatch):
+    monkeypatch.setattr(dispatch.evaluation, "evaluate_branch", lambda *a, **k: BranchVerdict())
+    draft = ToolAnswer(text="Tuition is S$74,120.", agent_used="financial")
+    result = dispatch.evaluation.evaluate_and_fix("financial", _state(), "What's the fee?", draft, None)
+    assert result is draft
+
+
+def test_evaluate_and_fix_clarify_replaces_the_draft(monkeypatch):
+    monkeypatch.setattr(
+        dispatch.evaluation, "evaluate_branch",
+        lambda *a, **k: BranchVerdict(action="clarify", note="Which intake?"),
+    )
+    draft = ToolAnswer(text="...", agent_used="admissions")
+    result = dispatch.evaluation.evaluate_and_fix("admissions", _state(), "when are deadlines?", draft, None)
+    assert result.text == "Which intake?"
+    assert result.needs_clarification is True
+
+
+def test_evaluate_and_fix_retry_reruns_the_same_tool_silently(monkeypatch):
+    calls = []
+
+    def _fake_invoke_typed(name, arg, *, on_event=None):
+        calls.append((name, on_event))
+        return ToolAnswer(text="better answer", agent_used="admissions")
+
+    reg = ToolRegistry()
+    monkeypatch.setattr(reg, "invoke_typed", _fake_invoke_typed)
+    monkeypatch.setattr(contracts, "registry", reg)
+    monkeypatch.setattr(
+        dispatch.evaluation, "evaluate_branch",
+        lambda *a, **k: BranchVerdict(action="retry", note="missed the deadline part"),
+    )
+
+    draft = ToolAnswer(text="partial answer", agent_used="admissions")
+    result = dispatch.evaluation.evaluate_and_fix(
+        "admissions", _state(), "what are the deadlines?", draft, on_event=lambda e: None,
+    )
+    assert len(calls) == 1
+    assert calls[0][0] == "admissions"
+    assert calls[0][1] is None  # retry never streams, even if the original call did
+    assert result.text == "better answer"
+    assert result.agent_used.endswith("+revised")
+
+
+def test_evaluate_and_fix_retry_failure_falls_back_to_the_original_draft(monkeypatch):
+    def _boom(name, arg, *, on_event=None):
+        raise RuntimeError("boom")
+
+    reg = ToolRegistry()
+    monkeypatch.setattr(reg, "invoke_typed", _boom)
+    monkeypatch.setattr(contracts, "registry", reg)
+    monkeypatch.setattr(dispatch.evaluation, "evaluate_branch", lambda *a, **k: BranchVerdict(action="retry", note="gap"))
+
+    draft = ToolAnswer(text="partial answer", agent_used="admissions")
+    result = dispatch.evaluation.evaluate_and_fix("admissions", _state(), "q", draft, None)
+    assert result is draft
+
+
+def test_evaluate_and_fix_evaluation_failure_keeps_the_draft(monkeypatch):
+    def _boom(*a, **k):
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(dispatch.evaluation, "evaluate_branch", _boom)
+    draft = ToolAnswer(text="partial answer", agent_used="admissions")
+    result = dispatch.evaluation.evaluate_and_fix("admissions", _state(), "q", draft, None)
+    assert result is draft
+
+
+# ---- execution.run_and_merge: all-branches-failed shortcut ---------
+
+def test_all_branches_failing_skips_evaluation_and_the_merge(monkeypatch):
+    reg = ToolRegistry()
+
+    def _broken(inp, on_event=None):
+        raise RuntimeError("boom")
+
+    reg.register(Tool(name="a", description="a", input_model=_Input, handler=_broken, trigger_intents=frozenset({"a"})))
+    reg.register(Tool(name="b", description="b", input_model=_Input, handler=_broken, trigger_intents=frozenset({"b"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+
+    answer = dispatch.execution.run_and_merge(["a", "b"], _state(), "What's a and b?", None)
+    assert "again" in answer.text.lower() or "try" in answer.text.lower()
+
+
+def test_run_and_merge_evaluates_each_branch_then_joins_them_in_order(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("a", frozenset({"a"}), reply="a-answer"))
+    reg.register(_tool("b", frozenset({"b"}), reply="b-answer"))
+    monkeypatch.setattr(contracts, "registry", reg)
+    evaluated = []
+    monkeypatch.setattr(dispatch.evaluation, "evaluate_branch",
+                        lambda inp, *a, **k: evaluated.append(inp.intent) or BranchVerdict())  # accept
+    events = []
+
+    answer = dispatch.execution.run_and_merge(["b", "a"], _state(), "What's a and b?", events.append)
+    assert sorted(evaluated) == ["a", "b"]
+    assert answer.text.index("b-answer") < answer.text.index("a-answer")
+    assert {"type": "token", "text": answer.text} in events  # the joined reply is sent once
+
+
+# ---- answer_turn top-level safety net -----------------------------------
+
+def test_answer_turn_never_raises_on_an_internal_exception(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("admissions_tool", frozenset({"admissions"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+
+    def _boom(*a, **k):
+        raise RuntimeError("everything is on fire")
+
+    monkeypatch.setattr(dispatch.execution, "run_tools", _boom)
+    ai_message, reply, agent_used = dispatch.answer_turn(_state(), ["admissions"], None)
+    assert agent_used == "orchestrator_error"
+    assert "sorry" in ai_message.content.lower()
+    assert ai_message.content == reply  # no Sources footer on the error reply
+
+
+def test_answer_turn_declines_off_topic_without_calling_run_tools(monkeypatch):
+    called = []
+    monkeypatch.setattr(dispatch.execution, "run_tools", lambda *a, **k: called.append(1))
+    ai_message, reply, agent_used = dispatch.answer_turn(_state("write me a poem"), ["off_topic"], None)
+    assert called == []
+    assert agent_used == "orchestrator_decline"
+    assert "DFT" in ai_message.content
+
+
+def test_answer_turn_general_mode_never_raises(monkeypatch):
+    def _boom(*a, **k):
+        raise RuntimeError("llm exploded")
+
+    monkeypatch.setattr(classification, "run_general_chat", _boom)
+    ai_message, reply, agent_used = dispatch.answer_turn(_state(), [], None)
+    assert agent_used == "orchestrator_error"
+
+
+# ---- localization is applied last, uniformly -----------------------------
+
+def test_answer_turn_localizes_the_final_answer_when_language_is_not_english(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("financial_tool", frozenset({"financial"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    monkeypatch.setattr(
+        dispatch.execution, "run_tools",
+        lambda *a, **k: ToolAnswer(text="Tuition is S$74,120.", agent_used="financial_agent"),
+    )
+    monkeypatch.setattr(dispatch.localization.llm, "complete", lambda *a, **k: "学费是 S$74,120。")
+
+    ai_message, reply, agent_used = dispatch.answer_turn(_state("学费是多少？", reply_language="zh"), ["financial"], None)
+    assert ai_message.content == "学费是 S$74,120。"
+    assert agent_used == "financial_agent"
+
+
+def test_answer_turn_localizes_the_decline_message_too(monkeypatch):
+    monkeypatch.setattr(dispatch.localization.llm, "complete", lambda *a, **k: "这个问题不在我的服务范围内。")
+    ai_message, reply, agent_used = dispatch.answer_turn(
+        _state("帮我写首诗", reply_language="zh"), ["off_topic"], None,
+    )
+    assert ai_message.content == "这个问题不在我的服务范围内。"
+    assert agent_used == "orchestrator_decline"
+
+
+def test_answer_turn_skips_localization_when_english(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(_tool("financial_tool", frozenset({"financial"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    calls = []
+    monkeypatch.setattr(dispatch.localization.llm, "complete", lambda *a, **k: calls.append(1) or "unused")
+    monkeypatch.setattr(
+        dispatch.execution, "run_tools",
+        lambda *a, **k: ToolAnswer(text="Tuition is S$74,120.", agent_used="financial_agent"),
+    )
+
+    ai_message, reply, agent_used = dispatch.answer_turn(_state(reply_language="en"), ["financial"], None)
+    assert ai_message.content == "Tuition is S$74,120."
+    assert calls == []
+
+
+# ---- general chat and knowledge QA ------------------------------------------
+
+def test_general_chat_is_given_the_programmes_current_facts(monkeypatch):
+    from app.orchestrator import classification
+    from app.tools.programme_facts import ProgrammeFacts
+    seen = {}
+
+    def stream(prompt, history, **kwargs):
+        seen["prompt"] = prompt
+        yield "ok"
+    monkeypatch.setattr(classification, "current_facts", lambda: ProgrammeFacts(text="CURRENT PROGRAMME FACTS — fee S$76,409"))
+    monkeypatch.setattr(classification.llm, "stream", stream)
+    classification.run_general_chat([HumanMessage("Is DFT worth it?")], language="zh")
+    assert "S$76,409" in seen["prompt"] and "ONLY from the CURRENT PROGRAMME FACTS" in seen["prompt"]
+    assert "Chinese" in seen["prompt"]
+
+
+def test_knowledge_qa_answers_skip_the_draft_evaluation():
+    from app.tools.specialist.knowledge_qa_tool import ADMISSIONS_TOOL, FAQ_TOOL
+    assert ADMISSIONS_TOOL.skip_evaluation and FAQ_TOOL.skip_evaluation
+
+
+def test_the_evaluating_step_is_shown_only_when_a_draft_is_evaluated(monkeypatch):
+    reg = ToolRegistry()
+    reg.register(Tool(name="checked", description="c", input_model=_Input, skip_evaluation=True,
+                      handler=lambda inp, on_event=None: ToolAnswer(text="ok", agent_used="checked"),
+                      trigger_intents=frozenset({"c"})))
+    monkeypatch.setattr(contracts, "registry", reg)
+    events = []
+    dispatch.execution.run_tools(["checked"], _state(), events.append)
+    assert not any(e.get("stage") == "evaluating" for e in events)
+    assert not dispatch.evaluation.will_evaluate("checked", ToolAnswer(text="ok"))

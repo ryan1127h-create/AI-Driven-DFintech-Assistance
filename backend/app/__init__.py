@@ -17,6 +17,10 @@ core. Each layer may depend on anything below it, never above it.
                   profile, course recommendation, ...). Each domain owns
                   its own data and workflow, and exposes itself to the
                   rest of the app only through its own interface.py.
+                  domains/specialist/ groups the LLM-driven specialist
+                  sub-experts (career planning, program comparison, course
+                  recommendation, ...) side by side with the rest — purely
+                  organizational, not a separate import boundary.
   adapters/       Concrete implementations of the ports below, wired to
                   real infrastructure (Postgres, Redis, an LLM provider, ...).
   ports/          Abstract contracts for infrastructure a domain needs

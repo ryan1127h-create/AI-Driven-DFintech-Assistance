@@ -23,7 +23,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Configuration is read from a `.env` file in the repo root (see `render.yaml` for the full list of required variables).
+Configuration is read from a `.env` file in the repo root — copy `.env.example` to `.env` and fill in real values (see that file for the full list of variables and what each one does).
 
 ### Run
 

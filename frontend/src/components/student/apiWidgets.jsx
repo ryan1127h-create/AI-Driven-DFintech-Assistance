@@ -1,57 +1,11 @@
-import { useState, useCallback } from "react";
 import { Loader2, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 import { cn } from "../../utils/cn";
 
-// Hook: wraps an async API call with loading/error state
-export function useApiCall() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const call = useCallback(async (fn) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await fn();
-
-      // null is allowed
-      if (result === null) {
-        return null;
-      }
-
-      if (result?.ok === false) {
-        const msg =
-          result.body?.detail ||
-          result.body?.error ||
-          `Request failed (${result.status})`;
-
-        setError(msg);
-      }
-
-      return result;
-    } catch (err) {
-      setError(err.message || "Network error");
-
-      return {
-        ok: false,
-        status: 0,
-        body: {
-          error: err.message,
-        },
-      };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { loading, error, setError, call };
-}
-
 export function LoadingSpinner({ label = "Loading..." }) {
   return (
-    <div className="flex items-center justify-center py-12 text-app-muted">
-      <Loader2 size={20} className="animate-spin mr-2" />
-      {label}
+    <div className="student-loading-inline" role="status" aria-live="polite">
+      <span className="student-loading-orb"><Loader2 size={16} className="animate-spin" /></span>
+      <span>{label}</span>
     </div>
   );
 }
@@ -98,40 +52,6 @@ export function PageHeader({ icon: Icon, title, subtitle }) {
   );
 }
 
-export function FormField({ label, children, hint, required }) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-app-secondary flex items-center gap-1 mb-1.5">
-        {required && <span className="text-red-400">*</span>}
-        {label}
-      </label>
-      {children}
-      {hint && <p className="text-xs text-app-faint mt-1">{hint}</p>}
-    </div>
-  );
-}
-
-export function TextInput(props) {
-  return <input {...props} className={cn("input", props.className)} />;
-}
-
-export function TextArea(props) {
-  return <textarea {...props} className={cn("input resize-none", props.className)} />;
-}
-
-export function Select({ options, placeholder, ...props }) {
-  return (
-    <select {...props} className={cn("input", props.className)}>
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map((o) => {
-        const val = typeof o === "string" ? o : o.value;
-        const label = typeof o === "string" ? o : o.label;
-        return <option key={val} value={val}>{label}</option>;
-      })}
-    </select>
-  );
-}
-
 export function SubmitButton({ loading, children, disabled, ...props }) {
   return (
     <button
@@ -141,16 +61,5 @@ export function SubmitButton({ loading, children, disabled, ...props }) {
     >
       {loading ? <><Loader2 size={16} className="animate-spin" /> Loading...</> : children}
     </button>
-  );
-}
-
-export function ApiBadge({ ok, label }) {
-  return (
-    <span className={cn(
-      "chip text-[10px] font-medium px-2 py-0.5 rounded",
-      ok ? "bg-emerald2-500/10 text-emerald2-400" : "bg-red-500/10 text-red-400",
-    )}>
-      {label}
-    </span>
   );
 }

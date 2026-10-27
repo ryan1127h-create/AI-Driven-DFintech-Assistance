@@ -1,516 +1,250 @@
-import { getProfile, updateProfile } from "../../api";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { FileUp, Sparkles, UserRound } from "lucide-react";
 import {
-  User, GraduationCap, Briefcase, Award, Globe, Calendar, BookOpen,
-  RefreshCw, Save, X, Pencil,
-} from "lucide-react";
-import { useApiCall, ErrorBanner, SuccessBanner, PageHeader, LoadingSpinner, FormField, TextInput, Select, SubmitButton } from "../components/student/apiWidgets";
+  getConsents,
+  getLatestCvImport,
+  getProfile,
+  getProfileConflicts,
+  getProfileDefinitions,
+  resolveProfileConflict,
+  updateProfile,
+} from "../../api";
+import { useRole } from "../context/RoleContext";
+import { STAGE_LABELS } from "../data/stages";
+import { isRecommended } from "../data/onboarding";
+import { profilePages } from "../data/profileSections";
 import { cn } from "../utils/cn";
+import { ErrorBanner, SuccessBanner } from "../components/student/apiWidgets";
+import { LoadingState } from "../components/student/PageParts";
+import { changedFields, formatFieldValue } from "../components/student/profile/ProfileFields";
+import { OverviewPage, SectionPage, filledCount } from "../components/student/profile/ProfilePages";
 
-const lifecycleOptions = ["", "prospect", "applicant", "admitted", "enrolled", "alumni"];
-const academicBgOptions = [
-  { value: "", label: "Select Field of Study" },
-  { value: "finance", label: "Finance" },
-  { value: "cs_computing", label: "Computer Science & Computing" },
-  { value: "engineering", label: "Engineering" },
-  { value: "business", label: "Business" },
-  { value: "other", label: "Other" },
-];
-const techLevelOptions = [
-  { value: "", label: "Select Level" },
-  { value: "none", label: "None" },
-  { value: "basic", label: "Basic" },
-  { value: "strong", label: "Strong" },
-];
-const targetRoleOptions = [
-  { value: "", label: "Select Target Role" },
-  { value: "quant_risk", label: "Quantitative Risk" },
-  { value: "data_analytics", label: "Data Analytics" },
-  { value: "fintech_pm", label: "FinTech Product Management" },
-  { value: "payments", label: "Payments" },
-  { value: "digital_banking", label: "Digital Banking" },
-  { value: "compliance_regtech", label: "Compliance & RegTech" },
-];
-const schoolTierOptions = [
-  { value: "", label: "Select School Tier" },
-  { value: "tier_1", label: "Tier 1" },
-  { value: "tier_2", label: "Tier 2" },
-  { value: "tier_3", label: "Tier 3" },
-  { value: "other", label: "Other" },
-];
-const roleLabelMap = Object.fromEntries(
-  targetRoleOptions.map((r) => [r.value, r.label])
-);
+// The profile, split into pages (data/profileSections.js) under a summary
+// card: an overview and one page per topic with its own edit mode. Account,
+// preferences and privacy are in the settings dialog. The open page is kept
+// in the URL (?page=skills).
+
+function ProfileHeader({ user, stage, subStage, keyDone, keyTotal, onUpdateFromCv }) {
+  const completion = keyTotal ? Math.round((keyDone / keyTotal) * 100) : 0;
+  const radius = 30;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <section className="group relative mb-6 overflow-hidden rounded-[22px] border border-brand-400/15 bg-gradient-to-br from-white via-white to-brand-50/70 p-5 shadow-[0_14px_40px_rgba(37,99,235,0.08)] transition duration-300 hover:-translate-y-0.5 dark:from-slate-800 dark:via-slate-800 dark:to-indigo-950/60 dark:shadow-[0_16px_45px_rgba(37,99,235,0.16)] sm:p-7">
+      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-indigo-400/15 blur-3xl transition duration-500 group-hover:bg-indigo-400/25" />
+      <div className="pointer-events-none absolute -bottom-28 left-1/3 h-48 w-48 rounded-full bg-blue-400/10 blur-3xl" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center">
+        <div className="relative flex h-[76px] w-[76px] flex-shrink-0 items-center justify-center">
+          <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 76 76" aria-hidden="true">
+            <circle cx="38" cy="38" r={radius} fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-200 dark:text-slate-700" />
+            <circle cx="38" cy="38" r={radius} fill="none" stroke="url(#profile-ring)" strokeWidth="4" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (completion / 100) * circumference} className="transition-all duration-700" />
+            <defs><linearGradient id="profile-ring" x1="0" x2="1"><stop stopColor="#2563EB" /><stop offset="1" stopColor="#818CF8" /></linearGradient></defs>
+          </svg>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 font-display text-xl font-bold text-blue-600 dark:text-blue-300">
+            {user?.avatar}
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Your profile</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300"><Sparkles size={11} /> Personalised</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Welcome back, {user?.name}</h1>
+            {stage && <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">{STAGE_LABELS[stage] || stage}</span>}
+            {subStage && <span className="rounded-full bg-slate-500/10 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300">{subStage}</span>}
+          </div>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{user?.email}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="h-2 w-44 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-500 transition-all duration-700" style={{ width: `${completion}%` }} /></div>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{completion}% complete</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{keyDone} of {keyTotal} key details</span>
+          </div>
+        </div>
+        <button type="button" className="btn-outline self-start rounded-xl border-slate-300 bg-white/70 px-4 py-2.5 text-sm shadow-sm transition hover:-translate-y-0.5 dark:border-slate-600 dark:bg-slate-800/60" onClick={onUpdateFromCv}>
+          <FileUp size={15} /> Update from CV
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PageTabs({ pages, current, counts, flagged, onSelect }) {
+  return (
+    <div className="mb-7 flex max-w-full flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/70 p-1.5 dark:border-slate-700 dark:bg-slate-800/70">
+      {pages.map((page) => {
+        const Icon = page.icon;
+        const active = page.key === current;
+        return (
+          <button
+            key={page.key}
+            type="button"
+            onClick={() => onSelect(page.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 py-2 text-sm font-medium transition duration-200 hover:-translate-y-0.5",
+              active
+                ? "border-blue-400/30 bg-gradient-to-r from-blue-600 to-indigo-500 text-white shadow-md shadow-blue-500/20"
+                : "border-transparent text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700 dark:hover:text-white",
+            )}
+          >
+            <Icon size={14} />
+            {page.label}
+            {counts[page.key] && <span className={cn("text-xs", active ? "text-brand-300/80" : "text-app-faint")}>{counts[page.key]}</span>}
+            {flagged.has(page.key) && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-label="Needs review" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { loading, error, call, setError } = useApiCall();
+  const { user } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [definitions, setDefinitions] = useState([]);
+  const [refOptions, setRefOptions] = useState({});
   const [profile, setProfile] = useState(null);
+  const [consents, setConsents] = useState([]);
+  const [conflicts, setConflicts] = useState([]);
+  const [cvImport, setCvImport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
 
-  const fetchProfile = async () => {
-    const result = await call(() => getProfile());
+  useEffect(() => {
+    Promise.all([getProfileDefinitions(), getProfile(), getConsents(), getProfileConflicts(), getLatestCvImport()])
+      .then(([defs, prof, cons, confl, cv]) => {
+        setDefinitions(defs.fields);
+        setRefOptions(defs.ref_options || {});
+        setProfile(prof);
+        setConsents(cons);
+        setConflicts(confl);
+        setCvImport(cv);
+      })
+      .catch((err) => setError(err.message || "Unable to load your profile."))
+      .finally(() => setLoading(false));
+  }, []);
 
-    setProfile(result); // result can be object or null
+  const fields = useMemo(() => profile?.fields || {}, [profile]);
+  const stage = fields.lifecycle_stage?.value;
+  const definitionsByKey = useMemo(() => Object.fromEntries(definitions.map((d) => [d.field_key, d])), [definitions]);
+  const pages = useMemo(() => profilePages(stage, definitions, fields), [stage, definitions, fields]);
 
-    if (result === null) {
-      setError(null);
+  const requested = searchParams.get("page");
+  const current = pages.find((p) => p.key === requested) || pages[0];
+
+  const values = Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, f.value]));
+  const keyFields = pages.flatMap((p) => (p.cards || []).flatMap((c) => c.fields)).filter((d) => isRecommended(d, values));
+  const counts = Object.fromEntries(
+    pages.filter((p) => p.cards?.length).map((p) => {
+      const pageFields = p.cards.flatMap((c) => c.fields);
+      return [p.key, `${filledCount(pageFields, fields)}/${pageFields.length}`];
+    }),
+  );
+  const flagged = new Set(
+    pages.filter((p) => p.cards?.some((c) => c.fields.some((d) => conflicts.some((x) => x.field_key === d.field_key)))).map((p) => p.key),
+  );
+
+  const flash = (message) => {
+    setNotice(message);
+    setTimeout(() => setNotice(null), 3000);
+  };
+
+  const run = async (fn, successMessage) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await fn();
+      if (successMessage) flash(successMessage);
+    } catch (err) {
+      setError(err.message || "Request failed.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  useEffect(() => { fetchProfile(); }, []);
+  const openPage = (key) => {
+    if (!key || key === current?.key) return;
+    if (editing && !window.confirm("Discard your unsaved changes on this page?")) return;
+    setEditing(false);
+    setSearchParams(key === "overview" ? {} : { page: key });
+  };
 
   const startEdit = () => {
-    setEditForm({ ...profile,
-      target_role_raw:
-        typeof profile.target_role_raw === "string"
-        ? profile.target_role_raw
-        .split("/")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        : profile.target_role_raw || [],
-     });
+    setDraft(values);
     setEditing(true);
-    setSaved(false);
     setError(null);
   };
 
-  const cancelEdit = () => {
-    setEditing(false);
-    setEditForm({});
-    fetchProfile();
-  };
-
-  const setField = (key, value) => setEditForm((prev) => ({ ...prev, [key]: value }));
-
-  const handleSave = async () => {
-    const payload = {};
-    for (const key of Object.keys(editForm)) {
-      if (editForm[key] !== profile[key] && editForm[key] !== "" && editForm[key] !== null) {
-        if (key === "completed_courses") {
-          payload[key] = typeof editForm[key] === "string"
-            ? editForm[key].split(",").map((s) => s.trim()).filter(Boolean)
-            : editForm[key];
-        } else if (["work_years", "gmat", "gre", "toefl", "intake_year"].includes(key)) {
-          payload[key] = Number(editForm[key]);
-        } else if (key === "ielts") {
-          payload[key] = Number(editForm[key]);
-        } else if (key === "target_role_raw") {
-          payload[key] = Array.isArray(editForm[key])
-            ? editForm[key].join(" / ")
-            : editForm[key];
-        } else {
-          payload[key] = editForm[key];
-        }
-      }
-    }
-    if (Object.keys(payload).length === 0) {
+  const save = () => {
+    const pageKeys = new Set(current.cards.filter((c) => !c.readOnly).flatMap((c) => c.fields.map((d) => d.field_key)));
+    const changes = Object.fromEntries(Object.entries(changedFields(fields, draft)).filter(([k]) => pageKeys.has(k)));
+    if (!Object.keys(changes).length) {
       setEditing(false);
       return;
     }
-    const result = await call(() => updateProfile(payload));
-    if (result.ok) {
-      setProfile(result.body);
+    run(async () => {
+      setProfile(await updateProfile(changes));
+      setConflicts(await getProfileConflicts());
       setEditing(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    }
+    }, `${current.label} saved.`);
   };
 
-  if (loading && !profile) return <LoadingSpinner label="Loading profile..." />;
+  const resolve = (id, action) =>
+    run(async () => {
+      setProfile(await resolveProfileConflict(id, action));
+      setConflicts(await getProfileConflicts());
+    }, "Updated.");
 
-  if (!profile && !loading) {
-    return (
-      <div className="max-w-3xl mx-auto animate-fadeIn">
-        <PageHeader icon={User} title="My Profile" subtitle="Your structured applicant profile." />
-        {/* <ErrorBanner error={error} /> */}
-        {/* <div className="card p-8 text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-app-hover text-app-muted mb-4">
-            <User size={28} />
-          </div>
-          <p className="text-sm font-medium text-app-primary mb-1">No profile yet</p>
-          <p className="text-xs text-app-muted mb-4">
-            Upload your CV to auto-generate a profile, or create one by editing.
-          </p>
-          <button onClick={fetchProfile} className="btn-outline text-xs">
-            <RefreshCw size={14} /> Retry
-          </button>
-        </div>
-         */}
-         <div className="card p-8 text-center">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-app-hover text-app-muted mb-4">
-              <User size={28} />
-            </div>
+  const updateFromCv = () => navigate("/app", { state: { openCvImport: true } });
 
-            <p className="text-sm font-medium text-app-primary mb-1">
-              No profile yet
-            </p>
+  if (loading) return <LoadingState icon={UserRound} title="Loading profile" subtitle="Fetching your profile details…" />;
 
-            <p className="text-xs text-app-muted mb-4">
-              Upload your CV and create your MSc DFT profile to unlock personalised recommendations.
-            </p>
-
-            <div className="flex justify-center gap-2">
-              <button
-                onClick={() => navigate("/app")}
-                className="btn-primary"
-              >
-                Create Profile
-              </button>
-
-              <button
-                onClick={fetchProfile}
-                className="btn-outline"
-              >
-                <RefreshCw size={14} />
-                Retry
-              </button>
-            </div>
-          </div>
-      </div>
-    );
-  }
-
-
+  const subStageDefinition = definitionsByKey.sub_stage;
+  const subStage = fields.sub_stage?.value && subStageDefinition
+    ? formatFieldValue(subStageDefinition, fields.sub_stage.value, refOptions)
+    : null;
 
   return (
-    <div className="max-w-3xl mx-auto animate-fadeIn">
-      <PageHeader icon={User} title="My Profile" subtitle="Your structured applicant profile from the AI backend." />
+    <div className="mx-auto max-w-7xl animate-fadeIn px-1 pb-8">
+      <ProfileHeader user={user} stage={stage} subStage={subStage}
+        keyDone={filledCount(keyFields, fields)} keyTotal={keyFields.length} onUpdateFromCv={updateFromCv} />
+
+      <PageTabs pages={pages} current={current?.key} counts={counts} flagged={flagged} onSelect={openPage} />
 
       <ErrorBanner error={error} />
-      {saved && <SuccessBanner>Profile updated successfully.</SuccessBanner>}
+      {notice && <SuccessBanner>{notice}</SuccessBanner>}
 
-      {/* Action bar */}
-      <div className="flex items-center gap-2 mb-6">
-        {editing ? (
-          <>
-            <SubmitButton loading={loading} onClick={handleSave}>
-              <Save size={16} /> Save Changes
-            </SubmitButton>
-            <button onClick={cancelEdit} className="btn-ghost text-sm">
-              <X size={14} /> Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={startEdit} className="btn-outline">
-              <Pencil size={16} /> Edit Profile
-            </button>
-          </>
-        )}
-      </div>
-
-      {editing ? (
-        <EditView form={editForm} setField={setField} />
-      ) : (
-        <DisplayView profile={profile} />
+      {current?.key === "overview" && (
+        <OverviewPage pages={pages} profileFields={fields} conflicts={conflicts} cvImport={cvImport}
+          consents={consents} onOpenPage={openPage} onUpdateFromCv={updateFromCv}
+          onOpenPrivacy={() => setSearchParams((params) => {
+            const next = new URLSearchParams(params);
+            next.set("settings", "privacy");
+            return next;
+          })} />
       )}
-    </div>
-  );
-}
-
-function DisplayView({ profile }) {
-  const sections = [
-    {
-      icon: User, title: "Identity", color: "bg-brand-500/15 text-brand-300",
-      fields: [
-        { label: "Lifecycle Stage", key: "lifecycle_stage" },
-        { label: "Application Term", key: "application_term" },
-        { label: "Intake Year", key: "intake_year" },
-      ],
-    },
-    {
-      icon: GraduationCap, title: "Academic Background", color: "bg-royal-500/15 text-royal-300",
-      fields: [
-        { label: "Academic Background (raw)", key: "academic_background_raw" },
-        { label: "Academic Background (std)", key: "academic_background_std" },
-        { label: "School Tier", key: "school_tier" },
-      ],
-    },
-    {
-      icon: Award, title: "Test Scores", color: "bg-amber-500/15 text-amber-300",
-      fields: [
-        { label: "GMAT", key: "gmat" },
-        { label: "GRE", key: "gre" },
-        { label: "TOEFL", key: "toefl" },
-        { label: "IELTS", key: "ielts" },
-      ],
-    },
-    {
-      icon: Briefcase, title: "Experience & Goals", color: "bg-emerald2-500/15 text-emerald2-400",
-      fields: [
-        { label: "Work Years", key: "work_years" },
-        { label: "Tech Level (raw)", key: "tech_level_raw" },
-        { label: "Tech Level (std)", key: "tech_level_std" },
-        { label: "Interested Career Roles", key: "target_role_raw" },
-        { label: "Target Role", key: "target_role_std" },
-        { label: "Target Industry (raw)", key: "target_industry_raw" },
-        { label: "Target Industry (std)", key: "target_industry_std" },
-      ],
-    },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {sections.map((sec) => {
-        const Icon = sec.icon;
-        const hasData = sec.fields.some((f) => profile[f.key] !== null && profile[f.key] !== undefined && profile[f.key] !== "");
-        return (
-          <div key={sec.title} className="card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", sec.color)}>
-                <Icon size={16} />
-              </div>
-              <h3 className="text-sm font-semibold text-app-primary">{sec.title}</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sec.fields.map((f) => (
-                <FieldDisplay
-                  key={f.key}
-                  fieldKey={f.key}
-                  label={f.label}
-                  value={profile[f.key]}
-                />
-              ))}
-            </div>
-            {!hasData && (
-              <p className="text-xs text-app-faint mt-2 italic">No data in this section yet.</p>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Completed courses */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan2-500/15 text-cyan2-400">
-            <BookOpen size={16} />
-          </div>
-          <h3 className="text-sm font-semibold text-app-primary">Completed Courses</h3>
-        </div>
-        {profile.completed_courses?.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {profile.completed_courses.map((c) => (
-              <span key={c} className="chip border border-app-input bg-app-hover text-app-secondary text-xs">
-                {c}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-app-faint italic">No completed courses recorded.</p>
-        )}
-      </div>
-
-      {/* Raw JSON */}
-      {/* <details className="card p-5">
-        <summary className="text-sm font-medium text-app-secondary cursor-pointer">View raw JSON</summary>
-        <pre className="mt-3 overflow-x-auto text-xs font-mono text-app-muted max-h-64 overflow-y-auto">
-          {JSON.stringify(profile, null, 2)}
-        </pre>
-      </details> */}
-    </div>
-  );
-}
-
-function FieldDisplay({ fieldKey, label, value }) {
-  const isEmpty =
-    value === null ||
-    value === undefined ||
-    value === "";
-
-  if (fieldKey === "target_role_raw") {
-    const roles = Array.isArray(value)
-      ? value
-      : String(value || "")
-          .split("/")
-          .map((x) => x.trim())
-          .filter(Boolean);
-
-    return (
-      <div className="rounded-lg p-3 bg-app-hover border border-app-soft">
-        <p className="text-[10px] uppercase tracking-wider text-app-faint mb-2">
-          {label}
-        </p>
-
-        {roles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {roles.map((role) => (
-              <span
-                key={role}
-                className="chip border border-app-input bg-app-hover"
-              >
-                {roleLabelMap[role] || role}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-app-faint italic">—</p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg p-3 bg-app-hover border border-app-soft">
-      <p className="text-[10px] uppercase tracking-wider text-app-faint mb-1">
-        {label}
-      </p>
-
-      <p
-        className={cn(
-          "text-sm",
-          isEmpty
-            ? "text-app-faint italic"
-            : "text-app-primary"
-        )}
-      >
-        {isEmpty ? "—" : String(value)}
-      </p>
-    </div>
-  );
-}
-
-function EditView({ form, setField }) {
-  const toggleInterestRole = (roleValue) => {
-    const current = Array.isArray(form.target_role_raw)
-      ? form.target_role_raw
-      : [];
-
-    setField(
-      "target_role_raw",
-      current.includes(roleValue)
-        ? current.filter((r) => r !== roleValue)
-        : [...current, roleValue]
-    );
-  };
-
-
-  const coursesStr = Array.isArray(form.completed_courses)
-    ? form.completed_courses.join(", ")
-    : form.completed_courses || "";
-
-  return (
-    <div className="space-y-4">
-      {/* Identity */}
-      <div className="card p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-app-primary">Identity</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Lifecycle Stage">
-            <div className="px-3 py-2 rounded-lg bg-app-hover border border-app-soft text-app-secondary">
-              {form.lifecycle_stage || "-"}
-            </div>
-          </FormField>
-          <FormField label="Application Term">
-            <TextInput type="text" maxLength={50} placeholder="e.g. Round 2" value={form.application_term || ""} onChange={(e) => setField("application_term", e.target.value)} />
-          </FormField>
-          <FormField label="Intake Year">
-            <TextInput type="number" placeholder="e.g. 2026" value={form.intake_year || ""} onChange={(e) => setField("intake_year", e.target.value)} />
-          </FormField>
-        </div>
-      </div>
-
-      {/* Academic Background */}
-      <div className="card p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-app-primary">Academic Background</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Academic Background (raw)" hint="Enter your latest completed degree, diploma or qualification. (max 300 chars)">
-            <TextInput type="text" maxLength={300} placeholder="e.g. BSc Computer Science" value={form.academic_background_raw || ""} onChange={(e) => setField("academic_background_raw", e.target.value)} />
-          </FormField>
-          <FormField label="Academic Background (std)">
-            <Select options={academicBgOptions} value={form.academic_background_std || ""} onChange={(e) => setField("academic_background_std", e.target.value)} />
-          </FormField>
-          <FormField label="School Tier" hint="Max 50 chars">
-            <Select
-              options={schoolTierOptions}
-              value={form.school_tier || ""}
-              onChange={(e) =>
-                setField("school_tier", e.target.value)
-              }
-            />
-          </FormField>
-        </div>
-      </div>
-
-      {/* Test Scores */}
-      <div className="card p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-app-primary">Test Scores</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <FormField label="GMAT" hint="200–800">
-            <TextInput type="number" min={200} max={800} placeholder="—" value={form.gmat || ""} onChange={(e) => setField("gmat", e.target.value)} />
-          </FormField>
-          <FormField label="GRE" hint="260–340">
-            <TextInput type="number" min={260} max={340} placeholder="—" value={form.gre || ""} onChange={(e) => setField("gre", e.target.value)} />
-          </FormField>
-          <FormField label="TOEFL" hint="0–120">
-            <TextInput type="number" min={0} max={120} placeholder="—" value={form.toefl || ""} onChange={(e) => setField("toefl", e.target.value)} />
-          </FormField>
-          <FormField label="IELTS" hint="0–9">
-            <TextInput type="number" min={0} max={9} step={0.5} placeholder="—" value={form.ielts || ""} onChange={(e) => setField("ielts", e.target.value)} />
-          </FormField>
-        </div>
-      </div>
-
-      {/* Experience & Goals */}
-      <div className="card p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-app-primary">Experience & Goals</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Work Years" hint="0–80">
-            <TextInput type="number" min={0} max={80} placeholder="e.g. 3" value={form.work_years || ""} onChange={(e) => setField("work_years", e.target.value)} />
-          </FormField>
-          <FormField label="Tech Level (raw)" hint="Describe your technical skills, tools, programming languages, projects, etc. (max 300 chars)">
-            <TextInput type="text" maxLength={300} placeholder="e.g. strong Python skills" value={form.tech_level_raw || ""} onChange={(e) => setField("tech_level_raw", e.target.value)} />
-          </FormField>
-          <FormField label="Tech Level (std)">
-            <Select options={techLevelOptions} value={form.tech_level_std || ""} onChange={(e) => setField("tech_level_std", e.target.value)} />
-          </FormField>
-          <FormField
-            label="Interested Career Roles"
-            hint="Select one or more career interests"
-          >
-            <div className="flex flex-wrap gap-2">
-              {targetRoleOptions.slice(1).map((role) => {
-                const selected =
-                  (form.target_role_raw || []).includes(role.value);
-
-                return (
-                  <button
-                    key={role.value}
-                    type="button"
-                    onClick={() => toggleInterestRole(role.value)}
-                    className={`px-3 py-2 rounded-lg border text-sm transition ${
-                      selected
-                        ? "bg-brand-500/20 border-brand-500 text-brand-300"
-                        : "bg-app-hover border-app-input text-app-secondary"
-                    }`}
-                  >
-                    {role.label}
-                  </button>
-                );
-              })}
-            </div>
-          </FormField>
-          <FormField label="Target Role">
-            <Select options={targetRoleOptions} value={form.target_role_std || ""} onChange={(e) => setField("target_role_std", e.target.value)} />
-          </FormField>
-          {/* <FormField label="Target Industry (raw)" hint="Free text, max 300 chars">
-            <TextInput type="text" maxLength={300} placeholder="e.g. Digital Banking" value={form.target_industry_raw || ""} onChange={(e) => setField("target_industry_raw", e.target.value)} />
-          </FormField> */}
-          <FormField label="Target Industry" hint="Free text, max 300 chars">
-            <TextInput type="text" maxLength={300} placeholder="e.g. digital_banking" value={form.target_industry_std || ""} onChange={(e) => setField("target_industry_std", e.target.value)} />
-          </FormField>
-        </div>
-      </div>
-
-      {/* Completed Courses */}
-      <div className="card p-5 space-y-3">
-        <h3 className="text-sm font-semibold text-app-primary">Completed Courses</h3>
-        <FormField label="Completed Courses" hint="Comma-separated, max 50 items">
-          <TextInput type="text" placeholder="IS5452, CS5340, ..." value={coursesStr} onChange={(e) => setField("completed_courses", e.target.value)} />
-        </FormField>
-      </div>
+      {current?.cards?.length > 0 && (
+        <SectionPage
+          page={current}
+          profileFields={fields}
+          definitionsByKey={definitionsByKey}
+          refOptions={refOptions}
+          conflicts={conflicts}
+          editing={editing}
+          draft={draft}
+          setDraft={setDraft}
+          onEdit={startEdit}
+          onCancel={() => setEditing(false)}
+          onSave={save}
+          onResolve={resolve}
+          busy={saving}
+        />
+      )}
     </div>
   );
 }

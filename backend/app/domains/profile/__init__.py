@@ -1,7 +1,6 @@
 """
-Profile — stores each applicant's structured background (academic
-history, technical level, target role, test scores, completed courses,
-...), extracted from their uploaded résumé and editable by hand. Other
-domains read this to personalize course recommendations, career plans,
-and program comparisons.
+Profile — each user's structured profile, one value per field of the field
+dictionary (profile.field_definitions): what they told us, facts from the
+school's records, and their consents. Other domains read it to personalize
+course recommendations, career plans, program comparisons and chat.
 """

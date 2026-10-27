@@ -1,0 +1,15 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { getAdminConversations } from "../../api";
+import AdminLoadingState from "../components/admin/AdminLoadingState";
+import AdminSearchBar from "../components/admin/AdminSearchBar";
+import AdminSortableHeader from "../components/admin/AdminSortableHeader";
+import { formatDateTime } from "../utils/format";
+export default function AdminConversationsPage() {
+  const [items,setItems]=useState(null),[query,setQuery]=useState(""),[status,setStatus]=useState("all"),[sort,setSort]=useState({key:"status_updated_at",direction:"desc"}),[error,setError]=useState(""); const navigate=useNavigate();
+  useEffect(()=>{getAdminConversations().then(d=>setItems(d.items)).catch(e=>setError(e.message));},[]);
+  const filteredItems=useMemo(()=>[...(items||[]).filter(i=>(status==="all"||i.status===status)&&(!query.trim()||`${i.user_name||""} ${i.user_email||""}`.toLowerCase().includes(query.trim().toLowerCase())))].sort((a,b)=>{const l=String(a[sort.key]??"").toLowerCase(),r=String(b[sort.key]??"").toLowerCase();return(l>r?1:l<r?-1:0)*(sort.direction==="asc"?1:-1)}),[items,query,status,sort]);
+  const toggleSort=key=>setSort(s=>({key,direction:s.key===key&&s.direction==="asc"?"desc":"asc"})); const header=(label,key)=><AdminSortableHeader label={label} sortKey={key} sort={sort} onSort={toggleSort}/>;
+  if(error)return <main className="admin-overview-page"><p role="alert">{error}</p></main>; if(!items)return <AdminLoadingState label="Loading conversations…" />;
+  return <main className="admin-overview-page"><header className="admin-shared-page-header"><h1>Conversations</h1><p>Search assistant sessions by user.</p></header><section className="admin-card admin-conversation-filter"><AdminSearchBar placeholder="Search users" value={query} onChange={setQuery} /><label htmlFor="conversation-status-filter">Status</label><select id="conversation-status-filter" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="normal">Normal</option><option value="archived">Archived</option></select></section><section className="admin-card admin-table-wrap"><table><thead><tr><th>{header("User","user_name")}</th><th>{header("Turns","turn_count")}</th><th>{header("Messages","total_messages")}</th><th>{header("Status","status")}</th><th>{header("Updated","status_updated_at")}</th><th>Actions</th></tr></thead><tbody>{filteredItems.length?filteredItems.map(i=><tr key={i.conversation_id}><td>{i.user_id?<Link className="admin-related-link" to={`/admin/users/${i.user_id}`}>{i.user_name||"View profile"}</Link>:"Unknown user"}</td><td>{i.turn_count}</td><td>{i.total_messages}</td><td>{i.status}</td><td>{formatDateTime(i.status_updated_at)||"—"}</td><td><button className="admin-table-action" type="button" onClick={()=>navigate(`/admin/conversations/${i.conversation_id}`)}>View details</button></td></tr>):<tr><td colSpan="6">No conversations match your search.</td></tr>}</tbody></table></section></main>;
+}
