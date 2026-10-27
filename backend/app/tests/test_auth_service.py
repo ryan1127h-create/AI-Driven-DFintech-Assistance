@@ -11,6 +11,7 @@ Supabase Auth and in-memory stand-ins for the account and profile stores."""
 from __future__ import annotations
 
 import json
+import uuid
 
 import pytest
 
@@ -76,7 +77,14 @@ class _FakeAccounts:
         }
 
     def by_email(self, email: str) -> dict | None:
-        return next((r for r in self.rows.values() if r["email"] == email), None)
+        # As the database returns it: user_id a UUID, not a string.
+        row = next((r for r in self.rows.values() if r["email"] == email), None)
+        if row is None:
+            return None
+        try:
+            return {**row, "user_id": uuid.UUID(row["user_id"])}
+        except ValueError:  # a test's short id ("u1")
+            return row
 
     def set_stage(self, user_id: str, stage: str, *, source: str, actor: str) -> None:
         if self.fail_stage_write:
