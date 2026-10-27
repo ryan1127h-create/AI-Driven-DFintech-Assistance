@@ -25,6 +25,7 @@ from typing import Callable
 from app.domains.specialist.course_recommendation import timetable
 from app.domains.specialist.course_recommendation.models import Course, ScoreItem
 from app.domains.specialist.course_recommendation.policy import tuning
+from app.domains.specialist.course_recommendation.policy.skill_topics import SKILL_TOPIC_TAGS
 
 PROJECT_HEAVY_NOTE = "This course is primarily independent project work."
 
@@ -57,7 +58,10 @@ class ScoringContext:
     # What the student asked for this turn (all optional).
     requested_codes: frozenset[str] = frozenset()
     preferred_skills: tuple[str, ...] = ()
+    # Verticals the profile is interested in (a general preference) and the
+    # ones this message asks for (what the student wants this time).
     interest_verticals: frozenset[str] = frozenset()
+    requested_verticals: frozenset[str] = frozenset()
     prefers_lecture: bool = False
     # Times ((start, end), "HH:MM") and weekdays to keep free, and the
     # semester being planned ((ay, semester); None outside a plan).
@@ -134,18 +138,34 @@ def _requested(course: Course, ctx: ScoringContext) -> ScoreItem | None:
     return ScoreItem("requested", tuning.W_REQUESTED, "you asked for this course")
 
 
+def topic_skills(course: Course, skills: tuple[str, ...]) -> tuple[str, ...]:
+    """The `skills` the course is about: it carries one of their topic
+    tags (policy/skill_topics.py), not just a role that lists the skill."""
+    tags = {tag for tag, _ in course.role_tags}
+    return tuple(s for s in skills if SKILL_TOPIC_TAGS.get(s, frozenset()) & tags)
+
+
 def _preferred_skill(course: Course, ctx: ScoringContext) -> ScoreItem | None:
-    # Only distinctive skills: a common derived skill can't show that a
-    # course actually builds what the student asked for.
-    matched = distinctive(tuple(s for s in course.skills if s in ctx.preferred_skills), ctx.skill_share)
+    # A course builds an asked-for skill when it's about it (its topic
+    # tags), or carries it as a distinctive derived skill: a common derived
+    # skill can't show that a course actually builds what was asked for.
+    derived = distinctive(tuple(s for s in course.skills if s in ctx.preferred_skills), ctx.skill_share)
+    matched = tuple(dict.fromkeys((*topic_skills(course, ctx.preferred_skills), *derived)))
     if not matched:
         return None
     labels = ", ".join(SKILL_LABELS.get(s, s) for s in matched)
     return ScoreItem("preferred_skill", tuning.W_PREFERENCE * len(matched), f"builds {labels}, which you asked for")
 
 
+def _vertical_requested(course: Course, ctx: ScoringContext) -> ScoreItem | None:
+    if not ctx.requested_verticals.intersection(course.vertical):
+        return None
+    return ScoreItem("vertical_requested", tuning.W_VERTICAL_INTEREST, "in the Vertical you asked about")
+
+
 def _vertical_interest(course: Course, ctx: ScoringContext) -> ScoreItem | None:
-    if not ctx.interest_verticals.intersection(course.vertical):
+    # The profile's interest, when the message didn't name the Vertical.
+    if ctx.requested_verticals.intersection(course.vertical) or not ctx.interest_verticals.intersection(course.vertical):
         return None
     return ScoreItem("vertical_interest", tuning.W_VERTICAL_INTEREST, "in a Vertical you're interested in")
 
@@ -191,6 +211,7 @@ SIGNALS: tuple[Callable[[Course, ScoringContext], ScoreItem | None], ...] = (
     _requested,
     _preferred_skill,
     _preference,
+    _vertical_requested,
     _vertical_interest,
     _workload_fit,
     _avoid_time,
@@ -198,8 +219,10 @@ SIGNALS: tuple[Callable[[Course, ScoringContext], ScoreItem | None], ...] = (
 )
 
 # The signals that answer what the student asked for this turn — their
-# evidence is worded for the student and shown as a reason.
-REQUEST_SIGNALS = frozenset({"requested", "preferred_skill", "preference", "vertical_interest", "workload_fit"})
+# evidence is worded for the student and shown as a reason. The profile's
+# Vertical interest isn't one: it still scores, but a course in that
+# Vertical doesn't match a message asking for something else.
+REQUEST_SIGNALS = frozenset({"requested", "preferred_skill", "preference", "vertical_requested", "workload_fit"})
 # Signals that count against what the student asked for; shown too, but
 # never as a match.
 REQUEST_PENALTIES = frozenset({"avoid_time"})
