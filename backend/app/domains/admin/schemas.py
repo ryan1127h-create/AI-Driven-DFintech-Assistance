@@ -88,6 +88,7 @@ class AdminUser(BaseModel):
     created_at: datetime
     lifecycle_stage: str | None = None
     sub_stage: str | None = None
+    course_enrollments: list[dict] = []
     profile: list[dict] = []
     conversations: list[AdminUserConversation] = []
     applications: list[AdminUserApplication] = []

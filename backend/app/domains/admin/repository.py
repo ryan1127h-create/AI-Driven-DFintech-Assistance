@@ -107,9 +107,19 @@ def list_users(search: str = "", stage: str = "") -> dict:
         """
         select a.user_id::text, a.email, coalesce(a.full_name, '') as full_name,
                a.account_status, a.role, a.is_anonymous, a.last_login_at, a.created_at,
-               p.lifecycle_stage, p.sub_stage
+               p.lifecycle_stage, p.sub_stage,
+               coalesce(enrollments.items, '[]'::json) as course_enrollments
           from account.accounts a
           left join profile.v_profile_flat p on p.user_id = a.user_id
+          left join lateral (
+            select json_agg(json_build_object(
+                     'id', ce.id, 'course_code', ce.course_code, 'term', ce.term,
+                     'status', ce.status, 'grade_band', ce.grade_band,
+                     'credits', ce.credits, 'source', ce.source, 'updated_at', ce.updated_at
+                   ) order by ce.term nulls first, ce.course_code) as items
+              from sis.course_enrollments ce
+             where ce.user_id = a.user_id
+          ) enrollments on true
          where (%s = '%%' or a.email ilike %s or a.full_name ilike %s)
            and (%s = '' or (%s = 'staff' and a.role = 'admin')
                 or (a.role <> 'admin' and p.lifecycle_stage = %s))
@@ -123,15 +133,25 @@ def list_users(search: str = "", stage: str = "") -> dict:
 def get_user(user_id: str) -> dict | None:
     user = reporting_db.fetch_one_dict(
         """
-        select user_id::text, email, coalesce(full_name, '') as full_name,
-               account_status, role, is_anonymous, last_login_at, created_at
-          from account.accounts where user_id = %s
+        select a.user_id::text, a.email, coalesce(a.full_name, '') as full_name,
+               a.account_status, a.role, a.is_anonymous, a.last_login_at, a.created_at,
+               stage.value as lifecycle_stage
+          from account.accounts a
+          left join profile.v_profile stage
+            on stage.user_id = a.user_id and stage.field_key = 'lifecycle_stage'
+         where a.user_id = %s
         """,
         (user_id,),
     )
     if user:
         user["profile"] = reporting_db.fetch_all_dict(
-            "select field_key, value from profile.v_profile where user_id = %s order by field_key",
+            """
+            select p.field_key, p.value, d.module, d.label
+              from profile.v_profile p
+              left join profile.field_definitions d on d.field_key = p.field_key
+             where p.user_id = %s
+             order by d.module nulls last, p.field_key
+            """,
             (user_id,),
         )
         user["conversations"] = reporting_db.fetch_all_dict(
@@ -145,6 +165,15 @@ def get_user(user_id: str) -> dict | None:
               from sis.applications
              where user_id = %s
              order by updated_at desc nulls last
+            """,
+            (user_id,),
+        )
+        user["course_enrollments"] = reporting_db.fetch_all_dict(
+            """
+            select id::text, course_code, term, status, grade_band, credits, source, updated_at
+              from sis.course_enrollments
+             where user_id = %s
+             order by term nulls first, course_code
             """,
             (user_id,),
         )
