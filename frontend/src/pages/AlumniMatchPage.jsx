@@ -28,6 +28,10 @@ function Icon({ name, size = 20 }) {
     mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
     building: <><path d="M4 21V3h12v18M16 9h4v12M8 7h4M8 11h4M8 15h4M2 21h20" /></>,
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" /></>,
+    graduation: <><path d="m3 9 9-5 9 5-9 5-9-5Z" /><path d="M7 11v5c2.6 2 7.4 2 10 0v-5M21 10v6" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
+    globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.2 2.4 3.2 5.4 3.2 9s-1 6.6-3.2 9c-2.2-2.4-3.2-5.4-3.2-9S9.8 5.4 12 3Z" /></>,
+    target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>,
     filter: <path d="M4 5h16M7 12h10M10 19h4" />,
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
@@ -143,13 +147,9 @@ function StudentConnections({ connections, onFind }) {
       <Avatar src={r.alumnus.photo_url} name={r.alumnus.name} />
       <div className="request-main">
         <div className="request-name"><h3>{r.alumnus.name}</h3><span className="connected-label"><Icon name="check" size={13} />Connected</span></div>
-        <p>{r.alumnus.position} at {r.alumnus.company}{r.responded_at ? ` · Connected ${formatDate(r.responded_at)}` : ""}</p>
+        <p className="connection-role">{r.alumnus.position} at {r.alumnus.company}</p><p className="connection-meta">{r.responded_at ? `Connected ${formatDate(r.responded_at)}` : "Connected recently"}</p>
         {r.reply_note && <blockquote><strong>{displayName(r.alumnus.name)}:</strong> “{r.reply_note}”</blockquote>}
-        {shared ? <dl className="summary-background contact-list">
-          {contact.email && <div><dt>Email</dt><dd>{contact.email}</dd></div>}
-          {contact.phone && <div><dt>Phone</dt><dd>{contact.phone}</dd></div>}
-          {contact.linkedin && <div><dt>LinkedIn</dt><dd>{contact.linkedin.replace(/^https?:\/\/(www\.)?/, "")}</dd></div>}
-        </dl> : <p className="no-note">{displayName(r.alumnus.name)} accepted without sharing contact details.</p>}
+        {!shared && <p className="no-note">{displayName(r.alumnus.name)} accepted without sharing contact details.</p>}
       </div>
       {(contact.email || contact.linkedin) && <div className="request-actions">
         {contact.email && <a className="btn btn-primary" href={mailto(contact.email, "Hello from an MSc DFinTech student", `Hi ${displayName(r.alumnus.name)},\n\nThank you for accepting my request on Alumni Match.\n\n`)}><Icon name="mail" size={17} /><span>Email</span></a>}
@@ -237,17 +237,15 @@ function StudentView({ notify }) {
 function StudentSummary({ student, note, createdAt }) {
   const { match = {}, background = [] } = student;
   const otherInterests = (match.other || []).filter((role) => role !== match.main_role);
+  const scoreTone = match.shared?.length ? "strong" : "low";
+  const scoreLabel = scoreTone === "strong" ? "Strong match" : "Low match";
+  const detailIcon = (label) => label.toLowerCase().includes("degree") ? "graduation" : label.toLowerCase().includes("experience") ? "briefcase" : label.toLowerCase().includes("market") ? "globe" : label.toLowerCase().includes("timeline") ? "calendar" : "target";
   return <div className="student-summary">
-    <div className="request-name"><h3>{student.name}</h3>{student.mentor_seeking && <span className="pending-pill">Looking for a mentor</span>}</div>
-    <p>{student.stage}{createdAt ? ` · Sent ${formatDate(createdAt)}` : ""}</p>
-    <div className="summary-row"><span>MATCH</span>
-      {match.shared?.length ? <strong className="match-shared"><Icon name="sparkles" size={14} />Shared interests: {match.shared.join(", ")}{match.main_role_shared ? " (their main target role)" : ""}</strong>
-        : <strong>No overlap with your expertise</strong>}
-      {match.main_role && !match.main_role_shared && <small>Main target role: {match.main_role}</small>}
-      {otherInterests.length > 0 && <small>Also interested in: {otherInterests.join(", ")}</small>}
-    </div>
-    {background.length > 0 && <dl className="summary-background">{background.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>}
-    {note ? <blockquote>“{note}”</blockquote> : <p className="no-note">No note added.</p>}
+    <div className="candidate-heading"><div><div className="request-name"><h3>{student.name}</h3>{student.mentor_seeking && <span className="pending-pill">Looking for a mentor</span>}</div><p className="candidate-meta"><span className="status-dot" />{student.stage}<span className="meta-divider">•</span>{createdAt ? `Submitted ${formatDate(createdAt)}` : "Submitted recently"}</p></div></div>
+    <div className="match-panel"><div className={`match-badge ${scoreTone}`}><span className="match-status-dot" /><span><strong>{scoreLabel}</strong><small>Based on shared interests and target role</small></span></div><p>{match.shared?.length ? `Aligned on ${match.shared.join(", ")}${match.main_role_shared ? " and the target role" : ""}.` : "Limited overlap with your current expertise."}</p></div>
+    <div className="summary-details">{background.length > 0 ? background.map((item) => <div className="detail-chip" key={item.label}><span className="detail-icon"><Icon name={detailIcon(item.label)} size={15} /></span><span><small>{item.label}</small><strong>{item.value}</strong></span></div>) : <div className="detail-chip"><span className="detail-icon"><Icon name="target" size={15} /></span><span><small>Target role</small><strong>{match.main_role || "Open to opportunities"}</strong></span></div>}{match.main_role && <span className="compatibility-tag"><Icon name="target" size={13} />{match.main_role} compatible</span>}</div>
+    {otherInterests.length > 0 && <p className="other-interests">Also interested in {otherInterests.join(", ")}</p>}
+    <div className="candidate-message"> <span className="message-icon"><Icon name="message" size={15} /></span><blockquote>{note ? `“${note}”` : "No note added."}</blockquote></div>
   </div>;
 }
 
@@ -351,7 +349,7 @@ function AlumniView({ notify }) {
       <Avatar name={r.student.name} /><div className="request-main"><StudentSummary student={r.student} note={r.note} createdAt={r.created_at} /></div>
       <div className="request-actions"><Button variant="danger" onClick={() => decline(r)}>Decline</Button><Button onClick={() => { setActionError(""); setAccepting(r); }}>Accept</Button></div>
     </article>) : <div className="request-empty"><Icon name="check" size={20} /><span>No requests waiting for you.</span></div>}</div>}
-    {tab === "connections" && (connected.length ? <div className="connection-row">{connected.map((r) => <div className="student-connection" key={r.id}><Avatar name={r.student.name} size="sm" /><span><strong>{r.student.name}</strong><small>{r.student.stage}</small></span><a className="btn btn-primary" href={emailToStudent(r, data.profile)}><Icon name="mail" size={17} /><span>Email {displayName(r.student.name)}</span></a></div>)}</div>
+    {tab === "connections" && (connected.length ? <div className="connection-row">{connected.map((r) => <div className="student-connection" key={r.id}><Avatar name={r.student.name} size="sm" /><span className="connection-identity"><strong>{r.student.name}</strong><small>{r.student.stage}</small></span><a className="btn btn-primary" href={emailToStudent(r, data.profile)}><Icon name="mail" size={17} /><span>Email {displayName(r.student.name)}</span></a></div>)}</div>
       : <div className="empty-connections"><div className="empty-icon"><Icon name="link" size={30} /></div><h2>Your student connections</h2><p>Students whose requests you accept appear here, with a button that opens your email app to reply.</p></div>)}
     {accepting && <AcceptModal request={accepting} profile={data.profile} busy={busy} error={actionError} onClose={() => setAccepting(null)} onAccept={accept} />}
   </>;

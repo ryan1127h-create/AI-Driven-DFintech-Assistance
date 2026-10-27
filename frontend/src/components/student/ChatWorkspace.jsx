@@ -53,6 +53,22 @@ import remarkGfm from "remark-gfm";
 // sends.
 const MAX_ROLLBACK_TURNS = 5;
 
+function markdownListItem({ node, children, ...props }) {
+  const childArray = Array.isArray(children) ? children : [children];
+  const firstChild = childArray[0];
+  const text = typeof firstChild === "string" ? firstChild : "";
+  const lettered = /^\s*\([a-z]\)\s+/i.test(text);
+  const cleanedChildren = lettered && typeof firstChild === "string"
+    ? [firstChild.replace(/^\s*\([a-z]\)\s+/i, ""), ...childArray.slice(1)]
+    : childArray;
+
+  return (
+    <li {...props} className={lettered ? "assistant-lettered-item" : undefined}>
+      {cleanedChildren}
+    </li>
+  );
+}
+
 // Walks `messages` from the end, pairing up the most recent AI replies with
 // how many turns rolling back to "before" them would remove — without
 // needing to track each message's absolute turn number. Stops at the first
@@ -543,6 +559,7 @@ function AssistantMessage({
                       />
                     );
                   },
+                  li: markdownListItem,
                 }}
               >
                 {body}
