@@ -48,6 +48,23 @@ class ResendCodeRequest(BaseModel):
     email: EmailStr
 
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    # Same rule as registration.
+    password: str = Field(min_length=8, max_length=200)
+
+
+class PasswordResetStarted(BaseModel):
+    status: Literal["reset_code_sent"] = "reset_code_sent"
+    email: str
+    expires_in: int  # seconds
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)

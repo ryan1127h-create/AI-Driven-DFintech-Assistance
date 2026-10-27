@@ -142,6 +142,10 @@ class _FakeAuthProvider:
             raise RuntimeError("supabase down")
         self.names[user_id] = full_name
 
+    def update_password(self, user_id: str, password: str) -> None:
+        email = next(e for e, (uid, _) in self._accounts.items() if uid == user_id)
+        self._accounts[email] = (user_id, password)
+
     def delete_user(self, user_id: str) -> None:
         # The real cascade: deleting the provider's user removes the account.
         self.deleted.append(user_id)
@@ -536,3 +540,43 @@ def test_account_names_are_trimmed_and_not_blank():
     with pytest.raises(PydanticValidationError):
         AccountUpdate(full_name="   ")
 
+
+
+# ---- password reset ---------------------------------------------------------
+
+def _applicant(fake_auth_provider):
+    service.start_registration("reset@example.com", "oldpassword", "Reset User", "applicant")
+
+
+def test_a_reset_code_sets_a_new_password_once(fake_cache, fake_email, fake_auth_provider):
+    _applicant(fake_auth_provider)
+    started = service.request_password_reset(" Reset@Example.com ")
+    assert started.email == "reset@example.com" and "password reset code" in fake_email.sent[-1][1]
+    code = _extract_code(fake_email)
+    with pytest.raises(ValidationError, match="Incorrect"):
+        service.reset_password("reset@example.com", "000000" if code != "000000" else "111111", "newpassword")
+    service.reset_password("reset@example.com", code, "newpassword")
+    assert service.login("reset@example.com", "newpassword", "applicant").user.email == "reset@example.com"
+    with pytest.raises(UnauthorizedError):
+        service.login("reset@example.com", "oldpassword", "applicant")
+    with pytest.raises(ValidationError, match="expired or was never issued"):
+        service.reset_password("reset@example.com", code, "another-password")  # used up
+
+
+def test_an_unknown_email_gets_the_same_answer_and_no_email(fake_cache, fake_email, fake_auth_provider):
+    started = service.request_password_reset("nobody@example.com")
+    assert started.status == "reset_code_sent" and fake_email.sent == []
+
+
+def test_reset_codes_respect_the_cooldown_and_the_attempt_limit(fake_cache, fake_email, fake_auth_provider):
+    _applicant(fake_auth_provider)
+    service.request_password_reset("reset@example.com")
+    with pytest.raises(RateLimitError):
+        service.request_password_reset("reset@example.com")
+    code = _extract_code(fake_email)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(service.settings.email_verification_max_attempts):
+        with pytest.raises(ValidationError):
+            service.reset_password("reset@example.com", wrong, "newpassword")
+    with pytest.raises(RateLimitError):
+        service.reset_password("reset@example.com", code, "newpassword")

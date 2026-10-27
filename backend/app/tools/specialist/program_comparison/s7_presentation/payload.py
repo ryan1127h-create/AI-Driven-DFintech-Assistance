@@ -342,6 +342,20 @@ def _goal_check(check: dict, names: dict[str, str]) -> dict:
     }
 
 
+def without_dft_funding(view: dict) -> dict:
+    """The view without MSc DFT's own scholarships and rebates, for a
+    message the fees answer also covers (it lists them): the comparison
+    keeps every other programme's funding and MSc DFT's tuition."""
+    dft = view.get("msc_dft")
+    if not dft:
+        return view
+    facts = {k: v for k, v in dft.get("facts", {}).items() if k != "funding"}
+    dft = {**dft, "facts": facts}
+    if cost := dft.get("for_you", {}).get("cost"):
+        dft["for_you"] = {**dft["for_you"], "cost": {k: v for k, v in cost.items() if k != "may_also_apply"}}
+    return {**view, "msc_dft": dft}
+
+
 def to_render_view(result: dict) -> dict:
     programmes = [p for p in (result["baseline"], *result["subjects"], *result["matches"]) if p]
     names = {p["program_id"]: _label(p) for p in programmes}

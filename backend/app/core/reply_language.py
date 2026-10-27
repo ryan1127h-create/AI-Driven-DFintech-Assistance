@@ -56,7 +56,9 @@ def instruction(code: str | None) -> str:
         return "Reply language: write the reply in the language of the user's message."
     note = _SCRIPT_NOTE.get(code.strip().lower(), "")
     return (f"Reply language: write the whole reply in {language}{note}, whatever language the material "
-            "above is in. Keep course codes, programme and university names, URLs and every figure as given.")
+            "above is in. Keep course codes, programme and university names, URLs and every figure as given; "
+            f"write dates the {language} way with the same day, month and year, and put every other English "
+            f"phrase into {language} rather than leaving it in English.")
 
 
 def with_instruction(prompt: str, code: str | None) -> str:
