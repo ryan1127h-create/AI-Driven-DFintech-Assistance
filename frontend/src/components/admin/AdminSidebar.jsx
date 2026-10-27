@@ -37,7 +37,7 @@ export default function AdminSidebar() {
       collapsed ? "w-16 items-center" : "w-72",
     )}>
       <div className={cn("flex items-center mb-8", collapsed ? "justify-center" : "gap-2 px-3")}>
-        <img src={nusLogo} alt="NUS logo" className={cn("object-contain", collapsed ? "h-9 w-10" : "h-10 w-18")} />
+        <img src={nusLogo} alt="NUS logo" className={cn("shrink-0 object-contain", collapsed ? "h-9 w-10" : "h-10 w-auto")} />
         {!collapsed && <div>
           <p className="font-display text-sm font-bold text-app-primary">DFT Admin</p>
           <p className="text-[10px] tracking-wider text-app-faint">Staff Console</p>

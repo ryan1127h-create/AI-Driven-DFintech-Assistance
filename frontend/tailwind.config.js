@@ -4,6 +4,26 @@ export default {
   darkMode: ["class", '[data-theme="dark"]'],
   theme: {
     extend: {
+      // Mirrors the .text-app-* / .bg-app-* / .border-app-* classes in
+      // src/index.css (CSS variables per theme) so their hover:, focus: and
+      // placeholder: variants exist.
+      textColor: {
+        "app-primary": "var(--text-primary)",
+        "app-secondary": "var(--text-secondary)",
+        "app-muted": "var(--text-muted)",
+        "app-faint": "var(--text-faint)",
+      },
+      backgroundColor: {
+        "app-base": "var(--bg-base)",
+        "app-glass": "var(--bg-glass)",
+        "app-elevated": "var(--bg-elevated)",
+        "app-hover": "var(--bg-hover)",
+      },
+      borderColor: {
+        "app-subtle": "var(--border-subtle)",
+        "app-soft": "var(--border-soft)",
+        "app-input": "var(--border-input)",
+      },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         display: ["Inter", "system-ui", "sans-serif"],

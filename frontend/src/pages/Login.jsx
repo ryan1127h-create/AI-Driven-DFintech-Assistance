@@ -72,7 +72,7 @@ export default function Login() {
     <div className="aurora-bg min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 lg:px-12 py-5">
         <button onClick={() => navigate("/")} className="flex items-center gap-3">
-          <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+          <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl overflow-hidden">
             <img
                 src={nusLogo}
                 alt="NUS Logo"

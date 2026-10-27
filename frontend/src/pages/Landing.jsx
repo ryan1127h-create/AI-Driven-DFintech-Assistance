@@ -10,16 +10,17 @@ export default function Landing() {
     <div className="aurora-bg min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 lg:px-12 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+          <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl overflow-hidden">
             <img
                 src={nusLogo}
                 alt="NUS Logo"
                 className="h-full w-full object-cover"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-display font-bold text-app-primary leading-tight">NUS DFT</p>
-            <p className="text-xs text-app-muted">AI Student Lifecycle Assistant</p>
+            {/* Phones also fit the sign-up and sign-in buttons on this row. */}
+            <p className="hidden text-xs text-app-muted sm:block">AI Student Lifecycle Assistant</p>
           </div>
         </div>
         

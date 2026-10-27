@@ -243,7 +243,7 @@ export default function StudentSidebar() {
     )}>
       <div className="flex items-center justify-between px-4 py-4">
         <button onClick={() => { navigate("/app", { replace: true }); closeOnMobile(); }} className="flex items-center gap-2.5">
-          <div className="flex h-10 w-18 items-center justify-center rounded-xl overflow-hidden">
+          <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl overflow-hidden">
             <img src={nusLogo} alt="NUS Logo" className="h-full w-full object-cover" />
           </div>
           <div className="text-left">
