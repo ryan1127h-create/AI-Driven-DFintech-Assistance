@@ -2189,6 +2189,7 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 .alumni-match-page .connection-card .no-note { margin-top: 15px; }
 .alumni-match-page .tabs { gap: 4px; padding: 4px; margin-bottom: 16px; border: 1px solid #dbe4f1; border-radius: 13px; background: #f1f5fb; }
 .alumni-match-page .tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: 1 1 0; min-width: 148px; padding: 9px 14px; border-radius: 9px; font-size: 12px; white-space: nowrap; }
+.alumni-match-page .story-card + .tabs { margin-top: 18px; }
 @media (max-width: 820px) { .alumni-match-page .request-card.connection-card { grid-template-columns: 72px minmax(0, 1fr); }.alumni-match-page .connection-card .request-actions { grid-column: 2; grid-row: 1; justify-self: end; }.alumni-match-page .connection-card .request-main { grid-column: 2; }.alumni-match-page .connection-card .contact-list { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .alumni-match-page .request-card.connection-card { grid-template-columns: 64px minmax(0, 1fr); gap: 14px; padding: 18px; }.alumni-match-page .connection-card > .avatar { width: 64px; height: 64px; }.alumni-match-page .connection-card .request-actions { grid-column: 1 / -1; grid-row: auto; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }.alumni-match-page .connection-card .request-main { grid-column: 2; }.alumni-match-page .connection-card .request-name { align-items: flex-start; flex-direction: column; gap: 6px; }.alumni-match-page .connection-card .request-name h3 { font-size: 18px; }.alumni-match-page .connection-card .request-main > p { font-size: 14px; }.alumni-match-page .connection-card .contact-list { grid-template-columns: 1fr; }.alumni-match-page .connection-card .contact-list > div:last-child { grid-column: auto; }.alumni-match-page .tabs button { min-width: 0; padding-inline: 8px; } }
 
@@ -2268,6 +2269,22 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 [data-theme="dark"] .alumni-match-page .textarea-wrap > span { color: #71829a; }
 [data-theme="dark"] .alumni-match-page .permission-help { color: #94a3b8; }
 [data-theme="dark"] .alumni-match-page .modal-wide:has(.permission-panel) .modal-actions { background: linear-gradient(#0f172a00, #0f172a 20%); }
+.reminder-panel { z-index: 80; min-height: 72px; color: var(--text-primary); background: var(--bg-card); border-color: var(--border-subtle); box-shadow: 0 18px 42px rgba(0, 0, 0, .22); }
+.reminder-panel-expanded, .reminder-panel-compact { position: fixed !important; margin: 0 !important; }
+.reminder-trigger { color: var(--text-secondary); }
+.reminder-trigger:hover { color: var(--text-primary); background: var(--bg-hover); }
+.reminder-panel > p { color: var(--text-primary); }
+.reminder-panel > p:last-child { color: var(--text-secondary); }
+[data-theme="dark"] .reminder-panel { color: #f8fafc; background: #172337; border-color: #475569; box-shadow: 0 20px 48px rgba(0, 0, 0, .48); }
+[data-theme="dark"] .reminder-trigger { color: #cbd5e1; }
+[data-theme="dark"] .reminder-trigger:hover { color: #fff; background: #263449; }
+[data-theme="dark"] .reminder-panel > p { color: #f8fafc; }
+[data-theme="dark"] .reminder-panel > p:last-child { color: #cbd5e1; }
+[data-theme="dark"] .reminder-panel li { border-color: #475569; background: #1e293b; }
+[data-theme="dark"] .reminder-panel li p { color: #e2e8f0; }
+[data-theme="dark"] .reminder-panel li p.text-app-muted { color: #a9b8cc; }
+[data-theme="dark"] .reminder-panel li button { color: #94a3b8; }
+[data-theme="dark"] .reminder-panel li button:hover { color: #f8fafc; }
 @media (max-width: 560px) { .alumni-match-page .tabs { width: 100%; overflow-x: auto; }.alumni-match-page .tabs button { flex: 0 0 auto; min-width: 118px; } }
 
 /* Shared admin table foundation. Page-specific classes should only define
