@@ -349,10 +349,8 @@ def _process_slots(
         project_averse=wanted.workload_style == "less_project",
         requested_codes=frozenset(wanted.include_codes),
         preferred_skills=tuple(wanted.preferred_skills),
-        interest_verticals=frozenset(
-            cs.TRACK_VERTICALS[t]
-            for t in {*wanted.vertical_preference, *request.student.track_interest}
-        ),
+        interest_verticals=frozenset(cs.TRACK_VERTICALS[t] for t in request.student.track_interest),
+        requested_verticals=frozenset(cs.TRACK_VERTICALS[t] for t in wanted.vertical_preference),
         prefers_lecture=wanted.workload_style == "lecture",
         avoid_windows=tuple((w.start, w.end) for w in wanted.avoid_time_windows),
         avoid_days=frozenset(wanted.avoid_days),

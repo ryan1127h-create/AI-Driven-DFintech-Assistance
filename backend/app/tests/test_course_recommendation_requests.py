@@ -95,6 +95,28 @@ def test_request_signals_score_what_the_student_asked_for():
     }
 
 
+def test_an_asked_for_skill_matches_the_courses_about_it_not_every_course_carrying_it():
+    # "finance" is carried by most courses (many roles list it), so it isn't
+    # distinctive; a course is about finance when it has a finance topic tag.
+    common = {"finance": 0.66}
+    finance = _course("FE5108", skills=("finance",), role_tags=(("finance_investment", "Finance & Investment"),))
+    ml = _course("CS5562", skills=("finance", "ai_ml"), role_tags=(("machine_learning_ai", "ML & AI"),))
+    scored = {sc.course.code: {i.signal for i in sc.breakdown}
+              for sc in scorer.score_slot_candidates((finance, ml), _ctx(skill_share=common, preferred_skills=("finance",)))}
+    assert "preferred_skill" in scored["FE5108"] and "preferred_skill" not in scored["CS5562"]
+
+
+def test_the_profiles_vertical_scores_but_doesnt_answer_the_request():
+    in_v2 = _course("CS5242", vertical=(V2,))
+    profile = scorer.score_slot_candidates((in_v2,), _ctx(interest_verticals=frozenset({V2})))[0]
+    assert {i.signal for i in profile.breakdown} == {"vertical_interest"}
+    assert "vertical_interest" not in signals.REQUEST_SIGNALS
+    asked = scorer.score_slot_candidates((in_v2,), _ctx(interest_verticals=frozenset({V2}),
+                                                        requested_verticals=frozenset({V2})))[0]
+    assert {i.signal for i in asked.breakdown} == {"vertical_requested"}  # counted once
+    assert "vertical_requested" in signals.REQUEST_SIGNALS
+
+
 # ---- end to end -------------------------------------------------------------
 
 def _request(**overrides) -> dict:
