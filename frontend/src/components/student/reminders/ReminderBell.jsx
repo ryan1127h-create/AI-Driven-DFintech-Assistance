@@ -8,7 +8,23 @@ import useReminders, { reminderTarget } from "./useReminders";
 export default function ReminderBell({ compact = false }) {
   const { items, dismiss } = useReminders();
   const [open, setOpen] = useState(false);
+  const [panelPosition, setPanelPosition] = useState({});
   const panel = useRef(null);
+  const trigger = useRef(null);
+
+  useEffect(() => {
+    if (!open || !trigger.current) return undefined;
+    const position = () => {
+      const rect = trigger.current.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - 24);
+      const left = Math.min(rect.right + 10, window.innerWidth - width - 12);
+      setPanelPosition({ left: Math.max(12, left), top: compact ? rect.top : rect.bottom + 10, width });
+    };
+    position();
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => { window.removeEventListener("resize", position); window.removeEventListener("scroll", position, true); };
+  }, [open, compact]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -23,7 +39,8 @@ export default function ReminderBell({ compact = false }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-app-faint transition hover:bg-app-hover hover:text-app-primary"
+        ref={trigger}
+        className="reminder-trigger relative flex h-9 w-9 items-center justify-center rounded-lg text-app-faint transition hover:bg-app-hover hover:text-app-primary"
         aria-label={items.length ? `Reminders, ${items.length} open` : "Reminders"}
         aria-expanded={open}
         title="Reminders"
@@ -43,9 +60,10 @@ export default function ReminderBell({ compact = false }) {
           role="dialog"
           aria-label="Reminders"
           className={cn(
-            "absolute z-50 mt-2 w-80 max-w-[85vw] rounded-xl border border-app-subtle glass p-3 shadow-2xl",
-            compact ? "left-full top-0 ml-2 mt-0" : "right-0",
+            "reminder-panel absolute z-50 mt-2 w-80 max-w-[85vw] rounded-xl border border-app-subtle glass p-3 shadow-2xl",
+            compact ? "reminder-panel-compact left-full top-0 ml-2 mt-0" : "reminder-panel-expanded right-0",
           )}
+          style={panelPosition}
         >
           <p className="mb-2 px-1 text-xs font-semibold text-app-primary">Reminders</p>
           {items.length === 0 ? (
