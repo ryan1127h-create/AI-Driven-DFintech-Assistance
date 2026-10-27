@@ -82,6 +82,12 @@ def test_abbreviated_and_full_month_names_support_each_other():
         "dates not in the reference material: 3 November"]
 
 
+def test_a_date_written_the_chinese_way_is_checked_too():
+    sources = "Closing date 31 January 2027."
+    assert guardrail.check("申请截止日期是2027年1月31日。", sources) == []
+    assert guardrail.check("申请截止日期是2027年3月31日。", sources) == ["dates not in the reference material: 31 March"]
+
+
 def test_a_word_starting_like_a_month_is_not_a_date():
     assert guardrail.check("Pick 3 Decide-level electives.", "") == []
 

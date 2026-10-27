@@ -305,6 +305,57 @@ def _caveats(programmes: list[dict]) -> list[str]:
     return lines
 
 
+# S5's goals, as the reply names them.
+_GOALS = {
+    "target_role": "Your target role's skills in the required courses",
+    "english": "Your English score against the minimum",
+    "work_experience": "Your work experience against the minimum",
+    "duration": "Programme length (a factor you said matters)",
+    "flexibility": "Part-time study (a factor you said matters)",
+    "tech_depth": "Technology depth (a factor you said matters)",
+    "finance_depth": "Finance depth (a factor you said matters)",
+    "cost": "Cost for you (a factor you said matters)",
+    "scholarship": "Fee reductions and scholarships (a factor you said matters)",
+}
+_REQUIREMENT = {"met": "meets it", "not_met": "below it", "waived": "waived", "short": "below the minimum",
+                "not_required": "not required"}
+
+
+def _goal_check(check: dict, names: dict[str, str]) -> dict:
+    """Each goal programme by programme, who is ahead, and the count."""
+    checks = []
+    for goal in check["goals"]:
+        if goal.get("not_comparable"):
+            ahead = f"not comparable ({goal['not_comparable']})"
+        else:
+            ahead = ", ".join(names[pid] for pid in goal["ahead"]) or "level"
+        checks.append({
+            "goal": _GOALS.get(goal["goal"], goal["goal"]),
+            "by_programme": {names[pid]: _REQUIREMENT.get(text, text) for pid, text in goal["values"].items()},
+            "ahead": ahead,
+        })
+    lead = check.get("lead")
+    return {
+        "checks": checks,
+        "goals_each_is_ahead_on": {names[pid]: n for pid, n in check["ahead_count"].items()},
+        "matches_more_of_your_goals": names[lead] if lead else None,
+    }
+
+
+def without_dft_funding(view: dict) -> dict:
+    """The view without MSc DFT's own scholarships and rebates, for a
+    message the fees answer also covers (it lists them): the comparison
+    keeps every other programme's funding and MSc DFT's tuition."""
+    dft = view.get("msc_dft")
+    if not dft:
+        return view
+    facts = {k: v for k, v in dft.get("facts", {}).items() if k != "funding"}
+    dft = {**dft, "facts": facts}
+    if cost := dft.get("for_you", {}).get("cost"):
+        dft["for_you"] = {**dft["for_you"], "cost": {k: v for k, v in cost.items() if k != "may_also_apply"}}
+    return {**view, "msc_dft": dft}
+
+
 def to_render_view(result: dict) -> dict:
     programmes = [p for p in (result["baseline"], *result["subjects"], *result["matches"]) if p]
     names = {p["program_id"]: _label(p) for p in programmes}
@@ -323,6 +374,8 @@ def to_render_view(result: dict) -> dict:
     if result["mode"] == "explore":
         view["how_many_match"] = len(result["matches"])
         view["matching_programmes"] = [_programme(p) for p in result["matches"]]
+    if result.get("goal_check"):
+        view["your_goals"] = _goal_check(result["goal_check"], names)
     caveats = _caveats(programmes)
     if caveats:
         view["caveats"] = caveats

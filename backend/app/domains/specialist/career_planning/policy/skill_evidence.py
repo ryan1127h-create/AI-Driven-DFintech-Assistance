@@ -131,6 +131,8 @@ SKILL_SIGNALS: dict[str, tuple[Signal, ...]] = {
     "finance": (
         _level("finance_level", l1=BASIC, l2=MODERATE, l3=STRONG),
         _any("certifications", STRONG, "cfa", "cpa_acca"),
+        # CFA levels passed without the charter (the tools layer marks them "_partial").
+        _any("certifications", MODERATE, "cfa_partial"),
         _any("function_experience", MODERATE, "quant"),
         _any("degree_discipline_category", MODERATE, "finance_econ_accounting"),
         _any("prior_coursework", MODERATE, "corporate_finance", "investments_derivatives", "accounting"),
@@ -140,6 +142,7 @@ SKILL_SIGNALS: dict[str, tuple[Signal, ...]] = {
     ),
     "risk_modeling": (
         _any("certifications", STRONG, "frm"),
+        _any("certifications", MODERATE, "frm_partial"),  # Part 1 only
         _any("function_experience", STRONG, "quant"),
         _any("domain_knowledge", MODERATE, "risk_management", "derivatives"),
         _any("prior_coursework", MODERATE, "stochastic_calculus", "investments_derivatives"),

@@ -53,7 +53,7 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.domains.auth import repository
-from app.domains.auth.schemas import AuthResponse, RegistrationStartedResponse, UserOut
+from app.domains.auth.schemas import AuthResponse, PasswordResetStarted, RegistrationStartedResponse, UserOut
 from app.domains.profile import interface as profile_interface
 from app.domains.auth.security import (
     TokenError,
@@ -74,6 +74,7 @@ _BLACKLIST_PREFIX = "auth:blacklist:"
 _REVOKED_USER_PREFIX = "auth:revoked_user:"
 _REVOKED_USER_TTL_SECONDS = 7 * 24 * 3600
 _PENDING_PREFIX = "auth:pending:"
+_RESET_PREFIX = "auth:reset:"
 _ENROLLED_STUDENT_EMAIL_SUFFIX = "@u.nus.edu"
 
 # lifecycle_stage recorded for the role picked at registration (an
@@ -428,6 +429,74 @@ def verify_email(email: str, code: str) -> AuthResponse:
     )
     cache.delete(_pending_key(email))
     return response
+
+
+# --- password reset: a code emailed to the account's address, like registration ---
+
+def _reset_email_text(code: str) -> str:
+    minutes = settings.email_verification_ttl_seconds // 60
+    return (
+        f"Your NUS DFT password reset code is {code}.\n\n"
+        f"This code expires in {minutes} minutes. If you didn't ask to reset your password, "
+        f"you can ignore this email — your password stays as it is."
+    )
+
+
+def _load_reset(email: str) -> dict | None:
+    raw = cache.get(f"{_RESET_PREFIX}{email}")
+    return json.loads(raw) if raw is not None else None
+
+
+def request_password_reset(email: str) -> PasswordResetStarted:
+    """Emails a reset code to an active account. The response is the same
+    whether or not the email is registered, so it can't be used to find
+    out which emails are."""
+    email = email.strip().lower()
+    started = PasswordResetStarted(email=email, expires_in=settings.email_verification_ttl_seconds)
+    account = repository.get_account_by_email(email)
+    if account is None or account["account_status"] != "active":
+        return started
+    pending = _load_reset(email)
+    if pending is not None:
+        _check_resend_cooldown(pending)
+    code = generate_verification_code()
+    try:
+        email_sender.send(email, "Your NUS DFT password reset code", _reset_email_text(code))
+    except Exception as exc:
+        logger.error("failed to send password reset email to %s: %s", email, exc)
+        raise ServiceUnavailableError(
+            "We couldn't send the reset email right now. Please try again in a few minutes."
+        ) from exc
+    now = time.time()
+    cache.set(f"{_RESET_PREFIX}{email}", json.dumps({
+        "user_id": account["user_id"], "code_hash": hash_code(code), "attempts": 0,
+        "created_at": now, "last_sent_at": now,
+    }), ttl_seconds=settings.email_verification_ttl_seconds)
+    return started
+
+
+def reset_password(email: str, code: str, password: str) -> None:
+    """Sets the new password once the emailed code checks out; the code is
+    then used up. Wrong codes count toward the same attempt limit as
+    registration and never extend the code's lifetime."""
+    email = email.strip().lower()
+    key = f"{_RESET_PREFIX}{email}"
+    pending = _load_reset(email)
+    if pending is None:
+        raise ValidationError("This reset code has expired or was never issued. Please request a new one.")
+    if pending["attempts"] >= settings.email_verification_max_attempts:
+        cache.delete(key)
+        raise RateLimitError("Too many incorrect attempts. Please request a new code.")
+    if not verify_code(code, pending["code_hash"]):
+        remaining = settings.email_verification_ttl_seconds - (time.time() - pending["created_at"])
+        if remaining <= 0:
+            cache.delete(key)
+            raise ValidationError("This reset code has expired. Please request a new one.")
+        pending["attempts"] += 1
+        cache.set(key, json.dumps(pending), ttl_seconds=int(remaining))
+        raise ValidationError("Incorrect reset code.")
+    auth_provider.update_password(pending["user_id"], password)
+    cache.delete(key)
 
 
 def login(email: str, password: str, role: str) -> AuthResponse:

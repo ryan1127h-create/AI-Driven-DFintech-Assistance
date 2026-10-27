@@ -21,6 +21,7 @@ from __future__ import annotations
 import concurrent.futures
 
 from app.core.logging import get_logger
+from app.tools.specialist.career_planning.s2_assembly import certifications
 from app.domains.knowledge_retrieval.interface import list_course_tags, list_courses, list_role_tags
 from app.domains.profile.interface import (
     derived_readiness_gaps,
@@ -69,14 +70,26 @@ def _raw_values(value) -> list:
     return [item.get("key") if isinstance(item, dict) else item for item in items]
 
 
+def _certification_labels(items) -> dict:
+    """The evidence key of each certification -> its label with the level."""
+    return {
+        str(certifications.evidence_key(item)): certifications.evidence_label(
+            item, describe_value("certifications", item.get("key") if isinstance(item, dict) else item))
+        for item in (items if isinstance(items, list) else [items]) if item
+    }
+
+
 def evidence_labels(facts: dict) -> dict:
     """How each fact on file (and each of its values) is shown in the reply."""
     labels = field_labels(facts)
-    return {
+    shown = {
         key: {"label": labels.get(key, key),
               "values": {str(v): describe_value(key, v) for v in _raw_values(value) if v is not None}}
         for key, value in facts.items() if value not in (None, "", [])
     }
+    if "certifications" in shown:
+        shown["certifications"]["values"] = _certification_labels(facts["certifications"])
+    return shown
 
 
 def _result(future, default, what: str, notes: list[str], note: str | None = None):

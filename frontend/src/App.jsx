@@ -5,6 +5,8 @@ import { ChatProvider } from "./context/ChatContext";
 import { canSeePage } from "./data/stages";
 import Landing from "./pages/Landing";
 import ProgrammePage from "./pages/ProgrammePage";
+import ForgotPassword from "./pages/ForgotPassword";
+import NotYetAvailable from "./components/NotYetAvailable";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import ProfilePage from "./pages/ProfilePage";
@@ -38,7 +40,7 @@ function ProtectedRoute({ children, staffOnly, studentOnly, enrolledOnly }) {
   if (!role) return <Navigate to="/login" replace />;
   if (staffOnly && !isStaff) return <Navigate to="/app" replace />;
   if (studentOnly && isStaff) return <Navigate to="/admin" replace />;
-  if (enrolledOnly && role !== "enrolled_student") return <Navigate to="/app" replace />;
+  if (enrolledOnly && role !== "enrolled_student") return <NotYetAvailable />;
   return children;
 }
 
@@ -60,6 +62,7 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/programme" element={<ProgrammePage />} />
 
               <Route element={<ProtectedRoute studentOnly><StudentLayout /></ProtectedRoute>}>

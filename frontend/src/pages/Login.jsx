@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { LogIn, AlertCircle, Loader2, User, BookOpen, ShieldCheck } from "lucide-react";
 import { login as apiLogin } from "../../api";
 import { useRole } from "../../src/context/RoleContext";
@@ -31,6 +31,8 @@ export default function Login() {
   const [nusLocalPart, setNusLocalPart] = useState("");
   const [password, setPassword] = useState("");
   const { login: setAuth, sessionExpired } = useRole();
+  // Set by the password reset page on success.
+  const notice = useLocation().state?.notice;
   const [error, setError] = useState(sessionExpired ? "Your session has expired. Log in again." : null);
   const [loading, setLoading] = useState(false);
 
@@ -93,13 +95,15 @@ export default function Login() {
           </div>
 
           {/* Role tabs */}
-          <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="grid grid-cols-3 gap-2 mb-2" role="tablist" aria-label="Sign in as">
             {tabs.map((t) => {
               const TIcon = t.icon;
               return (
                 <button
                   key={t.id}
                   type="button"
+                  role="tab"
+                  aria-selected={tab === t.id}
                   onClick={() => setTab(t.id)}
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-xl p-3 border transition-all",
@@ -108,7 +112,7 @@ export default function Login() {
                       : "bg-app-hover border-app-soft text-app-secondary hover:border-brand-400/20",
                   )}
                 >
-                  <TIcon size={20} />
+                  <TIcon size={20} aria-hidden="true" />
                   <span className="text-xs font-medium">{t.label}</span>
                 </button>
               );
@@ -118,6 +122,11 @@ export default function Login() {
           <p className="text-center text-xs text-app-muted mb-6">{tabs.find((t) => t.id === tab).hint}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {notice && !error && (
+              <div role="status" className="rounded-lg p-3 bg-emerald2-500/10 border border-emerald2-400/20 text-sm text-emerald2-400">
+                {notice}
+              </div>
+            )}
             {error && (
               <div className="flex items-center gap-2 rounded-lg p-3 bg-red-500/10 border border-red-400/20 text-sm text-red-400">
                 <AlertCircle size={16} />
@@ -125,26 +134,30 @@ export default function Login() {
               </div>
             )}
             <div>
-              <label className="text-sm font-medium text-app-secondary mb-1.5 block">Email</label>
+              <label htmlFor="login-email" className="text-sm font-medium text-app-secondary mb-1.5 block">Email</label>
               {tab === "enrolled_student" ? (
                 <div
                   className="w-full flex items-center gap-1 rounded-lg px-3.5 py-2.5 text-sm transition focus-within:ring-1 focus-within:ring-brand-500/40"
                   style={{ background: "var(--bg-input)", border: "1px solid var(--border-input)" }}
                 >
                   <input
+                    id="login-email"
                     type="text"
                     required
+                    aria-describedby="login-email-domain"
                     className="min-w-0 flex-1 bg-transparent border-0 p-0 outline-none text-app-primary placeholder:text-[var(--text-faint)]"
                     placeholder="e0123456"
                     value={nusLocalPart}
                     onChange={(e) => setNusLocalPart(e.target.value.replace(/[^a-zA-Z0-9._+-]/g, ""))}
                   />
-                  <span className="text-app-muted whitespace-nowrap select-none">{NUS_EMAIL_DOMAIN}</span>
+                  <span id="login-email-domain" className="text-app-muted whitespace-nowrap select-none">{NUS_EMAIL_DOMAIN}</span>
                 </div>
               ) : (
                 <input
+                  id="login-email"
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -153,9 +166,14 @@ export default function Login() {
               )}
             </div>
             <div>
-              <label className="text-sm font-medium text-app-secondary mb-1.5 block">Password</label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="login-password" className="text-sm font-medium text-app-secondary">Password</label>
+                <Link to="/forgot-password" className="text-xs text-brand-300 hover:underline">Forgot password?</Link>
+              </div>
               <input
+                id="login-password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -35,6 +35,18 @@ export function seesProgrammePage(policyStage) {
   return PROGRAMME_PAGE_STAGES.includes(policyStage);
 }
 
+// sis application statuses as people read them (backend sis.applications.status).
+export const APPLICATION_STATUS_LABELS = {
+  DRAFT: "Draft",
+  SUBMITTED: "Submitted",
+  UNDER_REVIEW: "Under review",
+  DOCS_REQUIRED: "Documents required",
+  WAITLIST: "Waitlisted",
+  OFFER: "Offer made",
+  ACCEPTED: "Offer accepted",
+  REJECTED: "Not admitted",
+};
+
 export function canSeePage(stage, page) {
   return (STAGE_PAGES[stage] || []).includes(page);
 }

@@ -216,6 +216,7 @@ type = independence
 modules =
     app.domains.specialist.program_comparison.stages.s3_facts
     app.domains.specialist.program_comparison.stages.s4_fit
+    app.domains.specialist.program_comparison.stages.s5_goals
     app.domains.specialist.program_comparison.stages.s6_modes
 
 ; In the career planning tool only s2_assembly/prefetch.py reads the

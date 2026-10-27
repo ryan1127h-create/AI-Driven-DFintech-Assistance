@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, Check, Info, Link2, ListChecks, Minus, X } from "lucide-react";
 import { bindApplication, getChecklist } from "../../api";
 import { useRole } from "../context/RoleContext";
+import { APPLICATION_STATUS_LABELS } from "../data/stages";
 import { formatDate } from "../utils/format";
 import { LoadingState, PageHeader } from "../components/student/PageParts";
 import { Badge, Card, EmptyState, ProgressBar } from "../components/ui";
@@ -95,7 +96,7 @@ function ApplicationOverview({ application }) {
             {application.status_label || application.status || "Unknown"}
           </p>
         </div>
-        {application.status && <Badge color="brand">{application.status}</Badge>}
+        {application.status && <Badge color="brand">{APPLICATION_STATUS_LABELS[application.status] || application.status}</Badge>}
       </div>
 
       {details.length > 0 && (

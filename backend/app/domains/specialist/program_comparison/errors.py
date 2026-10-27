@@ -11,6 +11,7 @@ StageName = Literal[
     "input_validation",
     "program_facts",
     "applicant_fit",
+    "goal_check",
     "result_assembly",
     "response_serialization",
 ]

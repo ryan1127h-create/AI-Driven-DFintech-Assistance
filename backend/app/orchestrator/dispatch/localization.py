@@ -41,10 +41,15 @@ exactly as strong or as soft as it was.
 
 Preserve EXACTLY as-is, character for character — do not translate, \
 reformat, recalculate, or reword any of these:
-- Numbers, dates, fee amounts, and deadlines.
+- Numbers, fee amounts and scores.
 - Course codes (e.g. "FT5005") and programme/university names.
 - URLs and the "Sources:" section at the end, if present.
 - The Markdown structure (headings, bullet lists, bold text).
+
+Dates and deadlines keep the same day, month and year but are written the \
+{language} way (e.g. "31 January 2027" in Chinese is "2027年1月31日"). \
+Every other English word or phrase is translated too — leave nothing in \
+English except the items above.
 
 Match the tone and formality of the user's own message given below — do \
 not default to a more formal or more casual register than they used.

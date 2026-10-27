@@ -38,6 +38,11 @@ class AuthPort(Protocol):
         """Updates the name kept in the provider's user metadata."""
         ...
 
+    def update_password(self, user_id: str, password: str) -> None:
+        """Sets a new password, after this app's own reset code has proved
+        the user owns the account's email."""
+        ...
+
     def delete_user(self, user_id: str) -> None:
         """Deletes the provider's user. The account row and everything that
         references it go with it through ON DELETE CASCADE."""

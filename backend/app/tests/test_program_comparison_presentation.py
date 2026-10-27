@@ -84,6 +84,28 @@ def test_funding_status_never_says_the_user_applied():
     assert "would need a separate application" in grtii and "applied for" not in grtii
 
 
+def test_asked_which_suits_the_view_lays_out_the_goals_and_the_count():
+    view = to_render_view(_result(applicant={"decision_factors": ["duration", "cost"]}, asks_which_suits=True))
+    goals = {c["goal"]: c for c in view["your_goals"]["checks"]}
+    duration = goals["Programme length (a factor you said matters)"]
+    assert duration["by_programme"]["NUS MSc DFinTech"] == "18 months full-time"
+    assert "NUS MSc DFinTech" not in duration["ahead"]
+    assert goals["Cost for you (a factor you said matters)"]["ahead"] == "not comparable (different currencies)"
+    assert set(view["your_goals"]["goals_each_is_ahead_on"]) == {"NUS MSc DFinTech", "HKUST MSc(FinTech)",
+                                                                  "NTU MSc FinTech"}
+    assert "your_goals" not in to_render_view(_result(applicant={"decision_factors": ["duration"]}))
+
+
+def test_with_the_fees_answer_alongside_msc_dft_funding_is_left_to_it():
+    from app.tools.specialist.program_comparison.s7_presentation.payload import without_dft_funding
+    view = to_render_view(_result(applicant={"residency": "sg_citizen"}))
+    assert view["msc_dft"]["facts"]["funding"] and view["msc_dft"]["for_you"]["cost"]["may_also_apply"]
+    trimmed = without_dft_funding(view)
+    assert "funding" not in trimmed["msc_dft"]["facts"] and "may_also_apply" not in trimmed["msc_dft"]["for_you"]["cost"]
+    assert trimmed["msc_dft"]["facts"]["cost"] == view["msc_dft"]["facts"]["cost"]  # tuition stays
+    assert trimmed["compared_with"] == view["compared_with"]  # other programmes untouched
+
+
 def test_explore_view_counts_matches_without_dft():
     view = to_render_view(_result("explore", (), conditions={"countries": ["HK"]}))
     assert view["how_many_match"] == 1 and view["msc_dft"]["programme"].startswith("NUS")

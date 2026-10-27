@@ -25,9 +25,13 @@ async function handleResponse(response) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
     const error = await response.json().catch(() => ({}));
+    // A validation error's detail is a list of {loc, msg}.
+    const detail = Array.isArray(error.detail)
+      ? error.detail.map((item) => item.msg?.replace(/^Value error, /, "")).filter(Boolean).join("; ")
+      : error.detail;
 
     throw new Error(
-      error.detail || error.message || "Request failed"
+      detail || error.message || "Request failed"
     );
   }
 
@@ -83,6 +87,25 @@ export async function register(data) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
+  });
+  return handleResponse(response);
+}
+
+// Password reset: a code is emailed, then the code and a new password set it.
+export async function requestPasswordReset(email) {
+  const response = await fetch(buildUrl("/auth/password-reset/request"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return handleResponse(response);
+}
+
+export async function confirmPasswordReset({ email, code, password }) {
+  const response = await fetch(buildUrl("/auth/password-reset/confirm"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, password }),
   });
   return handleResponse(response);
 }

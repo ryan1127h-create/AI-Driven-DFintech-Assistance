@@ -34,6 +34,7 @@ def response_from_result(result: ComparisonResult) -> dict:
         "contrasts": _plain(result.contrasts),
         "personalised": result.personalised,
         "unsupported_factors": list(result.unsupported_factors),
+        "goal_check": _plain(result.goal_check),
         "notes": list(result.notes),
         "workflow_status": "degraded" if degraded else "success",
         "diagnostics": [

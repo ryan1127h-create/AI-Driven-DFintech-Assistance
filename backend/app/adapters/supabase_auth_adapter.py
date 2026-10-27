@@ -48,6 +48,9 @@ class SupabaseAuthAdapter(AuthPort):
             user_id, {"user_metadata": {"full_name": full_name}}
         )
 
+    def update_password(self, user_id: str, password: str) -> None:
+        self._get_admin_client().auth.admin.update_user_by_id(user_id, {"password": password})
+
     def delete_user(self, user_id: str) -> None:
         self._get_admin_client().auth.admin.delete_user(user_id)
 

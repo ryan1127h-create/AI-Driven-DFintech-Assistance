@@ -7,6 +7,7 @@
 import { Plus, X } from "lucide-react";
 import { Badge } from "../../ui";
 import { cn } from "../../../utils/cn";
+import { APPLICATION_STATUS_LABELS } from "../../../data/stages";
 
 // lifecycle_stage -> the stage codes used in a definition's `stages`.
 export const STAGE_CODES = {
@@ -58,6 +59,31 @@ function optionLabel(definition, value, refOptions) {
   return definition.value_labels?.[String(value)] || String(value);
 }
 
+// Language codes ("zh") as English names ("Chinese"), whatever the browser's language.
+const LANGUAGE_NAMES = typeof Intl !== "undefined" && Intl.DisplayNames
+  ? new Intl.DisplayNames(["en"], { type: "language" })
+  : null;
+
+function languageName(code) {
+  try {
+    return LANGUAGE_NAMES?.of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
+// One {key, level, ...} item: its label, then its other details in brackets
+// ("Chinese (fluent)", "CFA (L2)", "IELTS (score: 7.5)").
+function structuredItem(definition, item, refOptions) {
+  const label = definition.field_key === "languages"
+    ? languageName(item.key)
+    : optionLabel(definition, item.key, refOptions);
+  const extras = Object.entries(item)
+    .filter(([k, v]) => k !== "key" && v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => (k === "level" ? String(v) : `${k.replaceAll("_", " ")}: ${v}`));
+  return label + (extras.length ? ` (${extras.join(", ")})` : "");
+}
+
 function itemKey(item) {
   return item && typeof item === "object" ? item.key : item;
 }
@@ -68,12 +94,9 @@ export function formatFieldValue(definition, value, refOptions) {
   if (isEmptyValue(value)) return "—";
   const key = definition.field_key;
   if (key === "application_record" && Array.isArray(value)) {
-    return value
-      .map((app) => {
-        const missing = (app.missing_items || []).length;
-        return `${app.application_no}: ${app.status}${missing ? ` (${missing} document(s) not yet received)` : ""}`;
-      })
-      .join("; ");
+    // What's still missing is the checklist page's to say: its rule knows
+    // which documents are optional or not needed (backend sis/documents.py).
+    return value.map((app) => `${app.application_no}: ${APPLICATION_STATUS_LABELS[app.status] || app.status}`).join("; ");
   }
   if (key === "admission_tests" && Array.isArray(value)) {
     return value.map((t) => `${t.key} ${t.score}${t.test_date ? ` (${t.test_date})` : ""}`).join(", ");
@@ -85,8 +108,7 @@ export function formatFieldValue(definition, value, refOptions) {
       .map((item) => {
         if (item && typeof item === "object") {
           if (item.course_code) return item.course_code;
-          const extras = Object.entries(item).filter(([k]) => k !== "key").map(([k, v]) => `${k}: ${v}`);
-          return optionLabel(definition, item.key, refOptions) + (extras.length ? ` (${extras.join(", ")})` : "");
+          return structuredItem(definition, item, refOptions);
         }
         return optionLabel(definition, item, refOptions);
       })

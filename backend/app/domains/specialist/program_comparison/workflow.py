@@ -30,6 +30,7 @@ from app.domains.specialist.program_comparison.models import Applicant, Comparis
 from app.domains.specialist.program_comparison.policy import dimensions as dimension_policy
 from app.domains.specialist.program_comparison.stages.s3_facts import views as facts_stage
 from app.domains.specialist.program_comparison.stages.s4_fit import applicant as fit_stage
+from app.domains.specialist.program_comparison.stages.s5_goals import goals as goals_stage
 from app.domains.specialist.program_comparison.stages.s6_modes.base import ModeStrategy
 from app.domains.specialist.program_comparison.stages.s6_modes.compare import Compare
 from app.domains.specialist.program_comparison.stages.s6_modes.detail import Detail
@@ -110,6 +111,16 @@ def compare(request: ComparisonInput) -> ComparisonResult:
                                            diagnostic_codes=(ErrorCode.APPLICANT_FIT_FAILED,)))
         notes.append(_FIT_FAILED_NOTE)
 
+    goal_check = None
+    if request.mode == "compare" and request.asks_which_suits and fits:
+        try:
+            goal_check = goals_stage.check(views, fits, applicant)
+            results.append(WorkflowStageResult("goal_check", "success", "Checked the programmes against the goals."))
+        except Exception:
+            # Optional: the comparison stands without it.
+            logger.exception("programme comparison: goal check failed request_id=%s", rid)
+            results.append(WorkflowStageResult("goal_check", "degraded", "Goal check failed; comparison only."))
+
     baseline, subjects, matches, contrasts = _run_required(
         rid, "result_assembly", ErrorCode.RESULT_ASSEMBLY_FAILED, results, f"Assembled the {request.mode} result.",
         lambda: MODES[request.mode].assemble(views, fits, target_id=target_id, subject_ids=subject_ids,
@@ -134,6 +145,6 @@ def compare(request: ComparisonInput) -> ComparisonResult:
     return ComparisonResult(
         request_id=rid, mode=request.mode, today=request.today, dimensions=dims, baseline=baseline,
         subjects=subjects, matches=matches, contrasts=contrasts, personalised=applicant.known and bool(fits),
-        unsupported_factors=unsupported, notes=tuple(notes), diagnostics=tuple(diagnostics),
+        unsupported_factors=unsupported, goal_check=goal_check, notes=tuple(notes), diagnostics=tuple(diagnostics),
         stage_results=tuple(results),
     )

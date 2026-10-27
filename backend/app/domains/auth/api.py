@@ -9,6 +9,9 @@ from app.domains.auth.schemas import (
     AuthResponse,
     LoginRequest,
     OnboardingUpdate,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetStarted,
     SettingsOut,
     SettingsUpdate,
     RegisterRequest,
@@ -47,6 +50,20 @@ def verify_email(request: VerifyEmailRequest):
 @router.post("/resend-code", response_model=RegistrationStartedResponse)
 def resend_code(request: ResendCodeRequest):
     return service.resend_code(request.email)
+
+
+@router.post("/password-reset/request", response_model=PasswordResetStarted)
+def request_password_reset(request: PasswordResetRequest):
+    """Emails a reset code if the address belongs to an active account; the
+    response is the same either way."""
+    return service.request_password_reset(request.email)
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(request: PasswordResetConfirm):
+    """Sets the new password with the emailed code; the user then signs in."""
+    service.reset_password(request.email, request.code, request.password)
+    return {"status": "password_reset"}
 
 
 @router.post("/login", response_model=AuthResponse)

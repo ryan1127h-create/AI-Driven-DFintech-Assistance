@@ -189,11 +189,24 @@ def test_the_report_maps_profile_facts_and_lets_the_message_win():
     assert report["evidence_sources"] == list(builder.SOURCES)
 
 
-def test_certifications_reach_the_report_as_keys():
-    # The profile stores certifications as {key, level}; the planner's contract takes keys.
-    facts = {"certifications": [{"key": "cfa", "level": "L2"}, "frm"]}
+def test_certifications_reach_the_report_as_keys_marking_exams_in_progress():
+    # The profile stores certifications as {key, level}; the planner's contract takes keys,
+    # and a CFA level or FRM Part 1 passed is not the credential itself.
+    facts = {"certifications": [{"key": "cfa", "level": "L2"}, {"key": "frm", "level": "Part 1"}, "pmp",
+                                {"key": "cfa", "level": "Charterholder"}]}
     report = builder.build_report(_prefetched(facts), ParsedCareerRequest(), "exploration", date(2026, 10, 13)).report
-    assert report["profile"]["certifications"] == ["cfa", "frm"]
+    assert report["profile"]["certifications"] == ["cfa_partial", "frm_partial", "pmp", "cfa"]
+
+
+def test_the_reply_names_a_certification_with_its_level(monkeypatch):
+    monkeypatch.setattr(prefetch, "field_labels", lambda keys: {"certifications": "Certifications"})
+    monkeypatch.setattr(prefetch, "describe_value", lambda key, value: str(value).upper())
+    labels = prefetch.evidence_labels({"certifications": [{"key": "cfa", "level": "L2"},
+                                                          {"key": "cloud_cert", "level": "AWS Solutions Architect"}]})
+    assert labels["certifications"]["values"] == {
+        "cfa_partial": "CFA (L2 passed — exams in progress, credential not yet held)",
+        "cloud_cert": "CLOUD_CERT (AWS Solutions Architect)",
+    }
 
 
 def test_unmatched_roles_and_a_failed_parse_are_noted():

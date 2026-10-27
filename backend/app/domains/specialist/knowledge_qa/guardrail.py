@@ -33,6 +33,8 @@ _MONTH = r"(" + "|".join(_MONTH_NAMES) + r")\.?"
 _DAY_MONTH = re.compile(r"\b(\d{1,2})\s+" + _MONTH + r"(?![A-Za-z])", re.IGNORECASE)
 _MONTH_DAY = re.compile(r"\b" + _MONTH + r"\s+(\d{1,2})\b", re.IGNORECASE)
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+# A date as a Chinese reply writes it: "1月31日".
+_CHINESE_DAY = re.compile(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日")
 _FULL_MONTH = {m[:3]: m for m in _MONTHS}
 
 
@@ -57,6 +59,7 @@ def _numbers(text: str) -> set[float]:
 def _days(text: str) -> set[tuple[str, int]]:
     days = {(_month(m), int(d)) for d, m in _DAY_MONTH.findall(text)}
     days |= {(_month(m), int(d)) for m, d in _MONTH_DAY.findall(text)}
+    days |= {(_MONTHS[int(m) - 1], int(d)) for m, d in _CHINESE_DAY.findall(text) if 1 <= int(m) <= 12}
     for _year, month, day in _ISO_DATE.findall(text):
         days.add((_MONTHS[int(month) - 1], int(day)))
     return days

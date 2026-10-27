@@ -14,7 +14,7 @@ from __future__ import annotations
 from app.core.logging import get_logger
 from app.tools.contracts import OnEvent
 from app.tools.specialist.program_comparison.s7_presentation import guardrail
-from app.tools.specialist.program_comparison.s7_presentation.payload import to_render_view
+from app.tools.specialist.program_comparison.s7_presentation.payload import to_render_view, without_dft_funding
 from app.tools.specialist.program_comparison.s7_presentation.prompts import STYLES
 from app.tools.structured_reply import render_structured_reply, render_template
 
@@ -34,6 +34,9 @@ def render(result: dict, universities: list[dict], user_message: str,
     """`universities`: the catalogue universities ({short_name, name,
     aliases}) the reply may name only when the result covers them."""
     view = to_render_view(result)
+    if "financial" in other_tools:
+        # The fees answer alongside lists MSc DFT's scholarships and rebates.
+        view = without_dft_funding(view)
     style = STYLES[view["mode"]]
 
     reply, sources = render_structured_reply(
