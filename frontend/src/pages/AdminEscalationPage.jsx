@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { getAdminEscalationCases, resolveAdminEscalationCase } from "../../api"
 import { PageHeader } from "../components/student/PageParts"
+import { formatDate, formatDateTime, formatTime } from "../utils/format"
 
 function FeatureButton({ children, variant = "primary", className = "", ...props }) {
   return <button className={`feature-button feature-button-${variant} ${className} ${className.includes("view-button") ? "table-action" : ""}`.trim()} {...props}>{children}</button>
@@ -167,14 +168,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 function formatCreated(item) {
   if (!item.createdAt) return [item.createdDate, item.createdTime]
   const at = new Date(item.createdAt)
-  return [
-    at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }),
-    at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
-  ]
+  return [formatDate(at), formatTime(at)]
 }
 
-function formatDateTime(value) {
-  return value ? new Date(value).toLocaleString() : "—"
+function dateTime(value) {
+  return formatDateTime(value) || "—"
 }
 
 function inDateRange(item, range) {
@@ -242,7 +240,7 @@ function CaseDrawer({
                 label="Created"
                 value={formatCreated(caseItem).join(", ")}
               />
-              <Info label="Resolved At" value={formatDateTime(caseItem.resolvedAt)} />
+              <Info label="Resolved At" value={dateTime(caseItem.resolvedAt)} />
             </div>
           </section>
 
@@ -323,7 +321,7 @@ function CaseDrawer({
                   Resolved by: <strong>{caseItem.resolvedBy}</strong>
                 </div>
                 <div className="resolved-meta">
-                  Resolved at: <strong>{formatDateTime(caseItem.resolvedAt)}</strong>
+                  Resolved at: <strong>{dateTime(caseItem.resolvedAt)}</strong>
                 </div>
                 <div className="resolution-label">Resolution Notes</div>
                 <div className="resolution-copy">
@@ -451,6 +449,7 @@ function LoadingRows() {
 }
 
 export default function App() {
+  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("All")

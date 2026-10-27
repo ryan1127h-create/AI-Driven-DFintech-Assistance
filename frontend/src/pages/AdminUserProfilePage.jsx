@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Check, ClipboardList, Clock3, LockKeyhole, Mail, S
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deleteAdminUser, getAdminUser, updateAdminUser } from "../../api";
 import AdminLoadingState from "../components/admin/AdminLoadingState";
+import { formatDateTime } from "../utils/format";
 
 const humanizeLabel = (value) => {
   const replacements = {
@@ -64,7 +65,7 @@ const statusMeta = {
   pending: { label: "Pending", dot: "⚪", tone: "pending", guidance: "User has not completed account activation." },
 };
 
-const formatDate = (value, fallback = "Never") => value ? new Date(value).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : fallback;
+const formatDate = (value, fallback = "Never") => formatDateTime(value) || fallback;
 
 export default function AdminUserProfilePage() {
   const { userId } = useParams();

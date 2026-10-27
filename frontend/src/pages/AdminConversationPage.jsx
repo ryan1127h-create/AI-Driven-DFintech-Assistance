@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getAdminConversation, getAdminUser } from "../../api";
 import AdminLoadingState from "../components/admin/AdminLoadingState";
+import { formatDate, formatDateTime } from "../utils/format";
 
 function readMessages(conversation) {
   const messages = [];
@@ -19,7 +20,7 @@ function readMessages(conversation) {
   return messages;
 }
 
-const dateTime = (value) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
+const dateTime = (value) => formatDateTime(value) || "—";
 const statusTone = (status) => ({ open: "open", resolved: "resolved", investigating: "investigating", critical: "critical" }[String(status || "").toLowerCase()] || "open");
 const mailto = (email, subject) => `mailto:${encodeURIComponent(email || "")}?subject=${encodeURIComponent(subject)}`;
 const MODULE_LABELS = { A: "Application and lifecycle", B: "Background", C: "Education", D: "Work experience", E: "Skills", F: "Career goals", G: "Goals and planning", H: "Programme choices", I: "Studies", J: "Career outcomes", K: "Account preferences", L: "Privacy and consent", M: "Derived insights" };
@@ -28,7 +29,7 @@ const displayValue = (value) => {
   if (value == null || value === "") return "—";
   if (Array.isArray(value)) return value.map(displayValue).join(", ");
   if (typeof value === "object") return Object.entries(value).map(([key, item]) => `${displayLabel(key)}: ${displayValue(item)}`).join(" · ");
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) return new Date(value).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) return formatDate(value);
   return String(value).replaceAll("_", " ");
 };
 const profileGroups = (profile, lifecycleStage) => Object.entries((profile || []).filter((field) => field.field_key !== "application_record" && !(lifecycleStage === "current" && field.field_key === "current_modules")).reduce((groups, field) => { const module = field.module || "profile"; (groups[module] ||= []).push(field); return groups; }, {}));

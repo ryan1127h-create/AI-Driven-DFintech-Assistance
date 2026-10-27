@@ -37,7 +37,7 @@ class _KB:
         _course("FT5005", workload=[3, 0, 0, 5, 2]),
         _course("FT5007", section="Capstone Project", active=False,
                 prereq="Must have completed IT5001X | 并修(coreq): Must concurrently take IT5006"),
-        _course("IT5004", prereq="并修(coreq): Must be concurrently enrolled in IT5001 or IT5001X"),
+        _course("IT5004", prereq="Corequisite: Must be concurrently enrolled in IT5001 or IT5001X"),
         _course("IT5001", section=None),  # earlier intake only
         _course("IT5006", preclusion=("BT5126", "CS5228")),
     ]

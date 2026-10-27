@@ -330,9 +330,10 @@ def cited_sources(hits: list[Hit]) -> list[str]:
 # consumer of all three.
 
 # course_requirements.prerequisite keeps corequisites in the same text, as
-# " | "-separated parts prefixed "并修(coreq):" (there is no corequisite
-# column). _split_requirements() moves them into corequisite_grad_text.
-_COREQ_PREFIX = re.compile(r"^\s*(?:并修\s*)?\(?\s*coreq\s*\)?\s*[:：]\s*", re.IGNORECASE)
+# " | "-separated parts prefixed "Corequisite:" (there is no corequisite
+# column). _split_requirements() moves them into corequisite_grad_text. The
+# importer's older "并修(coreq):" prefix is still read.
+_COREQ_PREFIX = re.compile(r"^\s*(?:并修\s*)?\(?\s*coreq(?:uisite)?\s*\)?\s*[:：]\s*", re.IGNORECASE)
 
 
 def _split_requirements(text: str | None) -> tuple[str | None, str | None]:

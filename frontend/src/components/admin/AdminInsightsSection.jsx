@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CircleHelp, Filter, Gauge, Layers, Users } from "lucide-react";
 import { getAdminInsights } from "../../../api";
+import { formatDateTime } from "../../utils/format";
 
 // The proposal's analytics (backend admin service get_insights): how many
 // questions the assistant settles without a person, who asks what at each
@@ -55,7 +56,7 @@ export default function AdminInsightsSection() {
       </div>
       <Card className="admin-agents-card">
         <CardTitle icon={CircleHelp} badge={`Latest ${gaps.length}`}>Questions the Assistant Couldn&apos;t Answer</CardTitle>
-        {gaps.length ? <div className="admin-table-wrap"><table><thead><tr><th>When</th><th>Stage</th><th>Topic</th><th>Unanswered by</th><th>Handed to staff</th><th>Conversation</th></tr></thead><tbody>{gaps.map((gap) => <tr key={`${gap.conversation_id}-${gap.created_at}`}><td>{new Date(gap.created_at).toLocaleString()}</td><td>{gap.stage}</td><td>{gap.topics.join(", ") || "—"}</td><td>{gap.agents.join(", ") || "—"}</td><td>{gap.case_summary || "—"}</td><td>{gap.conversation_id ? <Link className="admin-related-link" to={`/admin/conversations/${gap.conversation_id}`}>Open</Link> : "—"}</td></tr>)}</tbody></table></div> : <p className="admin-subline">Every question in this period was answered.</p>}
+        {gaps.length ? <div className="admin-table-wrap"><table><thead><tr><th>When</th><th>Stage</th><th>Topic</th><th>Unanswered by</th><th>Handed to staff</th><th>Conversation</th></tr></thead><tbody>{gaps.map((gap) => <tr key={`${gap.conversation_id}-${gap.created_at}`}><td>{formatDateTime(gap.created_at)}</td><td>{gap.stage}</td><td>{gap.topics.join(", ") || "—"}</td><td>{gap.agents.join(", ") || "—"}</td><td>{gap.case_summary || "—"}</td><td>{gap.conversation_id ? <Link className="admin-related-link" to={`/admin/conversations/${gap.conversation_id}`}>Open</Link> : "—"}</td></tr>)}</tbody></table></div> : <p className="admin-subline">Every question in this period was answered.</p>}
       </Card>
       <div className="admin-overview-grid admin-insights-grid">
         <Card>

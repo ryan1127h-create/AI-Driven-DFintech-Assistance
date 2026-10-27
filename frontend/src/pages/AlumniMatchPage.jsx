@@ -7,6 +7,7 @@ import {
   getAlumniMatches, getAlumniMe, getAlumniRequests, setAlumniListed, setAlumniStorySharing,
 } from "../../api";
 import { LoadingState, PageHeader } from "../components/student/PageParts";
+import { formatDate } from "../utils/format";
 
 // Alumni Match has two sides. Enrolled students browse listed alumni and send
 // requests; alumni answer them. Contact details appear only once a request is
@@ -56,7 +57,6 @@ const displayName = (name) => (name || "").trim();
 // Must match the consent_alumni_matching description (0033) and the fields
 // tagged with purpose "alumni": what an alumnus sees about a requesting student.
 const SHARED_WITH_ALUMNI = "your name, study stage, graduation term, whether you are looking for a mentor, your target roles, degree discipline, work experience, preferred job markets, job search timeline and your note";
-const formatDate = (value) => (value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 const mailto = (to, subject, body) => `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 const STATUS_LABELS = { pending: "Waiting for a reply", accepted: "Connected", declined: "Declined" };
 

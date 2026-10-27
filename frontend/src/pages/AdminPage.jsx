@@ -5,6 +5,7 @@ import { Activity, AlertTriangle, BarChart3, BookOpen, Bot, ChevronRight, Clock3
 import { getAdminOverview } from "../../api";
 import AdminInsightsSection from "../components/admin/AdminInsightsSection";
 import AdminLoadingState from "../components/admin/AdminLoadingState";
+import { formatTime } from "../utils/format";
 
 const Card = ({ children, className = "", onClick, ...props }) => <section className={`admin-card ${className}`} onClick={onClick} {...props}>{children}</section>;
 const CardTitle = ({ icon: Icon, children, badge }) => <div className="admin-card-title"><span className="admin-title-icon"><Icon size={15} /></span><strong>{children}</strong>{badge && <span className="admin-card-action">{badge}</span>}</div>;
@@ -35,7 +36,7 @@ export default function AdminPage() {
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const loadOverview = () => getAdminOverview().then((data) => { setOverview(data); setError(""); setUpdated(new Date(data.generated_at).toLocaleTimeString()); }).catch((err) => setError(err.message));
+  const loadOverview = () => getAdminOverview().then((data) => { setOverview(data); setError(""); setUpdated(formatTime(data.generated_at)); }).catch((err) => setError(err.message));
   useEffect(() => { loadOverview(); }, []);
   const applicationInsights = overview?.application_insights || {};
   const applicationStatus = useMemo(() => Object.entries(overview?.applications || {}).map(([label, total]) => ({ label: titleCaseLabel(label), total })), [overview]);
