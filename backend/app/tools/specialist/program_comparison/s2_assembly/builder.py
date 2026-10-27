@@ -172,6 +172,7 @@ def build_report(
         "dimensions": parsed.dimensions,
         "applicant": _applicant(prefetched, parsed),
         "conditions": {k: v for k, v in conditions.items() if v},
+        "asks_which_suits": parsed.asks_which_suits and mode == "compare",
     }
     if user_id:
         report["user_id"] = user_id

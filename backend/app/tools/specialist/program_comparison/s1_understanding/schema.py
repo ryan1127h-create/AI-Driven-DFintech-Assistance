@@ -44,6 +44,8 @@ class ParsedComparisonRequest(BaseModel):
     role: str | None = None
     # The academic year the applicant says they will start (AY2027/28 -> 2027).
     intake_year: int | None = None
+    # They ask which programme suits them / which to choose.
+    asks_which_suits: bool = False
     parse_failed: bool = False
 
     @field_validator("programs", "unmatched_programs", mode="before")

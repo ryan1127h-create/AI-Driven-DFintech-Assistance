@@ -262,6 +262,9 @@ class ComparisonInput(_StrictInputModel):
     dimensions: list[Dimension] = Field(default_factory=list, max_length=8)
     applicant: ApplicantInput = Field(default_factory=ApplicantInput)
     conditions: ConditionsInput = Field(default_factory=ConditionsInput)
+    # The user asked which programme suits them (compare only): the result
+    # then checks each programme against their own goals (stages/s5_goals).
+    asks_which_suits: bool = False
 
     @field_validator("subject_ids", "dimensions")
     @classmethod

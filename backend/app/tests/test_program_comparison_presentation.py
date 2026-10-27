@@ -84,6 +84,18 @@ def test_funding_status_never_says_the_user_applied():
     assert "would need a separate application" in grtii and "applied for" not in grtii
 
 
+def test_asked_which_suits_the_view_lays_out_the_goals_and_the_count():
+    view = to_render_view(_result(applicant={"decision_factors": ["duration", "cost"]}, asks_which_suits=True))
+    goals = {c["goal"]: c for c in view["your_goals"]["checks"]}
+    duration = goals["Programme length (a factor you said matters)"]
+    assert duration["by_programme"]["NUS MSc DFinTech"] == "18 months full-time"
+    assert "NUS MSc DFinTech" not in duration["ahead"]
+    assert goals["Cost for you (a factor you said matters)"]["ahead"] == "not comparable (different currencies)"
+    assert set(view["your_goals"]["goals_each_is_ahead_on"]) == {"NUS MSc DFinTech", "HKUST MSc(FinTech)",
+                                                                  "NTU MSc FinTech"}
+    assert "your_goals" not in to_render_view(_result(applicant={"decision_factors": ["duration"]}))
+
+
 def test_explore_view_counts_matches_without_dft():
     view = to_render_view(_result("explore", (), conditions={"countries": ["HK"]}))
     assert view["how_many_match"] == 1 and view["msc_dft"]["programme"].startswith("NUS")

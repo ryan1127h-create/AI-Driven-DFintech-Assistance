@@ -66,6 +66,9 @@ location: city, country). Empty when it asks generally.
 - "role": the tag of the role family it says the applicant aims for, else null.
 - "intake_year": the academic year it says they will start (e.g. "2028年 \
 入学", "Fall 2028" -> 2028), else null.
+- "asks_which_suits": true when it asks which programme suits them, fits \
+them best, or which they should choose (e.g. "which is best for me?", \
+"我该选哪个？", "哪个更适合我"); else false.
 """
 
 _OPTIONS = """

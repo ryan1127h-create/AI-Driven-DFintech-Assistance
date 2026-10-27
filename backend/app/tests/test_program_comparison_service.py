@@ -178,3 +178,34 @@ def test_the_response_is_plain_json():
 def test_contrast_never_names_a_winner():
     assert not any(word in json.dumps(run(subjects=("ntu", "ust"))["contrasts"]).lower()
                    for word in ("better", "best", "worse", "rank"))
+
+
+# --- "which suits me?" (stages/s5_goals) ---
+
+def test_asking_which_suits_checks_each_programme_against_the_goals():
+    applicant = {"residency": "international", "decision_factors": ["duration", "cost"],
+                 "tests": [{"key": "IELTS", "score": 6.0, "test_date": "2026-03-01"}],
+                 "target_role": "Data Analytics", "target_skills": ["programming", "data_analytics"]}
+    r = run(subjects=("ntu", "ust"), applicant=applicant, asks_which_suits=True)
+    goals = {g["goal"]: g for g in r["goal_check"]["goals"]}
+    # DFT requires both target skills, NTU one, HKUST none.
+    assert goals["target_role"]["ahead"] == ["dft"]
+    # IELTS 6.0 meets DFT's and NTU's 6.0, not HKUST's 6.5.
+    assert goals["english"]["ahead"] == ["dft", "ntu"]
+    assert goals["duration"]["ahead"] == ["ntu", "ust"]
+    # SGD and HKD fees are never converted to compare them.
+    assert goals["cost"]["ahead"] == [] and goals["cost"]["not_comparable"] == "different currencies"
+    # Shared leads count: DFT 2 (target role, English), NTU 2 (English, duration), HKUST 1.
+    assert r["goal_check"]["ahead_count"] == {"dft": 2, "ntu": 2, "ust": 1}
+    assert r["goal_check"]["lead"] is None  # the goals split
+
+
+def test_a_split_names_no_lead_and_the_check_needs_the_question():
+    applicant = {"decision_factors": ["duration"], "target_role": "AI", "target_skills": ["ai_ml"]}
+    r = run(subjects=("ntu",), applicant=applicant, asks_which_suits=True)
+    assert r["goal_check"]["ahead_count"] == {"dft": 0, "ntu": 2}  # ai_ml required at NTU; shorter
+    assert r["goal_check"]["lead"] == "ntu"
+    level = run(subjects=("ust",), applicant={"decision_factors": ["flexibility"]}, asks_which_suits=True)
+    # Both offer part-time: the goal is level, so no programme is named.
+    assert level["goal_check"]["goals"][0]["ahead"] == [] and level["goal_check"]["lead"] is None
+    assert run(subjects=("ntu",), applicant=applicant)["goal_check"] is None  # not asked

@@ -116,6 +116,8 @@ class ComparisonResult:
     contrasts: tuple[Contrast, ...] = ()
     personalised: bool = False
     unsupported_factors: tuple[str, ...] = ()
+    # S5: the programmes against the applicant's goals, when asked which suits them.
+    goal_check: dict | None = None
     notes: tuple[str, ...] = ()
     # errors.WorkflowDiagnostic / errors.WorkflowStageResult
     diagnostics: tuple = ()
