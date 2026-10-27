@@ -109,8 +109,28 @@ def test_an_unavoidable_clash_is_flagged_and_a_clash_free_equal_preferred():
                    _pick("C", 2.0, day="Tuesday", start="18:30", end="21:30")),)
     best, alternatives, _ = search(pools, 8, _ctx())
     assert best.clashes == () and "C" in best.codes
-    clashing, _, _ = search((_pool("elective", 2, *pools[0].picks[:2]),), 8, _ctx())
-    assert clashing.clashes == (("A", "B", "Monday 18:30–21:30"),)
+    # Two electives that clash: one is taken, never both.
+    alone, _, notes = search((_pool("elective", 2, *pools[0].picks[:2]),), 8, _ctx())
+    assert len(alone.codes) == 1 and alone.clashes == ()
+    assert "meets at the same time" in notes[1]
+
+
+def test_a_clash_free_plan_wins_even_with_fewer_units_and_says_why():
+    # FT5005 and FT5010 both meet Monday 18:00-21:00; nothing else is open.
+    pools = (_pool("core_choice", 2, _pick("FT5005", 3.0, day="Monday", start="18:00", end="21:00"),
+                   _pick("FT5010", 2.0, day="Monday", start="18:00", end="21:00")),)
+    best, alternatives, notes = search(pools, 8, _ctx())
+    assert best.codes == {"FT5005"} and best.clashes == ()
+    assert all(alt.clashes == () for alt in alternatives)
+    assert notes[0].startswith("Only 4 of the 8 units")
+    assert notes[1] == "FT5010 is left out: it meets at the same time as FT5005 (Monday 18:00–21:00)."
+
+
+def test_a_clash_between_mandatory_courses_stays_flagged():
+    pools = (_pool("core_mandatory", 2, _pick("BMD5302", day="Monday", start="18:00", end="21:00"),
+                   _pick("IT5006", day="Monday", start="19:00", end="22:00")),)
+    best, _, _ = search(pools, 8, _ctx())
+    assert best.codes == {"BMD5302", "IT5006"} and best.clashes == (("BMD5302", "IT5006", "Monday 18:00–21:00"),)
 
 
 def test_alternatives_differ_by_at_least_a_swap():
@@ -150,13 +170,14 @@ def test_a_semester_plan_end_to_end():
     })
     plan = result["plan"]
     assert result["mode"] == "semester_plan"
-    assert plan["unit_budget"] == 16 and plan["units"] == 16 and plan["budget_source"] == "requested"
-    assert set(plan["courses"]) == {"BMD5302", "IT5006", "FT5010", "CS5242"}  # FT5009 doesn't run in Sem 2
-    assert plan["clashes"] == [{"courses": ["BMD5302", "CS5242"], "when": "Monday 18:30–21:30"}]
+    assert plan["unit_budget"] == 16 and plan["budget_source"] == "requested"
+    # FT5009 doesn't run in Sem 2; CS5242 meets at the same time as BMD5302, so it's left out.
+    assert plan["units"] == 12 and set(plan["courses"]) == {"BMD5302", "IT5006", "FT5010"}
+    assert plan["clashes"] == []
+    assert "CS5242 is left out: it meets at the same time as BMD5302 (Monday 18:30–21:30)." in result["notes"]
     projected = plan["projected_progress"]
-    assert projected["core_mandatory_remaining"] == [] and projected["total_units_done"] == 24
+    assert projected["core_mandatory_remaining"] == [] and projected["total_units_done"] == 20
     assert projected["core_choice_remaining_count"] == 2  # FT5010 done, two more FT50xx to go
     [main] = [g for g in result["groups"] if g["slot_id"] == "plan"]
     assert main["label"] == "Plan for AY2026/27 Sem2"
-    clash_notes = [r["caution"] for r in main["recommendations"] if r["course_code"] == "CS5242"]
-    assert clash_notes == ["Clashes with BMD5302 (Monday 18:30–21:30)"]
+    assert "CS5242" not in {r["course_code"] for r in main["recommendations"]}

@@ -12,10 +12,13 @@ is valid when it:
     4000-level electives than can still count;
   - pairs every corequisite: one of its courses done already or in the
     same plan.
-Among valid ones, the best uses the most of the budget, then serves the
-most pressing requirements, then has the highest scores; an unavoidable
-timetable clash counts against it (the clashing courses stay — the
-student decides — but a clash-free equal is preferred).
+Among valid ones, the best has the fewest unavoidable timetable clashes
+(two courses meeting at the same time can't both be taken, so a plan
+without the clash wins even with fewer units — and the notes say which
+courses were kept apart), then uses the most of the budget, then serves
+the most pressing requirements, then has the highest scores. A clash no
+plan avoids (e.g. between two mandatory courses) stays, flagged, for the
+student to decide.
 
 Pure functions, no I/O.
 """
@@ -31,7 +34,6 @@ from app.domains.specialist.course_recommendation.policy import curriculum as cs
 
 # How much each requirement presses: core courses before electives.
 _PRIORITY = {"core_mandatory": 3, "core_choice": 2, "capstone": 2, "elective": 1}
-_CLASH_PENALTY = 0.5
 # Best candidates considered per requirement, keeping the search small.
 _CANDIDATES_PER_POOL = {"core_choice": 5, "elective": 8, "capstone": 1}
 _MAX_ALTERNATIVES = 2
@@ -102,8 +104,27 @@ def _valid(entries: tuple[Entry, ...], budget: int, ctx: PlanContext) -> bool:
 
 
 def _key(plan: Plan) -> tuple:
-    score = sum(e.pick.scored.score for e in plan.entries) - _CLASH_PENALTY * len(plan.clashes)
-    return (plan.units, sum(_PRIORITY[e.pool.kind] for e in plan.entries), score, tuple(sorted(plan.codes)))
+    score = sum(e.pick.scored.score for e in plan.entries)
+    return (-len(plan.clashes), plan.units, sum(_PRIORITY[e.pool.kind] for e in plan.entries), score,
+            tuple(sorted(plan.codes)))
+
+
+def _kept_apart(best: Plan, plans: list[Plan]) -> str | None:
+    """A note when avoiding a clash cost units: the fuller plan it beat,
+    and the courses that meet at the same time."""
+    fuller = next((p for p in plans if p.units > best.units and len(p.clashes) > len(best.clashes)), None)
+    if fuller is None:
+        return None
+    left_out = []
+    for a, b, when in fuller.clashes:
+        if (a, b, when) in best.clashes:
+            continue
+        if a not in best.codes and b not in best.codes:
+            left_out.append(f"{a} and {b} meet at the same time ({when}), so they can't both be taken")
+            continue
+        dropped, kept = (a, b) if a not in best.codes else (b, a)
+        left_out.append(f"{dropped} is left out: it meets at the same time as {kept} ({when})")
+    return "; ".join(dict.fromkeys(left_out)) + "." if left_out else None
 
 
 def search(pools: tuple[PlanPool, ...], budget: int, ctx: PlanContext) -> tuple[Plan, list[Plan], tuple[str, ...]]:
@@ -143,11 +164,14 @@ def search(pools: tuple[PlanPool, ...], budget: int, ctx: PlanContext) -> tuple[
     for plan in plans[1:]:
         if len(alternatives) == _MAX_ALTERNATIVES:
             break
-        if plan.units == best.units and all(len(plan.codes ^ other.codes) >= 2 for other in [best, *alternatives]):
+        if (plan.units == best.units and len(plan.clashes) <= len(best.clashes)
+                and all(len(plan.codes ^ other.codes) >= 2 for other in [best, *alternatives])):
             alternatives.append(plan)
     if best.units < budget:
         notes.append(
             f"Only {best.units} of the {budget} units could be filled with courses open to you "
             "this semester."
         )
+        if kept_apart := _kept_apart(best, plans):
+            notes.append(kept_apart)
     return best, alternatives, tuple(notes)
