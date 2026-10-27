@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 from app.domains.auth import interface as auth
 from app.domains.knowledge_retrieval import interface as knowledge
+from app.domains.profile import interface as profile
 from app.domains.program_catalog import interface as program_catalog
 from app.domains.sis import interface as sis
 
@@ -79,11 +80,12 @@ def _draft(app: dict, closes: date | None, today: date) -> dict:
     }
 
 
-def _missing_docs(app: dict, items: dict) -> dict | None:
-    missing = [d["item_key"] for d in app.get("documents", []) if not d["submitted"]]
+def _missing_docs(app: dict, items: dict, english_medium_degree: bool | None) -> dict | None:
+    shown = [d["item_key"] for d in app.get("documents", [])
+             if sis.document_state(app["status"], d["item_key"], d["submitted"],
+                                   (items.get(d["item_key"]) or {}).get("required", False), english_medium_degree)
+             == "missing"]
     paused = app["status"] == "DOCS_REQUIRED"
-    # Optional or conditional items only count once the school has asked for more.
-    shown = missing if paused else [k for k in missing if (items.get(k) or {}).get("required")]
     if not shown:
         return None
     labels = [(items.get(k) or {}).get("label") or k.replace("_", " ") for k in shown]
@@ -116,13 +118,14 @@ def _all_reminders(user_id: str, today: date) -> list[dict]:
     if not applications:
         return []
     items = knowledge.list_admissions_items()
+    english_medium = profile.get_profile_field(user_id, "english_medium_degree")
     closes = _application_closes(today) if any(a["status"] == "DRAFT" for a in applications) else None
     found = []
     for app in applications:
         if app["status"] == "DRAFT":
             found.append(_draft(app, closes, today))
         elif app["status"] in _REVIEW_STATUSES:
-            found.append(_missing_docs(app, items))
+            found.append(_missing_docs(app, items, english_medium))
         elif app["status"] == "OFFER":
             found.append(_offer(app, today))
     return [r for r in found if r]

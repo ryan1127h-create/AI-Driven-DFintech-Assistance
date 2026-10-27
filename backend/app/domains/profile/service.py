@@ -27,6 +27,7 @@ from app.domains.profile.validation import (
     validate_value,
 )
 from app.domains.program_catalog import interface as program_catalog
+from app.domains.sis import interface as sis
 
 logger = get_logger(__name__)
 
@@ -522,11 +523,19 @@ def _display(value, labels: dict | None) -> str:
 
 # --- chat summary -----------------------------------------------------------
 
-def _format_value(key: str, value, labels: dict | None) -> str:
+def _format_value(key: str, value, labels: dict | None, english_medium_degree: bool | None = None) -> str:
     if key == "application_record" and isinstance(value, list):
         parts = []
+        items = knowledge.list_admissions_items()
         for app in value:
-            missing = [str(item).replace("_", " ") for item in app.get("missing_items") or []]
+            # Only documents the school is still waiting for (sis.document_state):
+            # optional ones and those of a decided application aren't missing.
+            missing = [
+                (items.get(key) or {}).get("label") or str(key).replace("_", " ")
+                for key in app.get("missing_items") or []
+                if sis.document_state(app.get("status"), key, False, (items.get(key) or {}).get("required", False),
+                                      english_medium_degree) == "missing"
+            ]
             term = f" ({app['admission_term']})" if app.get("admission_term") else ""
             text = f"{app.get('application_no')}{term}: {app.get('status')}"
             parts.append(text + (f", documents not yet received: {', '.join(missing)}" if missing else ""))
@@ -573,7 +582,8 @@ def chat_summary_text(user_id: str) -> str:
         value = drop_expired_items(entry["value"], definition, today)
         if value in (None, [], {}):
             continue
-        line = f"- {definition['label']} ({key}): {_format_value(key, value, _labels(definition, ref_options))}"
+        english_medium = (profile.get("english_medium_degree") or {}).get("value")
+        line = f"- {definition['label']} ({key}): {_format_value(key, value, _labels(definition, ref_options), english_medium)}"
         lines.append(line)
     notes = derived_course_notes(user_id)
     lines.extend(f"- {note}" for note in notes["readiness"] + notes["graduation"])

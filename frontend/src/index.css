@@ -3315,3 +3315,8 @@ h1, h2, h3 { font-family: Manrope, sans-serif; }
 .admin-kpi-rows b { color: var(--text-primary); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
 .admin-kpi-insight { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) { .admin-kpi-card, .admin-kpi-card .admin-stat-arrow { transition: none; } }
+
+/* Checklist rows the school isn't waiting for (optional, or the application is decided) */
+:root:not([data-theme="dark"]) .admin-platform-shell .admin-checklist-row.inactive .admin-checklist-status { color: #5f6f82 !important; background: #eef2f6 !important; }
+.admin-platform-shell .admin-checklist-row.inactive .admin-checklist-name { opacity: .75; }
+[data-theme="dark"] .admin-platform-shell .admin-checklist-row.inactive .admin-checklist-status { color: #cbd5e1; background: #3a3a3a; }

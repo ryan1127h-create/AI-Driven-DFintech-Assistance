@@ -221,13 +221,18 @@ def test_summary_without_consent_only_has_the_stage(repo):
     assert service.chat_summary_text("u1").splitlines()[1:] == ["- Lifecycle stage (lifecycle_stage): prospect"]
 
 
-def test_summary_with_consent(repo):
+def test_summary_with_consent(repo, monkeypatch):
+    monkeypatch.setattr(service.knowledge, "list_admissions_items", lambda: {
+        "cv": {"label": "CV", "required": True}, "transcript": {"label": "Transcript", "required": True},
+        "english_proficiency": {"label": "TOEFL / IELTS", "required": False}})
     repo.profile = {
         "lifecycle_stage": entry("current"),
         "code_level": entry(2),
         "target_role_families": entry(["blockchain"]),
         "current_modules": entry([{"course_code": "FT5005", "term": "AY2026/27 Sem1"}, {"course_code": "FT5002"}], "DB"),
-        "application_record": entry([{"application_no": "A1", "status": "ACCEPTED", "missing_items": ["cv", "transcript"]}], "DB"),
+        "application_record": entry([
+            {"application_no": "A1", "status": "UNDER_REVIEW", "missing_items": ["english_proficiency", "transcript"]},
+            {"application_no": "A0", "status": "REJECTED", "missing_items": ["cv"]}], "DB"),
     }
     repo.purpose_fields["course"] = {"code_level", "current_modules"}
     repo.purpose_fields["adm"] = {"application_record"}
@@ -236,7 +241,8 @@ def test_summary_with_consent(repo):
         "- Lifecycle stage (lifecycle_stage): current",
         "- Programming proficiency (code_level): Has written data-processing scripts independently (2)",
         "- Target role families (target_role_families): Blockchain (blockchain)",
-        "- Application record (application_record): A1: ACCEPTED, documents not yet received: cv, transcript",
+        # Only required documents of an open application are missing.
+        "- Application record (application_record): A1: UNDER_REVIEW, documents not yet received: Transcript; A0: REJECTED",
         "- Current courses (current_modules): FT5005, FT5002",
     ]
 

@@ -7,6 +7,7 @@ from app.domains.admin import repository
 from app.domains.alumni import interface as alumni_interface
 from app.domains.auth import interface as auth_interface
 from app.domains.knowledge_retrieval import interface as knowledge_interface
+from app.domains.sis import interface as sis_interface
 
 logger = get_logger(__name__)
 
@@ -235,6 +236,11 @@ def get_application(user_id: str, application_id: str) -> dict:
     _require_admin(user_id)
     result = repository.get_application(application_id)
     if not result: raise NotFoundError("Application not found.")
+    for item in result["checklist"]:
+        item["state"] = sis_interface.document_state(result["status"], item["item_key"], item["submitted"],
+                                                     item["required"], result["english_medium_degree"])
+        item["required"] = sis_interface.required_for(item["item_key"], item["required"], result["english_medium_degree"])
+    result["checklist"].sort(key=lambda item: (sis_interface.DOCUMENT_STATES.index(item["state"]), item["item_key"]))
     return result
 
 

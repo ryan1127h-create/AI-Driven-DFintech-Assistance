@@ -201,17 +201,33 @@ def update_user(user_id: str, changes: dict) -> dict | None:
     )
 
 
+# A checklist row the school is still waiting for, as sis.document_state
+# counts "missing": a required document not received while the application
+# is open; the English test is required exactly when the degree wasn't
+# English-medium. Needs c (checklist item), a (application), i (admissions
+# item) and em (the applicant's english_medium_degree, _ENGLISH_MEDIUM).
+_OUTSTANDING = """(not c.submitted
+                   and coalesce(a.status, '') not in ('OFFER', 'ACCEPTED', 'REJECTED')
+                   and case when c.item_key = 'english_proficiency' and em.value is not null
+                            then em.value = 'false'::jsonb
+                            else coalesce(i.required, false) end)"""
+_ENGLISH_MEDIUM = """left join profile.v_profile em
+                       on em.user_id = a.user_id and em.field_key = 'english_medium_degree'"""
+
 def list_applications() -> dict:
-    items = reporting_db.fetch_all_dict("""
+    items = reporting_db.fetch_all_dict(f"""
         select a.application_id::text, a.application_no, a.applicant_email,
                u.user_id::text as user_id, coalesce(nullif(u.full_name, ''), a.applicant_email) as user_name,
                a.application_type, a.admission_term, a.submission_date,
                a.status, a.final_decision, a.updated_at,
                count(c.id)::int as checklist_total,
-               count(c.id) filter (where c.submitted)::int as checklist_submitted
+               count(c.id) filter (where c.submitted)::int as checklist_submitted,
+               count(c.id) filter (where {_OUTSTANDING})::int as checklist_outstanding
           from sis.applications a
           left join account.accounts u on u.user_id = a.user_id
           left join sis.application_checklist_items c on c.application_id = a.application_id
+          left join knowledge.admissions_items i on i.key = c.item_key
+          {_ENGLISH_MEDIUM}
          group by a.application_id, a.application_no, a.applicant_email, u.user_id, u.full_name, u.email,
                   a.application_type, a.admission_term, a.submission_date, a.status, a.final_decision, a.updated_at
          order by a.updated_at desc nulls last
@@ -223,7 +239,9 @@ def get_application(application_id: str) -> dict | None:
     app = reporting_db.fetch_one_dict("select a.application_id::text, a.application_no, a.applicant_email, u.user_id::text as user_id, coalesce(nullif(u.full_name, ''), a.applicant_email) as user_name, a.application_type, a.admission_term, a.submission_date, a.status, a.final_decision, a.updated_at from sis.applications a left join account.accounts u on u.user_id = a.user_id where a.application_id = %s", (application_id,))
     if not app:
         return None
-    app["checklist"] = reporting_db.fetch_all_dict("select id::text, item_key, submitted, updated_at from sis.application_checklist_items where application_id = %s order by item_key", (application_id,))
+    medium = reporting_db.fetch_one_dict("select value from profile.v_profile where user_id = %s and field_key = 'english_medium_degree'", (app["user_id"],)) if app.get("user_id") else None
+    app["english_medium_degree"] = medium["value"] if medium else None
+    app["checklist"] = reporting_db.fetch_all_dict("select c.id::text, c.item_key, c.submitted, c.updated_at, coalesce(i.required, false) as required from sis.application_checklist_items c left join knowledge.admissions_items i on i.key = c.item_key where c.application_id = %s order by c.item_key", (application_id,))
     return app
 
 
@@ -506,7 +524,7 @@ def fetch_overview(days: int = 7) -> dict:
         "select coalesce(status, '<unknown>') as status, count(*)::int as total from sis.applications group by status order by status",
     )
     checklist = reporting_db.fetch_one_dict(
-        """
+        f"""
         with latest_term as (
             select admission_term
               from sis.applications
@@ -517,11 +535,17 @@ def fetch_overview(days: int = 7) -> dict:
         select
             count(*)::int as total,
             count(*) filter (where c.submitted)::int as submitted,
-            count(*) filter (where not c.submitted)::int as outstanding,
+            count(*) filter (where c.outstanding)::int as outstanding,
             (select admission_term from latest_term) as latest_admission_term,
-            count(*) filter (where not c.submitted and a.admission_term = (select admission_term from latest_term))::int
+            count(*) filter (where c.outstanding and a.admission_term = (select admission_term from latest_term))::int
                 as latest_term_outstanding
-          from sis.application_checklist_items c
+          from (
+            select c.*, {_OUTSTANDING} as outstanding
+              from sis.application_checklist_items c
+              join sis.applications a on a.application_id = c.application_id
+              left join knowledge.admissions_items i on i.key = c.item_key
+              {_ENGLISH_MEDIUM}
+          ) c
           left join sis.applications a on a.application_id = c.application_id
         """
     )

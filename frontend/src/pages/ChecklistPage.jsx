@@ -1,5 +1,6 @@
+/* eslint-disable react/prop-types */
 import { useEffect, useState } from "react";
-import { AlertCircle, Check, Link2, ListChecks, X } from "lucide-react";
+import { AlertCircle, Check, Info, Link2, ListChecks, Minus, X } from "lucide-react";
 import { bindApplication, getChecklist } from "../../api";
 import { useRole } from "../context/RoleContext";
 import { formatDate } from "../utils/format";
@@ -62,10 +63,23 @@ function BindApplicationCard({ onBound }) {
   );
 }
 
+// Each document's state comes from the backend (app/domains/sis/documents.py):
+// only "missing" is something the user still has to send.
+const DOCUMENT_GROUPS = [
+  { state: "missing", title: "Still missing", hint: "The school is waiting for these.", label: "Missing", color: "red", icon: X },
+  { state: "received", title: "Received", hint: null, label: "Received", color: "emerald2", icon: Check },
+  { state: "optional", title: "Only if they apply to you", hint: "Not required from everyone; the note says whether you need it.", label: "If applicable", color: "ink", icon: Info },
+  { state: "exempt", title: "Not required for you", hint: "Your degree was taught in English, so you don't need an English test.", label: "Exempt", color: "ink", icon: Check },
+  { state: "not_needed", title: "No longer needed", hint: "Your application has been decided, so the school isn't waiting for these.", label: "Not needed", color: "ink", icon: Minus },
+];
+
 function ApplicationOverview({ application }) {
   const documents = application.documents || [];
-  const received = documents.filter((doc) => doc.submitted).length;
-  const percent = documents.length ? Math.round((received / documents.length) * 100) : 0;
+  // Progress counts what everyone must send; optional documents don't hold it back.
+  const required = documents.filter((doc) => doc.state === "missing" || (doc.required && doc.state === "received"));
+  const received = required.filter((doc) => doc.state === "received").length;
+  const missing = documents.filter((doc) => doc.state === "missing").length;
+  const percent = required.length ? Math.round((received / required.length) * 100) : 0;
   const details = [
     ["Application number", application.application_no],
     ["Admission term", application.admission_term],
@@ -99,41 +113,56 @@ function ApplicationOverview({ application }) {
         <p className="text-xs text-app-secondary mt-4">Next step: {application.next_step}</p>
       )}
 
-      {documents.length > 0 && (
+      {required.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-app-secondary">Documents received</span>
+            <span className="text-app-secondary">Required documents received</span>
             <span className="text-app-primary font-medium">
-              {received}/{documents.length} · {percent}%
+              {received}/{required.length} · {percent}%
             </span>
           </div>
-          <ProgressBar value={received} max={documents.length} color="brand" />
+          <ProgressBar value={received} max={required.length} color={missing ? "brand" : "emerald2"} />
+          <p className={`text-xs ${missing ? "text-red-300" : "text-app-muted"}`}>
+            {missing ? `${missing} document${missing === 1 ? "" : "s"} still missing` : "Nothing is missing"}
+          </p>
         </div>
       )}
     </Card>
   );
 }
 
-function DocumentCard({ doc }) {
+function DocumentCard({ doc, group }) {
+  const Icon = group.icon;
   return (
     <Card className="flex items-start gap-3">
       <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-app-primary">{doc.label || doc.item_key}</p>
-          <Badge color={doc.required ? "red" : "ink"}>{doc.required ? "Required" : "Optional"}</Badge>
-        </div>
+        <p className="text-sm font-medium text-app-primary">{doc.label || doc.item_key}</p>
         {doc.description && <p className="text-xs text-app-muted mt-1">{doc.description}</p>}
       </div>
-      <div
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-          doc.submitted ? "bg-emerald2-500/15 text-emerald2-400" : "bg-red-500/15 text-red-300"
-        }`}
-        title={doc.submitted ? "Received" : "Not received yet"}
-      >
-        {doc.submitted ? <Check size={16} /> : <X size={16} />}
-      </div>
+      <Badge color={group.color} className="flex-shrink-0 inline-flex items-center gap-1">
+        <Icon size={12} aria-hidden="true" />
+        {group.label}
+      </Badge>
     </Card>
   );
+}
+
+function DocumentGroups({ documents }) {
+  return DOCUMENT_GROUPS.map((group) => {
+    const docs = documents.filter((doc) => doc.state === group.state);
+    if (!docs.length) return null;
+    return (
+      <section key={group.state} className="mt-5" aria-label={group.title}>
+        <h2 className="text-sm font-semibold text-app-primary">
+          {group.title} <span className="font-normal text-app-muted">({docs.length})</span>
+        </h2>
+        {group.hint && <p className="text-xs text-app-muted mt-0.5">{group.hint}</p>}
+        <div className="mt-2 space-y-2">
+          {docs.map((doc) => <DocumentCard key={doc.item_key} doc={doc} group={group} />)}
+        </div>
+      </section>
+    );
+  });
 }
 
 export default function ChecklistPage() {
@@ -173,11 +202,7 @@ export default function ChecklistPage() {
       {application ? (
         <>
           <ApplicationOverview application={application} />
-          <div className="space-y-2">
-            {(application.documents || []).map((doc) => (
-              <DocumentCard key={doc.item_key} doc={doc} />
-            ))}
-          </div>
+          <DocumentGroups documents={application.documents || []} />
         </>
       ) : !stage || stage === "prospect" ? (
         <BindApplicationCard

@@ -1,7 +1,7 @@
 """reminders.service: the reminders worked out from an applicant's records,
 when they are urgent, how closing one works, and the dates the assistant is
 given — on in-memory stand-ins for sis, the knowledge base, the programme
-catalogue and the dismissals table."""
+catalogue, the profile and the dismissals table."""
 
 from __future__ import annotations
 
@@ -27,11 +27,13 @@ def _app(status, docs=None, **kw):
 
 @pytest.fixture
 def world(monkeypatch):
-    state = {"apps": [], "closed": set(), "closes": date(2027, 1, 31)}
+    state = {"apps": [], "closed": set(), "closes": date(2027, 1, 31), "english_medium": None}
     monkeypatch.setattr(service.sis, "list_applications", lambda uid: state["apps"])
     monkeypatch.setattr(service.knowledge, "list_admissions_items", lambda: ITEMS)
     monkeypatch.setattr(service.program_catalog, "list_programs", lambda: [
         {"is_target": True, "deadlines": [{"closes_on": state["closes"]}]}, {"is_target": False, "deadlines": []}])
+    monkeypatch.setattr(service.profile, "get_profile_field",
+                        lambda uid, key: state["english_medium"] if key == "english_medium_degree" else None)
     monkeypatch.setattr(service.auth, "dismissed_reminder_keys", lambda uid: state["closed"])
     monkeypatch.setattr(service.auth, "dismiss_reminder", lambda uid, key: state["closed"].add(key))
     return state
@@ -46,16 +48,28 @@ def test_a_draft_is_reminded_with_the_closing_date_and_urgent_near_it(world):
     assert service.list_reminders("u1", TODAY)[0]["urgent"] is True
 
 
-def test_missing_required_documents_only_until_the_school_asks_for_more(world):
+def test_only_missing_required_documents_are_reminded(world):
     world["apps"] = [_app("UNDER_REVIEW", {"transcript": False, "english_proficiency": False, "cv": True})]
     (reminder,) = service.list_reminders("u1", TODAY)
     assert reminder["title"] == "1 document still missing for DFT-UNDER_REVIEW" and not reminder["urgent"]
     assert "TOEFL" not in reminder["body"]
     world["apps"] = [_app("DOCS_REQUIRED", {"transcript": False, "english_proficiency": False, "cv": True})]
     (reminder,) = service.list_reminders("u1", TODAY)
-    assert reminder["urgent"] and "Review is paused" in reminder["body"] and "TOEFL" in reminder["body"]
+    # Paused for documents: urgent, but an optional item still isn't counted.
+    assert reminder["urgent"] and "Review is paused" in reminder["body"] and "TOEFL" not in reminder["body"]
     world["apps"] = [_app("SUBMITTED", {"english_proficiency": False, "cv": True})]
     assert service.list_reminders("u1", TODAY) == []  # only an optional item outstanding
+    world["apps"] = [_app("OFFER", {"transcript": False, "cv": True})]
+    assert all(r["kind"] != "missing_docs" for r in service.list_reminders("u1", TODAY))  # decided
+
+
+def test_the_english_test_follows_how_the_degree_was_taught(world):
+    world["apps"] = [_app("UNDER_REVIEW", {"english_proficiency": False, "cv": True})]
+    world["english_medium"] = False
+    (reminder,) = service.list_reminders("u1", TODAY)
+    assert "TOEFL" in reminder["body"]
+    world["english_medium"] = True
+    assert service.list_reminders("u1", TODAY) == []
 
 
 def test_an_offer_deadline_until_it_passes(world):

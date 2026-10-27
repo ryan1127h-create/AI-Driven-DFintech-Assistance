@@ -22,15 +22,19 @@ from app.domains.sis import interface as sis
 logger = get_logger(__name__)
 
 
-def _describe_application(application: dict) -> dict:
-    """Adds the status explanation and each document's label, description
-    and required flag; required documents first."""
+def _describe_application(application: dict, english_medium_degree: bool | None) -> dict:
+    """Adds the status explanation and each document's label, description,
+    required flag and state (sis.document_state); missing documents first,
+    then received, then those that are optional, exempt or no longer needed."""
     items = knowledge.list_admissions_items()
-    documents = [
-        {**items.get(d["item_key"], {"label": None, "description": None, "required": False}), **d}
-        for d in application["documents"]
-    ]
-    documents.sort(key=lambda d: (not d["required"], d["label"] or d["item_key"]))
+    documents = []
+    for d in application["documents"]:
+        doc = {**items.get(d["item_key"], {"label": None, "description": None, "required": False}), **d}
+        doc["state"] = sis.document_state(application["status"], doc["item_key"], doc["submitted"], doc["required"],
+                                          english_medium_degree)
+        doc["required"] = sis.required_for(doc["item_key"], doc["required"], english_medium_degree)
+        documents.append(doc)
+    documents.sort(key=lambda d: (sis.DOCUMENT_STATES.index(d["state"]), not d["required"], d["label"] or d["item_key"]))
     return {**application, **knowledge.explain_application_status(application["status"]), "documents": documents}
 
 
@@ -40,7 +44,9 @@ def get_checklist(user_id: str) -> ChecklistResponse:
     return ChecklistResponse(
         user_id=user_id,
         lifecycle_stage=profile_interface.get_profile_field(user_id, "lifecycle_stage"),
-        application=_describe_application(applications[0]) if applications else None,
+        application=_describe_application(
+            applications[0], profile_interface.get_profile_field(user_id, "english_medium_degree"),
+        ) if applications else None,
     )
 
 

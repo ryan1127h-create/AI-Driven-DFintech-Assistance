@@ -16,6 +16,8 @@ class ApplicationDocument(BaseModel):
     description: Optional[str] = None
     required: bool = False
     submitted: bool
+    # received | missing | optional | not_needed (app/domains/sis/documents.py)
+    state: str
 
 
 class ApplicationOut(BaseModel):

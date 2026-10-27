@@ -78,9 +78,10 @@ def test_binding_moves_a_prospect_to_applicant(world):
     assert checklist.lifecycle_stage == "applicant"
     assert checklist.application.application_no == "APP-1"
     assert (checklist.application.status_label, checklist.application.next_step) == ("Submitted", "Wait for review.")
-    # labelled from the admissions items, required ones first
-    assert [(d.item_key, d.label, d.required) for d in checklist.application.documents] == [
-        ("cv", "CV", True), ("referee_reports", "Referee Reports", True), ("financial_support", "Financial Support", False)]
+    # labelled from the admissions items, what's still missing first
+    assert [(d.item_key, d.label, d.state) for d in checklist.application.documents] == [
+        ("referee_reports", "Referee Reports", "missing"), ("cv", "CV", "received"),
+        ("financial_support", "Financial Support", "optional")]
 
 
 def test_a_different_login_email_cannot_bind(world):
