@@ -56,6 +56,13 @@ def test_explicit_absence_gives_way_to_any_other_evidence():
     assert graded.status == "partial"
 
 
+def test_a_cfa_still_being_sat_is_moderate_finance_evidence():
+    assert _grade("finance", facts={"certifications": ("cfa",)}).status == "met"
+    partial = _grade("finance", facts={"certifications": ("cfa_partial",)})
+    assert partial.status == "partial" and partial.points == 0.4
+    assert _grade("risk_modeling", facts={"certifications": ("frm_partial",)}).points == 0.4
+
+
 def test_a_field_counts_once_per_skill():
     # python and java both match the same tech_stack signal: one item, 0.4.
     graded = _grade("programming", facts={"tech_stack": ("python", "java", "excel_vba")})

@@ -11,6 +11,9 @@ from __future__ import annotations
 # required skills (each capped at 1.0), plus this bonus when the student's
 # functional experience is in the role's line of work.
 FUNCTION_AFFINITY_BONUS = 0.15
+# The bonus never makes up for a gap: while any required skill isn't met,
+# the fit stays at or below this.
+FIT_CAP_WITH_GAPS = 0.9
 # function_experience key -> the role families it is direct experience of.
 FUNCTION_ROLE_AFFINITY: dict[str, frozenset[str]] = {
     "engineering": frozenset({"software_engineering", "data_engineering"}),

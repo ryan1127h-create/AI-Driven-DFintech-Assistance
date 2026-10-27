@@ -59,7 +59,8 @@ def fit_role(
         for status in ("met", "partial", "missing", "unknown")
     }
     bonus, experience = _experience_bonus(role, evidence)
-    fit = min(1.0, sum(a.points for a in graded) / len(graded) + bonus)
+    cap = 1.0 if len(by_status["met"]) == len(graded) else tuning.FIT_CAP_WITH_GAPS
+    fit = min(cap, sum(a.points for a in graded) / len(graded) + bonus)
     unknown_share = len(by_status["unknown"]) / len(graded)
     return RoleFit(
         role=role,

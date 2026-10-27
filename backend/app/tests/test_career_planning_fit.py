@@ -65,6 +65,12 @@ def test_fit_is_capped_at_one():
     assert fit.fit == 1.0
 
 
+def test_the_experience_bonus_never_makes_a_role_with_a_gap_a_full_fit():
+    graded = _graded(data_analytics="met", programming="partial", finance="met")
+    fit = roles.fit_role(DA, graded, StudentEvidence(functions=(FunctionExperience("data_ai"),)), LINKS)
+    assert fit.fit == tuning.FIT_CAP_WITH_GAPS  # 0.8 + 0.15 would be 0.95
+
+
 def test_course_support_lists_the_roles_courses_and_the_students_share():
     evidence = StudentEvidence(completed_courses=("FT5005", "IT5006"), current_courses=("FT5006",))
     support = roles.fit_role(DA, _graded(), evidence, LINKS).support

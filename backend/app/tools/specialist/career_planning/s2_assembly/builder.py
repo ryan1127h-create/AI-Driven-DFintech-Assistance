@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
+from app.tools.specialist.career_planning.s2_assembly import certifications
 from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetched
 
 # The programme pages the career facts come from: the Capstone cycle and
@@ -66,7 +67,7 @@ class Built:
 
 
 def _keys(items) -> list:
-    """List items as plain keys (certifications store {key, level} items)."""
+    """List items as plain keys ({key, level} items keep only the key)."""
     return [item.get("key") if isinstance(item, dict) else item for item in items or []]
 
 
@@ -132,6 +133,9 @@ def build_report(
     profile = {key: facts[key] for key in (*_LEVEL_FIELDS, *_TEXT_FIELDS)
                if facts.get(key) not in (None, "", [])}
     profile.update({key: _keys(facts[key]) for key in _LIST_FIELDS if facts.get(key) not in (None, "", [])})
+    if facts.get("certifications"):
+        # A CFA or FRM still being sat is weaker evidence than the credential.
+        profile["certifications"] = [certifications.evidence_key(item) for item in facts["certifications"]]
     profile["function_experience"] = _functions(facts.get("function_experience"))
     profile["completed_courses"] = _codes(facts.get("completed_modules"))
     profile["current_courses"] = _codes(facts.get("current_modules"))
