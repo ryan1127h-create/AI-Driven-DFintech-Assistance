@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Sparkles, UserPlus, LogIn } from "lucide-react";
+import { BookOpen, Sparkles, UserPlus, LogIn } from "lucide-react";
 import ThemeToggle from "../components/ThemeToggle";
 import nusLogo from "../assets/nus_logo.png";
 
@@ -99,7 +99,14 @@ export default function Landing() {
           </button>
 
         </div>
-        
+
+        <button
+          type="button"
+          onClick={() => navigate("/programme")}
+          className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-app-secondary hover:text-app-primary"
+        >
+          <BookOpen size={16} /> Explore the programme first — no account needed →
+        </button>
       </main>
 
       <footer className="px-6 lg:px-12 py-5 text-center text-xs text-app-faint">

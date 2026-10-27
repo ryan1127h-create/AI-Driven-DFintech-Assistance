@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  BookOpen,
   CheckCircle,
   ChevronLeft,
   LifeBuoy,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import { useRole } from "../../context/RoleContext";
 import { useChat } from "../../context/ChatContext";
-import { STAGE_LABELS, pagesForStage } from "../../data/stages";
+import { STAGE_LABELS, pagesForStage, seesProgrammePage } from "../../data/stages";
 import { LoadingSpinner } from "./apiWidgets";
 import { cn } from "../../utils/cn";
 import { formatDateTime } from "../../utils/format";
@@ -53,7 +54,7 @@ function useIsMobile() {
 }
 
 export default function StudentSidebar() {
-  const { user, lifecycleStage, logout } = useRole();
+  const { user, lifecycleStage, policyStage, logout } = useRole();
   const { clearMessages, conversationsVersion } = useChat();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -89,6 +90,9 @@ export default function StudentSidebar() {
   const navItems = [
     { key: "profile", to: "/workspace/profile", label: "Profile", icon: User },
     ...pagesForStage(lifecycleStage),
+    ...(seesProgrammePage(policyStage)
+      ? [{ key: "programme", to: "/programme", label: "About the Programme", icon: BookOpen }]
+      : []),
     ...(user?.role === "enrolled_student"
       ? [{ key: "alumni-match", to: "/alumni-match", label: "Alumni Match", icon: MessageSquare }]
       : []),

@@ -333,6 +333,26 @@ def stories(audience: str, interests: list[str], limit: int = 2) -> list[dict]:
     ]
 
 
+
+def showcase_stories(limit: int = 6) -> list[dict]:
+    """Stories for the public programme page: every alumnus who chose to
+    share with prospective students (story_for_applicants) and wrote a
+    bio, most recent class first. The name is included; the caller drops
+    it for visitors who aren't signed in. Never contact details."""
+    labels = _labels()
+    shared = [p for p in repository.list_profiles() if p.get("story_for_applicants") and (p.get("bio") or "").strip()]
+    shared.sort(key=lambda p: -(p["class_year"] or 0))
+    shared = shared[:limit]
+    names = auth_interface.get_account_names([p["user_id"] for p in shared])
+    return [
+        {
+            "name": names.get(p["user_id"], {}).get("full_name") or None,
+            "position": p["position"], "company": p["company"], "class_year": p["class_year"],
+            "bio": p["bio"], "expertise": [labels.get(t, t) for t in p["expertise"]],
+        }
+        for p in shared
+    ]
+
 # --- staff -----------------------------------------------------------------------
 
 _STAFF_FIELDS = ("position", "company", "class_year", "expertise", "bio", "photo_url",

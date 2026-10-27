@@ -4,6 +4,7 @@ import { RoleProvider, useRole } from "./context/RoleContext";
 import { ChatProvider } from "./context/ChatContext";
 import { canSeePage } from "./data/stages";
 import Landing from "./pages/Landing";
+import ProgrammePage from "./pages/ProgrammePage";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import ProfilePage from "./pages/ProfilePage";
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/programme" element={<ProgrammePage />} />
 
               <Route element={<ProtectedRoute studentOnly><StudentLayout /></ProtectedRoute>}>
                 <Route path="/app" element={<ChatWorkspace />} />

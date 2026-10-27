@@ -10,6 +10,8 @@ Current consumers:
       check as the Alumni Match page.
     - the chat adds alumni stories to answers (tools/alumni_stories.py),
       only from alumni who chose to share with that audience.
+    - the public programme page shows showcase_stories, from the same
+      consent (story_for_applicants).
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from __future__ import annotations
 from app.domains.alumni.service import (
     expertise_options,
     list_matches,
+    showcase_stories,
     staff_create,
     staff_delete,
     staff_list,
@@ -24,5 +27,5 @@ from app.domains.alumni.service import (
     stories,
 )
 
-__all__ = ["expertise_options", "list_matches", "staff_create", "staff_delete", "staff_list", "staff_update",
-           "stories"]
+__all__ = ["expertise_options", "list_matches", "showcase_stories", "staff_create", "staff_delete", "staff_list",
+           "staff_update", "stories"]

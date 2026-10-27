@@ -381,6 +381,12 @@ export async function getAdminInsights(days = 30) {
   return handleResponse(response);
 }
 
+// The public programme page; a signed-in reader also sees alumni names.
+export async function getProgrammeOverview() {
+  const response = await fetch(buildUrl("/programme/overview"), { headers: getAuthHeaders() });
+  return handleResponse(response);
+}
+
 // stage: a lifecycle stage ("prospect" ... "alumni") or "staff"; "" for everyone.
 export function getAdminUsers(search = "", stage = "") {
   const params = new URLSearchParams();

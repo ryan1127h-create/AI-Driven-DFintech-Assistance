@@ -19,6 +19,7 @@ from app.domains.checklist import api as checklist_api
 from app.domains.cv_import import api as cv_import_api
 from app.domains.lifecycle import api as lifecycle_api
 from app.domains.profile import api as profile_api
+from app.domains.programme_page import api as programme_page_api
 from app.domains.reminders import api as reminders_api
 from app.orchestrator import api as orchestrator_api
 
@@ -32,5 +33,6 @@ router.include_router(checklist_api.router, tags=["checklist"])  # GET /checklis
 router.include_router(cv_import_api.router, tags=["cv-import"])  # POST /cv-import, GET /cv-import/latest
 router.include_router(lifecycle_api.router, tags=["lifecycle"])  # GET /lifecycle
 router.include_router(profile_api.router, tags=["profile"])  # GET/PATCH /profile, /profile/definitions, /conflicts, /consents
+router.include_router(programme_page_api.router, tags=["programme"])  # GET /programme/overview (public)
 router.include_router(reminders_api.router, tags=["reminders"])  # GET /reminders, POST /reminders/dismiss
 router.include_router(orchestrator_api.router, tags=["chatbot"])  # POST /chat, /chat/stream, GET /chat/sessions, /chat/{id}/history, etc.

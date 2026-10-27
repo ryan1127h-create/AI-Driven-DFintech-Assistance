@@ -29,6 +29,9 @@ layers =
 ; lifecycle stage, consents and role interests (profile) and the role tags
 ; (knowledge_retrieval); reminders reads applications (sis), closed reminders (auth), admissions
 ; items (knowledge_retrieval) and the application period (program_catalog).
+; programme_page, the public programme page, only reads: the catalogue,
+; the course and role data (knowledge_retrieval), the curriculum rules
+; (course_recommendation's requirement_role) and shared alumni stories.
 ; Every domain's api.py resolves the caller through auth's
 ; get_current_user_id dependency - HTTP plumbing, not a domain dependency -
 ; so those imports are exempt.
@@ -36,6 +39,7 @@ layers =
 name = data-owning domains form their own dependency order
 type = layers
 layers =
+    app.domains.programme_page
     app.domains.checklist | app.domains.lifecycle | app.domains.cv_import | app.domains.derived_labels | app.domains.alumni | app.domains.reminders
     app.domains.auth
     app.domains.profile

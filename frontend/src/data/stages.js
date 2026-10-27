@@ -27,6 +27,14 @@ export const STAGE_LABELS = {
   alumni: "Alumni",
 };
 
+// The applicant line of the stage policy (backend app/core/stage_policy.py):
+// they get the programme page in the sidebar. Everyone can open it.
+const PROGRAMME_PAGE_STAGES = ["prospect", "rejected", "applicant", "admitted"];
+
+export function seesProgrammePage(policyStage) {
+  return PROGRAMME_PAGE_STAGES.includes(policyStage);
+}
+
 export function canSeePage(stage, page) {
   return (STAGE_PAGES[stage] || []).includes(page);
 }
