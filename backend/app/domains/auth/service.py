@@ -469,7 +469,8 @@ def request_password_reset(email: str) -> PasswordResetStarted:
         ) from exc
     now = time.time()
     cache.set(f"{_RESET_PREFIX}{email}", json.dumps({
-        "user_id": account["user_id"], "code_hash": hash_code(code), "attempts": 0,
+        # The database gives a UUID; the cache holds JSON.
+        "user_id": str(account["user_id"]), "code_hash": hash_code(code), "attempts": 0,
         "created_at": now, "last_sent_at": now,
     }), ttl_seconds=settings.email_verification_ttl_seconds)
     return started
