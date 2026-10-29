@@ -213,7 +213,7 @@ export default function Register() {
                         <input
                           type="text"
                           className="min-w-0 flex-1 bg-transparent border-0 p-0 outline-none text-app-primary placeholder:text-[var(--text-faint)]"
-                          placeholder="e0123456"
+                          placeholder="you"
                           value={nusLocalPart}
                           onChange={(e) => setNusLocalPart(e.target.value.replace(/[^a-zA-Z0-9._+-]/g, ""))}
                           required
