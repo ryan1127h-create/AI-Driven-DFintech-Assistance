@@ -57,7 +57,8 @@ def stubs(monkeypatch):
     monkeypatch.setattr(prefetch, "get_profile_for_purpose", lambda uid, purpose: FACTS)
     monkeypatch.setattr(prefetch, "derived_course_notes", lambda uid: NO_DERIVED)
     monkeypatch.setattr(prefetch, "missing_purpose_consent", lambda uid, purpose: None)
-    monkeypatch.setattr(tool.parser, "parse", lambda message, mode: ParsedRequest())
+    monkeypatch.setattr(tool.parser, "parse", lambda message, mode, roles=(): ParsedRequest())
+    monkeypatch.setattr(tool, "role_catalog", lambda: [])
 
 
 def test_role_named_in_the_message_wins():
@@ -195,3 +196,30 @@ def test_a_semester_plan_request_carries_its_planning():
 
 def test_other_modes_carry_no_planning():
     assert builder.build_request(prefetch.prefetch("u1", None), ParsedRequest(mode="ad_hoc"))["planning"] is None
+
+
+def test_a_role_the_message_describes_replaces_the_profiles():
+    fetched = prefetch.with_stated_role(prefetch.prefetch("u1", None), "machine_learning_ai")
+    assert fetched.role_tag == fetched.stated_role_tag == "machine_learning_ai"
+    assert builder.build_request(fetched)["goals"] == {"target_role": "Machine Learning & AI"}
+    unchanged = prefetch.prefetch("u1", None)
+    assert prefetch.with_stated_role(unchanged, None) is unchanged
+
+
+def test_a_role_tag_the_hint_named_outright_is_kept():
+    fetched = prefetch.with_stated_role(prefetch.prefetch("u1", "I want a blockchain job"), "machine_learning_ai")
+    assert fetched.role_tag == "blockchain"
+
+
+def test_the_plan_follows_the_role_s1_read_from_the_message(monkeypatch):
+    from langchain_core.messages import HumanMessage
+
+    from app.tools.turn_context import TurnState
+
+    monkeypatch.setattr(tool.parser, "parse", lambda message, mode, roles=(): ParsedRequest(roles=["machine_learning_ai"]))
+    monkeypatch.setattr(tool, "recommend_courses", lambda request: {"notes": [], "request": request})
+    monkeypatch.setattr(renderer, "render_structured_reply",
+                        lambda view, msg, prompt, on_event=None, depth=None, language=None, other_tools=(): (view["notes"][-1], []))
+    answer = tool._handler(TurnState(messages=[HumanMessage("courses for an ML job?")], user_id="u1"))
+    assert answer.text == ("Planned around the role named in the message; the profile also lists: "
+                           "Data Analytics, Blockchain.")

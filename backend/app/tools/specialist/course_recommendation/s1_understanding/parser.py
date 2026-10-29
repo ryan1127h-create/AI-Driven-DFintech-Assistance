@@ -4,7 +4,10 @@ small model call (JSON out), run alongside S2's data gathering.
 
 The mode comes from the intent classifier (TurnState.course_mode_hint),
 which already decided it in the same call that routed the turn here; this
-step only extracts what the message asks for. Any failure — the model
+step only extracts what the message asks for, including the role it names,
+mapped onto the knowledge base's role families ("quant" is
+quantitative_finance), which plain text matching can't. The role catalogue
+is passed in, so the parser itself reads no data. Any failure — the model
 unavailable, unparseable output — yields the default request (no
 constraints) marked parse_failed, so the recommendation still runs and
 the reply says the filters weren't understood.
@@ -62,16 +65,38 @@ is [{{"start": "18:00", "end": "23:00"}}], "no morning classes" \
 - "avoid_days": weekdays they want to keep free, from: {", ".join(WEEKDAYS)}.
 """
 
+_ROLES = """\
+- "roles": the tags of the role families below that the message names or \
+describes as the job they're aiming for, in any language, in the order \
+named — map job titles onto the closest family (e.g. "quant" or "quant \
+researcher" -> quantitative_finance, "compliance officer" -> \
+regulation_governance). Only tags from this list:
+{roles}
+"""
 
-def parse(message: str, mode: Mode | None) -> ParsedRequest:
+
+def _catalogue(role_catalog: list[dict]) -> str:
+    def line(r: dict) -> str:
+        names = " / ".join(n for n in (r["name"], r.get("name_zh")) if n)
+        definition = r.get("definition") or ""
+        return f"  - {r['tag']}: {names}" + (f" — {definition}" if definition else "")
+    return "\n".join(line(r) for r in role_catalog)
+
+
+def parse(message: str, mode: Mode | None, role_catalog: list[dict] = ()) -> ParsedRequest:
+    """`role_catalog`: [{tag, name, name_zh, definition}]; without it no
+    role is read from the message."""
     default_mode = mode or "degree_overview"
     if not message.strip():
         return ParsedRequest(mode=default_mode)
+    prompt = _PROMPT + (_ROLES.format(roles=_catalogue(role_catalog)) if role_catalog else "")
     try:
-        raw = json.loads(llm.complete(_PROMPT, message, temperature=0, max_tokens=_MAX_TOKENS).strip())
+        raw = json.loads(llm.complete(prompt, message, temperature=0, max_tokens=_MAX_TOKENS).strip())
         if not isinstance(raw, dict):
             raise ValueError("not a JSON object")
-        return ParsedRequest.model_validate({**raw, "mode": default_mode})
+        parsed = ParsedRequest.model_validate({**raw, "mode": default_mode})
     except Exception:
         logger.exception("course recommendation: parsing the request failed, using no filters")
         return ParsedRequest(mode=default_mode, parse_failed=True)
+    known = {r["tag"] for r in role_catalog}
+    return parsed.model_copy(update={"roles": [r for r in parsed.roles if r in known]})

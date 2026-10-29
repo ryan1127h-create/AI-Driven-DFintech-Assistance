@@ -34,8 +34,9 @@ def other_roles_note(prefetched: Prefetched) -> str | None:
     other_roles = [t for t in prefetched.facts.get("target_role_families") or [] if t != role_tag]
     if not (role_tag and other_roles):
         return None
+    basis = "the role named in the message" if prefetched.stated_role_tag else "the main target role"
     return (
-        "Planned around the main target role; the profile also lists: "
+        f"Planned around {basis}; the profile also lists: "
         + ", ".join(prefetched.role_labels[t] for t in other_roles) + "."
     )
 
