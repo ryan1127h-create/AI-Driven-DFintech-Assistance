@@ -15,7 +15,11 @@ function valueLabel(dictionary, { field_key: fieldKey, value }) {
   const definition = dictionary?.definitions[fieldKey];
   const labels = definition?.value_labels || {};
   const ref = definition ? refChoices(definition, dictionary.refOptions) || {} : {};
-  const one = (v) => labels[String(v)] ?? ref[v] ?? String(v);
+  // Multi-select items with attributes arrive as {key, ...} objects.
+  const one = (v) => {
+    const key = v && typeof v === "object" ? v.key : v;
+    return labels[String(key)] ?? ref[key] ?? String(key);
+  };
   return Array.isArray(value) ? value.map(one).join(", ") : one(value);
 }
 

@@ -71,7 +71,7 @@ def test_parsing_runs_alongside_data_gathering(monkeypatch):
     # would time out instead of returning.
     parse_started, gather_started = threading.Event(), threading.Event()
 
-    def _parse(message, mode):
+    def _parse(message, mode, roles=()):
         parse_started.set()
         assert gather_started.wait(5)
         return ParsedRequest(mode="ad_hoc")
@@ -83,6 +83,7 @@ def test_parsing_runs_alongside_data_gathering(monkeypatch):
 
     monkeypatch.setattr(tool.parser, "parse", _parse)
     monkeypatch.setattr(tool, "prefetch", _prefetch)
+    monkeypatch.setattr(tool, "role_catalog", lambda: [])
     state = TurnState(messages=[HumanMessage("python courses")], user_id="u1", course_mode_hint="ad_hoc")
     parsed, prefetched = tool._understand_and_gather(state, "python courses")
     assert parsed.mode == "ad_hoc" and prefetched == "prefetched"
@@ -111,3 +112,19 @@ def test_bad_planning_details_are_dropped(monkeypatch):
 def test_a_single_time_window_given_on_its_own_is_kept(monkeypatch):
     _reply(monkeypatch, {"avoid_time_windows": {"start": "18:00", "end": "23:00"}})
     assert parser.parse("…", "semester_plan").avoid_time_windows == [{"start": "18:00", "end": "23:00"}]
+
+
+def test_roles_are_mapped_onto_the_catalogue(monkeypatch):
+    prompts = []
+
+    def _complete(prompt, message, **kwargs):
+        prompts.append(prompt)
+        return json.dumps({"roles": ["quantitative_finance", "astronaut", 3]})
+
+    monkeypatch.setattr(parser.llm, "complete", _complete)
+    catalog = [{"tag": "quantitative_finance", "name": "Quantitative Finance", "definition": "pricing and trading"}]
+    assert parser.parse("I want to become a quant", "semester_plan", catalog).roles == ["quantitative_finance"]
+    assert "quantitative_finance: Quantitative Finance — pricing and trading" in prompts[-1]
+    # Without a catalogue no role is asked for, and none is kept.
+    assert parser.parse("I want to become a quant", "semester_plan").roles == []
+    assert '"roles"' not in prompts[-1]

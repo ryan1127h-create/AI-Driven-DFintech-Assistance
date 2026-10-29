@@ -14,11 +14,14 @@ so they run in parallel. Their failure policies differ:
 
 The role is resolved here too: the role named in the message (if it is a
 known role tag), else the profile's main role, else its first listed role.
+A role the message only describes ("quant") is mapped by S1 and applied
+afterwards with with_stated_role().
 """
 
 from __future__ import annotations
 
 import concurrent.futures
+import dataclasses
 
 from app.core.logging import get_logger
 from app.domains.knowledge_retrieval.interface import (
@@ -62,6 +65,24 @@ def resolve_role_tag(facts: dict, target_role_hint: str | None) -> str | None:
             return tag
     families = facts.get("target_role_families") or []
     return facts.get("main_target_role") or (families[0] if families else None)
+
+
+def role_catalog() -> list[dict]:
+    """[{tag, name, name_zh, definition}] for every role family, for S1 to
+    map the role a message names onto."""
+    return [
+        {"tag": r["tag"], "name": r["name_en"], "name_zh": r.get("name_zh") or "",
+         "definition": r.get("definition") or ""}
+        for r in list_role_tags()
+    ]
+
+
+def with_stated_role(prefetched: Prefetched, tag: str | None) -> Prefetched:
+    """The role S1 read from the message takes the profile's place, unless
+    the classifier's role hint already named a role tag outright."""
+    if not tag or prefetched.stated_role_tag or tag == prefetched.role_tag:
+        return prefetched
+    return dataclasses.replace(prefetched, role_tag=tag, stated_role_tag=tag, role_profile=get_role_profile(tag))
 
 
 def _knowledge() -> dict:

@@ -23,7 +23,7 @@ from app.tools.specialist.course_recommendation.gate import input_needs
 from app.tools.specialist.course_recommendation.s1_understanding import parser
 from app.tools.specialist.course_recommendation.s1_understanding.schema import ParsedRequest
 from app.tools.specialist.course_recommendation.s2_assembly.builder import build_request, other_roles_note, progress_basis
-from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch
+from app.tools.specialist.course_recommendation.s2_assembly.prefetch import prefetch, role_catalog, with_stated_role
 from app.tools.specialist.course_recommendation.s7_presentation import follow_up, renderer
 from app.tools.specialist.course_recommendation.s7_presentation.save_suggestions import save_suggestions
 from app.tools.turn_context import ChatToolInput, TurnState, last_human_message
@@ -48,7 +48,7 @@ def _understand_and_gather(state: TurnState, user_message: str):
     """S1 and S2's reads, in parallel: neither needs the other."""
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        parsing = pool.submit(parser.parse, user_message, state.course_mode_hint)
+        parsing = pool.submit(lambda: parser.parse(user_message, state.course_mode_hint, role_catalog()))
         prefetched = prefetch(state.user_id, state.target_role_hint)
         try:
             parsed = parsing.result(timeout=_PARSE_TIMEOUT_SECONDS)
@@ -63,6 +63,7 @@ def _understand_and_gather(state: TurnState, user_message: str):
 def _handler(state: TurnState, on_event: OnEvent | None = None) -> ToolAnswer:
     user_message = last_human_message(state.messages)
     parsed, prefetched = _understand_and_gather(state, user_message)
+    prefetched = with_stated_role(prefetched, parsed.roles[0] if parsed.roles else None)
 
     result = recommend_courses(build_request(prefetched, parsed))
     # Graduation risks aren't a recommendation input; they ride along so the

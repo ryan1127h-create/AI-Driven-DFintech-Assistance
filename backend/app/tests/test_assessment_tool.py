@@ -177,6 +177,8 @@ def test_the_check_catches_invented_figures_dates_odds_and_a_contradicted_verdic
     assert any("odds" in v for v in guardrail.check("你的录取概率很高。", view))
     assert any("every requirement" in v for v in guardrail.check("You meet all the requirements.", view))
     assert guardrail.check("有戏吗？我觉得可以。", view, user_message="申请有戏吗") == []
+    assert guardrail.check("Strength: coursework in Probability & statistics.", view) == []
+    assert any("odds" in v for v in guardrail.check("The probability of admission is high.", view))
 
 
 def test_a_reply_failing_the_check_twice_falls_back_to_the_template(monkeypatch):

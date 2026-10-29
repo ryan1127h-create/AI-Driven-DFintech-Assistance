@@ -30,7 +30,9 @@ _ENGLISH_DATE = re.compile(
     re.IGNORECASE)
 _CHINESE_DATE = re.compile(r"(20\d\d)\s*年\s*(\d{1,2})\s*月")
 _ODDS = re.compile(
-    r"\d\s?%|percent|\bodds\b|probabilit|\bchances?\b|likely to (?:be )?(?:admitted|accepted|get in)|guarantee"
+    # "Probability & statistics" is coursework the reply may list as a strength.
+    r"\d\s?%|percent|\bodds\b|probabilit(?!y\s*(?:&|and)\s*stat)|\bchances?\b"
+    r"|likely to (?:be )?(?:admitted|accepted|get in)|guarantee"
     r"|录取(?:概率|几率|可能性|机会)|概率|几率|成功率|胜算|保证录取|稳录|有戏",
     re.IGNORECASE)
 _ALL_MET = re.compile(r"meet(?:s)? (?:all|every) (?:the )?(?:hard )?(?:requirements?|conditions?)"

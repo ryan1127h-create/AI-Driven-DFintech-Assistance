@@ -54,6 +54,9 @@ class ParsedRequest(BaseModel):
     preferred_skills: list[str] = []
     keywords: list[str] = []
     vertical_preference: list[str] = []
+    # Role-family tags the message names or describes ("quant" is
+    # quantitative_finance), checked against the catalogue by the parser.
+    roles: list[str] = []
     workload_style: Literal["less_project", "lecture"] | None = None
     # Profile facts the user stated in the message (for save suggestions).
     study_mode: Literal["full_time", "part_time"] | None = None
@@ -115,6 +118,13 @@ class ParsedRequest(BaseModel):
     @classmethod
     def _tracks(cls, values):
         return _keep(values, TRACKS)
+
+    @field_validator("roles", mode="before")
+    @classmethod
+    def _roles(cls, values):
+        if not isinstance(values, list):
+            return []
+        return list(dict.fromkeys(v for v in values if isinstance(v, str)))[:_MAX_ITEMS]
 
     @field_validator("keywords", mode="before")
     @classmethod
