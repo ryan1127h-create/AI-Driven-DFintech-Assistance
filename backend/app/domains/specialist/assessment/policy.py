@@ -52,7 +52,9 @@ PROGRAMMING_STRENGTH_LEVEL = 3
 # Finance, or Financial Engineering".
 FINANCE_DISCIPLINES = frozenset({"finance_econ_accounting"})
 FINANCE_COURSEWORK = frozenset({"corporate_finance", "investments_derivatives", "accounting"})
-FINANCE_CERTIFICATIONS = frozenset({"cfa", "frm", "cqf"})
+# Exams passed towards a CFA or FRM ("_partial", marked by the tools layer)
+# are finance study too; the reply names the level.
+FINANCE_CERTIFICATIONS = frozenset({"cfa", "frm", "cqf", "cfa_partial", "frm_partial"})
 FINANCE_LEVEL = 2  # "Can do a DCF valuation"
 
 # --- test scores ----------------------------------------------------------------------

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.tools.specialist.career_planning.s1_understanding.schema import ParsedCareerRequest
-from app.tools.specialist.career_planning.s2_assembly import certifications
+from app.tools import certifications
 from app.tools.specialist.career_planning.s2_assembly.prefetched import Prefetched
 
 # The programme pages the career facts come from: the Capstone cycle and

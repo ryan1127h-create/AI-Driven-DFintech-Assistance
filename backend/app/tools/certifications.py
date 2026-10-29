@@ -1,14 +1,15 @@
 """
-Profile certifications as career-planning evidence. The profile stores
-each one as {key, level} (field_definitions.certifications: "only
-certifications already obtained"), the level in free text — "L2",
-"Charterholder", "Part 1", "AWS Solutions Architect".
+Profile certifications as specialist evidence (career planning, the
+application assessment). The profile stores each one as {key, level}
+(field_definitions.certifications: "only certifications already
+obtained"), the level in free text — "L2", "Charterholder", "Part 1",
+"AWS Solutions Architect".
 
 A CFA with a level other than the charter, or an FRM with only Part 1,
 means exams passed so far, not the credential: it becomes "<key>_partial",
-which the skill rules count as moderate evidence instead of strong
-(policy/skill_evidence.py). The reply shows the level either way, so a
-CFA Level II candidate is never described as holding the CFA.
+which career planning's skill rules count as moderate evidence instead of
+strong (its policy/skill_evidence.py). Replies show the level either way,
+so a CFA Level II candidate is never described as holding the CFA.
 """
 
 from __future__ import annotations
