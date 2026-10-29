@@ -76,7 +76,7 @@ def test_the_message_is_laid_over_the_profile_with_each_facts_source():
     assert facts["degree_discipline_category"] == "finance_econ_accounting"
     assert facts["tech_stack"] == ["excel_vba", "python"]
     assert {t["key"]: t["score"] for t in facts["admission_tests"]} == {"IELTS": 7.0, "GRE": 320}
-    assert facts["certifications"] == ["cfa"]
+    assert facts["certifications"] == ["cfa_partial"]  # Level I passed, not the charter
     assert facts["sources"]["degree_discipline_category"] == "message"
     assert facts["sources"]["certifications"] == "profile"
 
@@ -186,7 +186,21 @@ def test_a_reply_failing_the_check_twice_falls_back_to_the_template(monkeypatch)
     replies = iter(["You have a 90% chance.", "Admission is guaranteed."])
     monkeypatch.setattr(renderer, "render_structured_reply", lambda *a, **k: (next(replies), view["sources"]))
     text, _ = renderer.render(view, "am I ready?")
-    assert "Hard conditions" in text or "Verdict" in text
+    # A readable reply from the view, not the view's own keys.
+    assert text.startswith(view["verdict"]["summary"]) and "**Entry requirements**" in text
+    assert "status:" not in text and "Verdict" not in text and "90%" not in text
+
+
+def test_a_percentage_the_view_states_is_a_fact_not_odds():
+    from app.tools.specialist.assessment.s7_presentation import guardrail
+    view = {"verdict": {"status": "all_met"}, "strengths": [{"factor": "Academic record", "finding": "GPA band: Top 10%"}]}
+    assert guardrail.check("Your GPA band is Top 10%, a strength.", view) == []
+    assert any("admission-odds" in v for v in guardrail.check("You have a 90% chance.", view))
+
+
+def test_a_cfa_level_reads_as_exams_in_progress():
+    labels = payload._certification_labels([{"key": "cfa", "level": "L2"}, {"key": "frm"}], {"cfa": "CFA", "frm": "FRM"})
+    assert labels == {"cfa_partial": "CFA (L2 passed — exams in progress, credential not yet held)", "frm": "FRM"}
 
 
 def test_the_handler_assesses_and_offers_suggestions_and_the_card(monkeypatch):

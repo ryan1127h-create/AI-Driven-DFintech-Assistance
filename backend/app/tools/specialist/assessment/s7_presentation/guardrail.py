@@ -8,7 +8,9 @@ echoed.
      invented minimums, scores or statistics;
   2. every month and year in the reply is one of the view's;
   3. no admission odds: no percentage, and no chance / probability /
-     guarantee wording — the assessment never predicts admission;
+     guarantee wording — the assessment never predicts admission. A
+     percentage the view itself states is a fact on file, not odds (a GPA
+     band of "Top 10%");
   4. the verdict isn't contradicted: with a gap or an item to confirm, the
      reply may not say every requirement is met.
 """
@@ -35,6 +37,7 @@ _ODDS = re.compile(
     r"|likely to (?:be )?(?:admitted|accepted|get in)|guarantee"
     r"|录取(?:概率|几率|可能性|机会)|概率|几率|成功率|胜算|保证录取|稳录|有戏",
     re.IGNORECASE)
+_PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s?%")
 _ALL_MET = re.compile(r"meet(?:s)? (?:all|every) (?:the )?(?:hard )?(?:requirements?|conditions?)"
                       r"|all (?:the )?(?:hard )?(?:requirements|conditions) (?:are )?met"
                       r"|全部(?:满足|符合)|都(?:满足|符合)了?(?:所有|全部)?(?:硬性)?(?:条件|要求)",
@@ -76,7 +79,10 @@ def check(reply: str, view: dict, user_message: str = "") -> list[str]:
     if invented:
         violations.append("dates not in the result: " + ", ".join(f"{y}-{m:02d}" for y, m in invented))
 
-    odds = _ODDS.search(reply)
+    # Percentages the view states ("GPA band: Top 10%") are facts to quote.
+    stated = {float(n) for n in _PERCENT.findall(view_text)}
+    for_odds = _PERCENT.sub(lambda m: " " if float(m.group(1)) in stated else m.group(0), reply)
+    odds = _ODDS.search(for_odds)
     if odds and not _ODDS.search(user_message):
         violations.append(f"admission-odds wording ({odds.group(0)!r}); the assessment predicts no admission")
 

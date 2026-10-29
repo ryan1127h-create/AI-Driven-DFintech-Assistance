@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 
+from app.tools import certifications
 from app.tools.specialist.assessment.s2_assembly.prefetched import Prefetched
 from app.tools.specialist.assessment.s7_presentation.missing_info import PROMPTS
 
@@ -62,8 +63,21 @@ def _facts_from(sources: dict) -> str | None:
     return ", ".join(kinds) or None
 
 
+def _certification_labels(items, labels: dict) -> dict:
+    """Each certification's evidence key -> its name with the level, so a
+    CFA Level II candidate reads as such ("CFA (L2 passed — exams in
+    progress, credential not yet held)")."""
+    named = {}
+    for item in items if isinstance(items, list) else []:
+        key = item.get("key") if isinstance(item, dict) else item
+        if key:
+            named[str(certifications.evidence_key(item))] = certifications.evidence_label(item, labels.get(key, key))
+    return named
+
+
 def to_render_view(result: dict, prefetched: Prefetched, notes: list[str] | tuple[str, ...] = ()) -> dict:
-    labels = prefetched.value_labels
+    labels = {**prefetched.value_labels,
+              **_certification_labels(prefetched.facts.get("certifications"), prefetched.value_labels)}
     soft = {s["key"]: s for s in result["soft"]}
     window = None
     if result["application_closes"]:

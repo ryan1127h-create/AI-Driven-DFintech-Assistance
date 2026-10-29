@@ -21,7 +21,7 @@ from __future__ import annotations
 import concurrent.futures
 
 from app.core.logging import get_logger
-from app.tools.specialist.career_planning.s2_assembly import certifications
+from app.tools import certifications
 from app.domains.knowledge_retrieval.interface import list_course_tags, list_courses, list_role_tags
 from app.domains.profile.interface import (
     derived_readiness_gaps,

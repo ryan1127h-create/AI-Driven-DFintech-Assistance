@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 
+from app.tools import certifications
 from app.tools.specialist.assessment.s1_understanding.schema import StatedFacts
 from app.tools.specialist.assessment.s2_assembly.prefetched import Prefetched
 
@@ -51,7 +52,11 @@ def applicant_facts(prefetched: Prefetched, stated: StatedFacts) -> dict:
         value = profile.get(key)
         if value in (None, "", [], {}):
             continue
-        facts[key] = _keys(value) if key in _LIST_FIELDS else value
+        if key == "certifications":
+            # A CFA level or FRM Part 1 passed isn't the credential ("cfa_partial").
+            facts[key] = [certifications.evidence_key(item) for item in value]
+        else:
+            facts[key] = _keys(value) if key in _LIST_FIELDS else value
         sources[key] = "cv" if prefetched.fact_sources.get(key) == "CV" else "profile"
     for key, value in stated.values.items():
         if key == "admission_tests":
